@@ -1,0 +1,588 @@
+{
+  "id": "p-salt-census",
+  "schemaVersion": "1.0.0",
+  "title": "Salt Census (synthetic example)",
+  "synthetic": true,
+  "revision": 5,
+  "versions": {
+    "content": 1,
+    "candidates": 1,
+    "narrative": 1,
+    "scenario": 1,
+    "world": 1
+  },
+  "basis": {
+    "candidates": {
+      "content": 1
+    },
+    "narrative": {
+      "candidates": 1,
+      "content": 1
+    },
+    "scenario": {
+      "narrative": 1,
+      "content": 1
+    },
+    "world": {
+      "scenario": 1,
+      "narrative": 1,
+      "content": 1
+    }
+  },
+  "userContent": [
+    {
+      "id": "u-survey",
+      "category": "character",
+      "treatment": "mandatory",
+      "text": "A surveyor named Iven."
+    },
+    {
+      "id": "u-ledger",
+      "category": "item",
+      "treatment": "mandatory",
+      "text": "A salt-stained ledger."
+    },
+    {
+      "id": "u-kites",
+      "category": "mechanic",
+      "treatment": "optional",
+      "text": "Read tides with signal kites."
+    },
+    {
+      "id": "u-crown",
+      "category": "constraint",
+      "treatment": "excluded",
+      "text": "A hereditary crown decides the outcome."
+    }
+  ],
+  "canonicalFacts": [
+    {
+      "id": "f-rule",
+      "sourceContentId": "u-crown",
+      "statement": "The ward assemblies choose their own officers."
+    }
+  ],
+  "storyCandidates": [
+    {
+      "id": "c-ward",
+      "story": {
+        "title": "The Missing Ward",
+        "genre": "Civic mystery",
+        "tone": "Patient and intimate",
+        "premise": "Surveyor Iven finds a salt-stained ledger whose record of an inhabited ward was scraped away.",
+        "conflict": "Correct the public census or trust anonymous witnesses who fear official enumeration.",
+        "motivation": "Iven's childhood ward will lose its flood rations.",
+        "opposition": "The Salt Hall clerks demand a public list of names.",
+        "background": "Ward assemblies ration salt and dry shelter by the last census.",
+        "progression": [
+          "Recover the ledger at Reedmill.",
+          "Compare flood marks at the gate.",
+          "Choose the terms of recognition."
+        ],
+        "possibleEndings": [
+          "Restore the roll at Salt Hall.",
+          "Keep a witness register at the beacon."
+        ]
+      },
+      "coverage": [
+        {
+          "contentId": "u-survey",
+          "disposition": "incorporated",
+          "reason": "Iven conducts the survey."
+        },
+        {
+          "contentId": "u-ledger",
+          "disposition": "incorporated",
+          "reason": "The scraped ledger is the central evidence."
+        },
+        {
+          "contentId": "u-kites",
+          "disposition": "unused",
+          "reason": "This direction uses ground witnesses."
+        },
+        {
+          "contentId": "u-crown",
+          "disposition": "excluded",
+          "reason": "Authority comes from the ward assemblies."
+        }
+      ]
+    },
+    {
+      "id": "c-tide",
+      "story": {
+        "title": "Borrowed Tide",
+        "genre": "Resource-management drama",
+        "tone": "Restless",
+        "premise": "A ledger of borrowed sluice-hours exposes two wards promised the same stretch of low tide.",
+        "conflict": "Spend the last opening on this harvest or use it to flush silt for next year.",
+        "motivation": "Iven wants both wards to survive the winter.",
+        "opposition": "A salt growers' compact insists on immediate access.",
+        "background": "Sluice time functions as currency on the tidal flats.",
+        "progression": [
+          "Read the shared debt.",
+          "Fly tide kites above the flats.",
+          "Assign a single gate opening."
+        ],
+        "possibleEndings": [
+          "Save the harvest and carry the debt.",
+          "Rebuild the channel through a lean season."
+        ]
+      },
+      "coverage": [
+        {
+          "contentId": "u-survey",
+          "disposition": "incorporated",
+          "reason": "Iven conducts the survey."
+        },
+        {
+          "contentId": "u-ledger",
+          "disposition": "incorporated",
+          "reason": "Conflicting time loans appear on facing ledger pages."
+        },
+        {
+          "contentId": "u-kites",
+          "disposition": "incorporated",
+          "reason": "Kites carry tide readings."
+        },
+        {
+          "contentId": "u-crown",
+          "disposition": "excluded",
+          "reason": "Authority comes from the ward assemblies."
+        }
+      ]
+    },
+    {
+      "id": "c-survey",
+      "story": {
+        "title": "The Last Survey",
+        "genre": "Exploration pilgrimage",
+        "tone": "Elegiac",
+        "premise": "Iven must carry a ledger of abandoned names on the final survey before a valley is surrendered to the sea.",
+        "conflict": "Move the memorial inland or let every village reclaim its own page.",
+        "motivation": "Iven promised displaced families a say in what survives.",
+        "opposition": "An inland archive will accept only an undivided volume.",
+        "background": "Each village marks a final dry-season walk through its old streets.",
+        "progression": [
+          "Trace the abandoned road.",
+          "Gather each village's decision.",
+          "Deliver the book or distribute its pages."
+        ],
+        "possibleEndings": [
+          "Found an inland memorial.",
+          "Return each page to its village."
+        ]
+      },
+      "coverage": [
+        {
+          "contentId": "u-survey",
+          "disposition": "incorporated",
+          "reason": "Iven conducts the survey."
+        },
+        {
+          "contentId": "u-ledger",
+          "disposition": "incorporated",
+          "reason": "The ledger is both the travel itinerary and the disputed memorial."
+        },
+        {
+          "contentId": "u-kites",
+          "disposition": "unused",
+          "reason": "This direction uses ground witnesses."
+        },
+        {
+          "contentId": "u-crown",
+          "disposition": "excluded",
+          "reason": "Authority comes from the ward assemblies."
+        }
+      ]
+    }
+  ],
+  "narrative": {
+    "id": "nar-ward",
+    "sourceCandidateId": "c-ward",
+    "story": {
+      "title": "The Missing Ward",
+      "genre": "Civic mystery",
+      "tone": "Patient and intimate",
+      "premise": "Surveyor Iven finds a salt-stained ledger whose record of an inhabited ward was scraped away.",
+      "conflict": "Correct the public census or trust anonymous witnesses who fear official enumeration.",
+      "motivation": "Iven promised the erased ward a hearing before the next flood.",
+      "opposition": "The Salt Hall clerks demand a public list of names.",
+      "background": "Ward assemblies ration salt and dry shelter by the last census.",
+      "progression": [
+        "Recover the ledger at Reedmill.",
+        "Compare flood marks at the gate.",
+        "Choose the terms of recognition."
+      ],
+      "possibleEndings": [
+        "Restore the roll at Salt Hall.",
+        "Keep a witness register at the beacon."
+      ]
+    },
+    "approved": true
+  },
+  "characters": [
+    {
+      "id": "ch-iven",
+      "name": "Iven",
+      "role": "Ward surveyor",
+      "factionId": "f-wards"
+    }
+  ],
+  "factions": [
+    {
+      "id": "f-wards",
+      "name": "Ward Assemblies",
+      "aim": "Keep displaced wards represented."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n-start",
+      "kind": "prologue",
+      "title": "The erased line",
+      "description": "Iven retrieves the scraped ledger.",
+      "mandatory": true,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-mill",
+      "requiresVisited": []
+    },
+    {
+      "id": "n-gate",
+      "kind": "chapter",
+      "title": "Survey the flood line",
+      "description": "The ward meets at the gate to compare marks.",
+      "mandatory": true,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-gate",
+      "requiresVisited": []
+    },
+    {
+      "id": "n-witness",
+      "kind": "quest",
+      "title": "Take a rubbing",
+      "description": "A flood mark corroborates the missing entry.",
+      "mandatory": true,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-gate",
+      "requiresVisited": []
+    },
+    {
+      "id": "n-choose",
+      "kind": "choice",
+      "title": "Name the witnesses?",
+      "description": "Decide where to lodge the record.",
+      "mandatory": true,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-gate",
+      "requiresVisited": []
+    },
+    {
+      "id": "n-public",
+      "kind": "ending",
+      "title": "The restored roll",
+      "description": "Iven reads the recovered entry at Salt Hall.",
+      "mandatory": false,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-hall",
+      "requiresVisited": []
+    },
+    {
+      "id": "n-private",
+      "kind": "ending",
+      "title": "The sealed register",
+      "description": "Witnesses lodge the register at the beacon.",
+      "mandatory": false,
+      "characterIds": [
+        "ch-iven"
+      ],
+      "locationId": "l-beacon",
+      "requiresVisited": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1",
+      "from": "n-start",
+      "to": "n-gate",
+      "label": "Walk to the gate",
+      "requiresVisited": [],
+      "travel": "required"
+    },
+    {
+      "id": "e-2",
+      "from": "n-gate",
+      "to": "n-witness",
+      "label": "Compare the marks",
+      "requiresVisited": [],
+      "travel": "none"
+    },
+    {
+      "id": "e-3",
+      "from": "n-witness",
+      "to": "n-choose",
+      "label": "Hear the witnesses",
+      "requiresVisited": [],
+      "travel": "none"
+    },
+    {
+      "id": "e-4",
+      "from": "n-choose",
+      "to": "n-public",
+      "label": "Publish the roll",
+      "requiresVisited": [
+        "n-witness"
+      ],
+      "travel": "required"
+    },
+    {
+      "id": "e-5",
+      "from": "n-choose",
+      "to": "n-private",
+      "label": "Seal the register",
+      "requiresVisited": [
+        "n-witness"
+      ],
+      "travel": "required"
+    }
+  ],
+  "quests": [
+    {
+      "id": "q-rubbing",
+      "nodeId": "n-witness",
+      "objective": "Take a rubbing of the gate mark.",
+      "outcome": "The missing entry now has physical evidence."
+    }
+  ],
+  "endings": [
+    {
+      "id": "end-public",
+      "nodeId": "n-public",
+      "consequence": "Rations return under a public roll."
+    },
+    {
+      "id": "end-private",
+      "nodeId": "n-private",
+      "consequence": "Witnesses administer rations under seal."
+    }
+  ],
+  "world": {
+    "id": "w-flats",
+    "seed": 42,
+    "generatorVersion": "grid-1",
+    "tiles": [
+      "~~~~~~~",
+      "~mffpp~",
+      "~ppppp~",
+      "~fdppp~",
+      "~~~~~~~"
+    ],
+    "regions": [
+      {
+        "id": "r-flats",
+        "name": "Reed Flats",
+        "cells": [
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            2
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            3
+          ]
+        ],
+        "controllerId": "f-wards"
+      },
+      {
+        "id": "r-hall",
+        "name": "Hall March",
+        "cells": [
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            2
+          ],
+          [
+            4,
+            3
+          ],
+          [
+            5,
+            3
+          ]
+        ]
+      }
+    ],
+    "features": [
+      {
+        "id": "t-rill",
+        "name": "Reed Rill",
+        "kind": "river",
+        "cells": [
+          [
+            1,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      }
+    ],
+    "locations": [
+      {
+        "id": "l-mill",
+        "name": "Reedmill",
+        "kind": "village",
+        "preference": "plain",
+        "position": [
+          1,
+          2
+        ],
+        "regionId": "r-flats"
+      },
+      {
+        "id": "l-gate",
+        "name": "Gauge Gate",
+        "kind": "landmark",
+        "preference": "plain",
+        "position": [
+          3,
+          2
+        ],
+        "regionId": "r-flats"
+      },
+      {
+        "id": "l-hall",
+        "name": "Salt Hall",
+        "kind": "city",
+        "preference": "plain",
+        "position": [
+          5,
+          2
+        ],
+        "regionId": "r-hall"
+      },
+      {
+        "id": "l-beacon",
+        "name": "Witness Beacon",
+        "kind": "landmark",
+        "preference": "plain",
+        "position": [
+          3,
+          3
+        ],
+        "regionId": "r-flats"
+      }
+    ],
+    "routes": [
+      {
+        "id": "t-mill-gate",
+        "from": "l-mill",
+        "to": "l-gate",
+        "mode": "road",
+        "path": [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            2
+          ],
+          [
+            3,
+            2
+          ]
+        ]
+      },
+      {
+        "id": "t-gate-hall",
+        "from": "l-gate",
+        "to": "l-hall",
+        "mode": "road",
+        "path": [
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            2
+          ]
+        ]
+      },
+      {
+        "id": "t-gate-beacon",
+        "from": "l-gate",
+        "to": "l-beacon",
+        "mode": "road",
+        "path": [
+          [
+            3,
+            2
+          ],
+          [
+            3,
+            3
+          ]
+        ]
+      }
+    ]
+  },
+  "findings": [],
+  "runs": []
+}

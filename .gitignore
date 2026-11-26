@@ -1,0 +1,25 @@
+# Local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python and frontend tooling
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Local-only work
+.scratch/
+*.log
+.DS_Store
+Thumbs.db
