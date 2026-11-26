@@ -20,6 +20,16 @@ PROJECT_VALIDATOR = Draft4Validator(SCHEMA)
 CANDIDATE_VALIDATOR = definition("StoryCandidate")
 
 
+def load_unique_json(text: str) -> JsonValue:
+    def object_with_unique_members(pairs: list[tuple[str, JsonValue]]) -> dict[str, JsonValue]:
+        fields = dict(pairs)
+        if len(fields) != len(pairs):
+            raise ValueError("Duplicate JSON member")
+        return fields
+
+    return json.loads(text, object_pairs_hook=object_with_unique_members)
+
+
 def schema_location(error: SchemaError, *prefix: str) -> str:
     parts = [*prefix, *(str(part) for part in error.absolute_path)]
     if error.validator == "required" and isinstance(error.instance, dict):
@@ -69,6 +79,8 @@ class Run(TypedDict):
     repairAttempts: int
     calls: int
     receipts: list[Receipt]
+    tokens: NotRequired[int]
+    durationMs: NotRequired[int]
 
 
 class ProjectData(TypedDict):

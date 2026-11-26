@@ -15,6 +15,34 @@ export interface CandidateResult {
   run: AgentRun;
 }
 
+export type GenerationStatus = {
+  available: boolean;
+  model: string;
+  message?: string;
+} & (
+  | { mode: 'mock'; provider: 'mock' }
+  | { mode: 'live'; provider: 'openai' }
+  | { mode: 'live'; provider: 'chatkhu'; api: 'responses' | 'chat_completions' }
+);
+
+const validGenerationStatus = ajv.compile<GenerationStatus>({
+  type: 'object', required: ['mode', 'available', 'provider', 'model'],
+  properties: {
+    mode: { enum: ['mock', 'live'] }, available: { type: 'boolean' }, provider: { enum: ['mock', 'openai', 'chatkhu'] },
+    api: { enum: ['responses', 'chat_completions'] },
+    model: { type: 'string', pattern: '^[A-Za-z0-9_.:/-]{1,128}$' },
+    message: { type: 'string', minLength: 1, maxLength: 400 },
+  },
+});
+
+export function isGenerationStatus(value: unknown): value is GenerationStatus {
+  if (!validGenerationStatus(value)) return false;
+  if (value.provider === 'chatkhu') {
+    return value.mode === 'live' && value.api !== undefined && !value.model.startsWith('sk-');
+  }
+  return value.provider === (value.mode === 'live' ? 'openai' : 'mock') && !value.model.includes('/');
+}
+
 interface CandidateFailure {
   error: { code: string; message: string; run?: AgentRun };
 }

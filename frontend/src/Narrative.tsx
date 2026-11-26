@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { copy, storyLabels } from './copy';
 import { Coverage, FactList } from './Direction';
-import { approveNarrative, editNarrative, mandatoryConflict, narrativeFresh, sourceDirection } from './project';
+import { approveNarrative, candidateBatchMode, editNarrative, mandatoryConflict, narrativeFresh, sourceDirection } from './project';
 import type { Narrative as NarrativeRecord, Project, Story } from './project.generated';
 
 interface NarrativeProps {
@@ -106,6 +106,7 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
           <section className="panel facts-panel">
             {source && <>
               <div className="source-heading"><h2>{copy.sourceDirection}</h2><p className="creative">{source.story.title}</p>
+                <p className="direction-source">{copy.directionSource(candidateBatchMode(project))}</p>
                 <button type="button" className="quiet" onClick={() => inspect(source.id)}>{copy.viewSource}</button></div>
               <Coverage candidate={source} project={project} fresh={fresh} />
             </>}

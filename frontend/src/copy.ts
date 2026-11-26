@@ -1,4 +1,4 @@
-import type { Coverage, Story, UserContent } from './project.generated';
+import type { AgentRun, Coverage, Story, UserContent } from './project.generated';
 
 export const categories = {
   idea: 'Free-form idea', genre: 'Genre', theme: 'Theme / atmosphere', character: 'Character', faction: 'Faction',
@@ -19,6 +19,10 @@ export const storyLabels = {
   motivation: 'Player motivation', opposition: 'Opposing force', background: 'Background',
   progression: 'Act progression', possibleEndings: 'Possible endings',
 } satisfies Record<keyof Story, string>;
+
+const generationModes = {
+  deterministic: 'Deterministic', mock: 'Development mock', live: 'Live AI',
+} satisfies Record<AgentRun['mode'], string>;
 
 export const copy = {
   brand: 'WORLDWEAVER', workspace: 'Narrative studio', projects: 'Projects',
@@ -43,11 +47,19 @@ export const copy = {
   sourceFragment: 'Source fragment', standalone: 'Standalone fact', pinFact: 'Pin fact', editFact: 'Edit fact', removeFact: 'Remove fact',
   removeFactConfirm: 'Remove this pinned fact from the project?', emptyFacts: 'No facts pinned.',
   blank: 'Enter text to continue.', generate: 'Generate directions', mockProvider: 'Development mock provider',
+  liveProvider: (model: string) => `Live AI provider · ${model}`,
+  chatkhuProvider: (model: string) => `ChatKHU Gateway · ${model}`,
+  checkingGeneration: 'Checking generation availability…', retryStatus: 'Check generation again',
+  providerUnavailable: 'The configured generation provider is unavailable.',
+  providerStatusFailed: 'Generation availability could not be confirmed.',
   generating: 'Generating three story directions…', cancelGeneration: 'Cancel generation',
+  generationSaved: 'Three story directions generated and saved.',
   cancelled: 'Generation cancelled.', staleResponse: 'The generated directions were discarded because the project changed.',
   requestFailed: 'Generation could not reach the service. You can retry with the same fragments.',
   invalidResponse: 'Generation returned an invalid result. You can retry with the same fragments.',
   currentDirections: 'Three story directions', directionsIntro: 'Compare the central conflicts and consequences, then open a direction to read it in full.',
+  directionSource: (mode?: AgentRun['mode']) => `Direction source · ${mode ? generationModes[mode] : 'Unknown'}`,
+  proposalSource: (mode: AgentRun['mode']) => `Proposed batch · ${generationModes[mode]}`,
   noDirections: 'Generate directions from your project content.',
   staleDirections: 'The fragments or facts changed. Generate current directions before choosing a new draft.',
   staleNarrative: 'The fragments or facts changed. Generate and choose a current direction before approving.',

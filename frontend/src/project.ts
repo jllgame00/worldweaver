@@ -18,6 +18,10 @@ export function candidatesFresh(project: Project): boolean {
   return project.storyCandidates.length === 3 && project.basis.candidates?.content === project.versions.content;
 }
 
+export function candidateBatchMode(project: Project): AgentRun['mode'] | undefined {
+  return project.runs.slice().reverse().find(({ stage, status }) => stage === 'candidates' && status === 'proposed')?.mode;
+}
+
 export function narrativeFresh(project: Project): boolean {
   return !!project.narrative && candidatesFresh(project) && project.basis.narrative?.content === project.versions.content
     && project.basis.narrative.candidates === project.versions.candidates;

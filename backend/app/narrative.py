@@ -2,11 +2,12 @@ import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 import json
+from time import monotonic
 from typing import Literal, cast
 from uuid import uuid4
 
-from .contracts import CANDIDATE_VALIDATOR, Candidate, ProjectData, Run, schema_location, valid_coverage
-from .provider import GenerationRequest, ProviderQuota, ProviderUnavailable, StructuredProvider
+from .contracts import CANDIDATE_VALIDATOR, Candidate, ProjectData, Run, load_unique_json, schema_location, valid_coverage
+from .provider import GenerationReply, GenerationRequest, ProviderError, ProviderUsage, StructuredProvider
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,7 @@ def parse_candidates(raw: str, project: ProjectData) -> list[Candidate]:
     if not isinstance(raw, str) or len(raw) > 256_000:
         raise CandidateResponseError("invalid_provider_response")
     try:
-        response = json.loads(raw)
+        response = load_unique_json(raw)
     except (ValueError, RecursionError):
         raise CandidateResponseError("invalid_provider_response") from None
     if (
@@ -85,7 +86,11 @@ async def generate(
     mode: Literal["mock", "live"] = "mock",
     model: str = "worldweaver-mock-v1",
     timeout: float = 5,
+    max_attempts: int | None = None,
+    provider_name: str | None = None,
 ) -> Proposal:
+    started = monotonic()
+    attempts = max_attempts if max_attempts is not None else (1 if mode == "live" else 2)
     run: Run = {
         "id": f"run-{uuid4().hex}",
         "stage": "candidates",
@@ -97,8 +102,23 @@ async def generate(
         "receipts": [],
     }
 
+    if provider_name is not None or mode == "live":
+        run["receipts"].append({"tool": "provider_config", "outcome": "passed", "detail": f"provider={provider_name or mode} model={model}"})
+
+    def record_usage(usage: ProviderUsage | None, resolved_model: str | None) -> None:
+        if resolved_model and resolved_model != model:
+            run["receipts"].append({"tool": "provider_model", "outcome": "passed", "detail": f"model={resolved_model}"})
+        if usage is not None:
+            run["tokens"] = run.get("tokens", 0) + usage.input_tokens + usage.output_tokens
+            cache = "" if usage.cached_input_tokens is None else f" cachedInputTokens={usage.cached_input_tokens}"
+            run["receipts"].append({
+                "tool": "provider_usage", "outcome": "passed",
+                "detail": f"inputTokens={usage.input_tokens}{cache} outputTokens={usage.output_tokens}",
+            })
+
     def failure(code: str, tool: str, field: str | None = None) -> GenerationRejected:
         run["receipts"].append({"tool": tool, "outcome": "failed", "detail": code})
+        run["durationMs"] = round((monotonic() - started) * 1000)
         return GenerationRejected(code, run, field)
 
     if not project["userContent"]:
@@ -107,22 +127,30 @@ async def generate(
     excluded = {(item["category"], item["text"].strip()) for item in project["userContent"] if item["treatment"] == "excluded"}
     if required & excluded:
         raise failure("conflicting_input", "check_input")
-    for attempt in range(2):
+    for attempt in range(attempts):
         request = GenerationRequest(model, tuple(deepcopy(project["userContent"])), tuple(deepcopy(project["canonicalFacts"])))
         run["calls"] += 1
         try:
-            raw = await asyncio.wait_for(provider.generate(request), timeout=timeout / 2)
+            raw = await asyncio.wait_for(provider.generate(request), timeout=timeout / attempts)
             break
-        except (TimeoutError, ProviderUnavailable) as exc:
-            code = "provider_timeout" if isinstance(exc, TimeoutError) else "provider_unavailable"
-            if attempt == 1:
-                raise failure(code, "generate_structured") from None
+        except (TimeoutError, ProviderError) as exc:
+            field = None
+            if isinstance(exc, ProviderError):
+                code, field = exc.code, exc.field
+                record_usage(exc.usage, exc.model)
+                if not exc.attempted:
+                    run["calls"] -= 1
+            else:
+                code = "provider_timeout"
+            if code not in {"provider_timeout", "provider_unavailable"} or attempt == attempts - 1:
+                raise failure(code, "generate_structured", field) from None
             run["receipts"].append({"tool": "generate_structured", "outcome": "failed", "detail": code})
-        except ProviderQuota:
-            raise failure("provider_quota", "generate_structured") from None
         except Exception:
             raise failure("provider_error", "generate_structured") from None
 
+    if isinstance(raw, GenerationReply):
+        record_usage(raw.usage, raw.model)
+        raw = raw.text
     run["receipts"].append({"tool": "generate_structured", "outcome": "passed", "detail": "Response received"})
     try:
         candidates = parse_candidates(raw, project)
@@ -130,4 +158,5 @@ async def generate(
         raise failure(exc.code, "check_candidates", exc.field) from None
     run["receipts"].append({"tool": "check_candidates", "outcome": "passed", "detail": "3 candidates passed structure and coverage checks"})
     run["status"] = "proposed"
+    run["durationMs"] = round((monotonic() - started) * 1000)
     return Proposal(project["revision"], candidates, run)

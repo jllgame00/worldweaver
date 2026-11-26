@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { generateDirections, GenerationError } from './api';
+import { fetchGenerationStatus, generateDirections, GenerationError } from './api';
 import Content from './Content';
 import { copy } from './copy';
 import Dashboard from './Dashboard';
@@ -7,8 +7,9 @@ import { DirectionDetail, Directions, StoryFields } from './Direction';
 import Narrative from './Narrative';
 import { acceptBatch, candidatesFresh, chooseDirection, createProject } from './project';
 import type { Project, StoryCandidate } from './project.generated';
+import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
-import type { CandidateResult } from './validation';
+import type { CandidateResult, GenerationStatus } from './validation';
 
 type Studio = 'content' | 'directions' | 'narrative';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
@@ -25,6 +26,8 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [proposal, setProposal] = useState<CandidateResult>();
   const [switching, setSwitching] = useState<{ candidate: StoryCandidate; revision: number }>();
+  const [generation, setGeneration] = useState<GenerationStatus | null>();
+  const [statusAttempt, setStatusAttempt] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState<{ message: string; error?: boolean }>();
   const request = useRef<AbortController | null>(null);
@@ -33,6 +36,16 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   const fresh = !!project && candidatesFresh(project);
 
   useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchGenerationStatus(controller.signal).then((status) => {
+      if (!controller.signal.aborted) setGeneration(status);
+    }).catch(() => {
+      if (!controller.signal.aborted) setGeneration(null);
+    });
+    return () => controller.abort();
+  }, [statusAttempt]);
+
   useEffect(() => {
     const heading = Array.from(main.current?.querySelectorAll('h1') ?? []).find((element) => !element.closest('[hidden]'));
     if (heading) {
@@ -48,6 +61,11 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
     setNotice({ message: copy.cancelled });
   }
 
+  function refreshGenerationStatus() {
+    setGeneration(undefined);
+    setStatusAttempt((attempt) => attempt + 1);
+  }
+
   function closeProject() {
     if (generating) cancel();
     setNotice(undefined);
@@ -56,18 +74,24 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
     store.select(undefined);
   }
 
+  function openNewProject(next: Project) {
+    setView('content');
+    return store.commit(next);
+  }
+
   async function accept(result: CandidateResult) {
     const current = store.current.current?.project;
     if (!current || current.revision !== result.baseRevision) {
       setNotice({ message: copy.staleResponse });
     } else if (await store.commit(acceptBatch(current, result.candidates, result.run))) {
       setView('directions');
+      setNotice({ message: copy.generationSaved });
     }
     setProposal(undefined);
   }
 
   async function startGeneration() {
-    if (!project || request.current || disabled) return;
+    if (!project || !generation?.available || request.current || disabled) return;
     const controller = new AbortController();
     request.current = controller;
     setGenerating(true);
@@ -79,7 +103,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
     };
 
     try {
-      const result = await generateDirections(project, controller.signal);
+      const result = await generateDirections(project, generation, controller.signal);
       if (request.current !== controller) return;
       request.current = null;
       setGenerating(false);
@@ -88,10 +112,12 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
       else await accept(result);
     } catch (error) {
       if (request.current !== controller) return;
-      if (!currentRevision()) setNotice({ message: copy.staleResponse });
+      const failure = error instanceof GenerationError ? error : undefined;
+      if (!failure?.configurationChanged && !currentRevision()) setNotice({ message: copy.staleResponse });
       else {
-        setNotice({ message: error instanceof GenerationError ? error.message : copy.requestFailed, error: true });
-        if (error instanceof GenerationError && error.run) await store.commit({ ...project, runs: [...project.runs, error.run] });
+        if (failure?.configurationChanged) refreshGenerationStatus();
+        setNotice({ message: failure?.message ?? copy.requestFailed, error: true });
+        if (failure?.run) await store.commit({ ...project, runs: [...project.runs, failure.run] });
       }
     } finally {
       if (request.current === controller) {
@@ -139,6 +165,11 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
 
   const studio = typeof view === 'string' ? view : view.from;
   const detail = typeof view === 'object' ? project?.storyCandidates.find(({ id }) => id === view.detail) : undefined;
+  const providerLabel = generation?.provider === 'chatkhu' ? copy.chatkhuProvider(generation.model)
+    : generation?.mode === 'live' ? copy.liveProvider(generation.model)
+    : generation?.mode === 'mock' ? copy.mockProvider : generation === undefined ? copy.checkingGeneration : '';
+  const generationIssue = generation === null ? copy.providerStatusFailed
+    : generation && !generation.available ? generation.message ?? copy.providerUnavailable : undefined;
 
   return (
     <div className="app">
@@ -172,15 +203,20 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
         {project ? <>
           <div className="project-tools">
             <div className="project-meta"><span className="revision">{copy.revision(project.revision)}</span>
-              <span className="provider-mode">{copy.mockProvider}</span></div>
+              <span className="provider-mode" role="status">{providerLabel}</span></div>
             {generating ? <div className="actions generation-state"><span role="status">{copy.generating}</span>
               <button type="button" className="quiet" onClick={cancel}>{copy.cancelGeneration}</button></div>
-              : <button type="button" className="primary" disabled={disabled || !!proposal || !!switching || !project.userContent.length}
+              : <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
                 onClick={() => void startGeneration()}>{copy.generate}</button>}
           </div>
+          {generationIssue && <div className="notice">
+            <p role="alert" className="error">{generationIssue}</p>
+            <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
+          </div>}
           {notice && <p role={notice.error ? 'alert' : 'status'} className={`notice ${notice.error ? 'error' : ''}`}>{notice.message}</p>}
           {proposal && <section className="panel confirmation" aria-labelledby="replacement-title">
             <h2 id="replacement-title">{copy.replacementTitle}</h2><p>{copy.replacementPrompt}</p>
+            <p>{copy.proposalSource(proposal.run.mode)}</p>
             {project.narrative && <div className="replacement-grid">
               <section><h3>{copy.currentDraft}</h3><StoryFields story={project.narrative.story} fields={['title', 'premise', 'possibleEndings']} /></section>
               {proposal.candidates.map(({ id, story }) => <section key={id}><h3 className="creative">{story.title}</h3><StoryFields story={story} fields={['premise', 'possibleEndings']} /></section>)}
@@ -211,10 +247,8 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
               inspect={(id) => setView({ detail: id, from: 'narrative' })} commit={store.commit} />
           </div>}
         </> : <Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
-          open={(id) => void reopen(id)} create={async (title) => {
-            setView('content');
-            return store.commit(createProject(title));
-          }} />}
+          open={(id) => void reopen(id)} create={(title) => openNewProject(createProject(title))}
+          sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />}
       </main>
     </div>
   );

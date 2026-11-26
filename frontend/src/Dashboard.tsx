@@ -10,11 +10,12 @@ interface DashboardProps {
   disabled: boolean;
   open: (id: string) => void;
   create: (title: string) => Promise<boolean>;
+  sample?: { title: string; create: () => void };
 }
 
 const formatDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
-export default function Dashboard({ projects, loading, disabled, open, create }: DashboardProps) {
+export default function Dashboard({ projects, loading, disabled, open, create, sample }: DashboardProps) {
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [invalid, setInvalid] = useState(false);
@@ -33,7 +34,10 @@ export default function Dashboard({ projects, loading, disabled, open, create }:
     <>
       <div className="page-heading heading-actions">
         <div><p className="eyebrow">{copy.workspace}</p><h1>{copy.projects}</h1></div>
-        {!creating && !loading && <button type="button" className="primary" disabled={disabled} onClick={() => setCreating(true)}>{copy.newProject}</button>}
+        {!creating && !loading && <div className="actions">
+          {sample && <button type="button" disabled={disabled} onClick={sample.create}>{sample.title}</button>}
+          <button type="button" className="primary" disabled={disabled} onClick={() => setCreating(true)}>{copy.newProject}</button>
+        </div>}
       </div>
       {creating && <form className="panel create-form" onSubmit={submit}>
         <fieldset disabled={disabled}>

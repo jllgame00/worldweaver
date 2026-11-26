@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { categories, copy, dispositions, storyLabels, treatments } from './copy';
+import { candidateBatchMode } from './project';
 import type { Project, Story, StoryCandidate } from './project.generated';
 
 interface DirectionsProps {
@@ -18,6 +19,7 @@ export function Directions({ project, fresh, disabled, inspect, choose }: Direct
       <div className="page-heading"><h1>{copy.currentDirections}</h1><p>{copy.directionsIntro}</p></div>
       {project.storyCandidates.length === 0 ? <p className="empty panel">{copy.noDirections}</p> : (
         <>
+          <p className="direction-source">{copy.directionSource(candidateBatchMode(project))}</p>
           {!fresh && <p role="status" className="notice">{copy.staleDirections}</p>}
           <div className="comparison-grid">
             {project.storyCandidates.map((candidate) => (
@@ -57,6 +59,7 @@ export function DirectionDetail({ project, candidate, fresh, disabled, fromNarra
       <div className="page-heading">
         <button type="button" className="quiet back-link" onClick={back}>{fromNarrative ? copy.backToNarrative : copy.backToDirections}</button>
         <h1 className="creative">{candidate.story.title}</h1>
+        <p className="direction-source">{copy.directionSource(candidateBatchMode(project))}</p>
       </div>
       <div className="content-grid">
         <section className="panel">
