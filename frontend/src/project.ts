@@ -42,7 +42,7 @@ export function fragmentInUse(project: Project, id: string): boolean {
     || project.storyCandidates.some(({ coverage }) => coverage.some(({ contentId }) => contentId === id));
 }
 
-function advance(project: Project, stages: (keyof Project['versions'])[]): Project {
+export function advance(project: Project, stages: (keyof Project['versions'])[]): Project {
   const { approval: _approval, ...next } = project;
   const versions = { ...project.versions };
   stages.forEach((stage) => { versions[stage] += 1; });

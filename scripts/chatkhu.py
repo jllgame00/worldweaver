@@ -4,13 +4,18 @@ import argparse
 from decimal import Decimal, DecimalException
 from http.client import HTTPSConnection, HTTPException
 import json
+from pathlib import Path
 import re
 import sys
 from typing import NoReturn
 from urllib.parse import urlsplit
 
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from backend.app.chatkhu_config import CHATKHU_BASE_URL, get_chatkhu_key, shares_openai_key
-from backend.app.environment import load_environment
+from backend.app.environment import ConfigurationError, load_environment
+from backend.app.settings import Settings
 
 
 GATEWAY = urlsplit(CHATKHU_BASE_URL)
@@ -21,7 +26,11 @@ MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 INVALID_RESPONSE = "ChatKHU returned an invalid response."
 REQUEST_FAILED = "ChatKHU request failed."
 HTTP_ERRORS = {
-    401: "ChatKHU authentication failed (HTTP 401). Check the gateway key.",
+    401: (
+        "ChatKHU authentication failed (HTTP 401). Check the gateway key. "
+        "A process CHATKHU_API_KEY overrides the root .env. In PowerShell, Test-Path Env:CHATKHU_API_KEY "
+        "checks for an override. To use the file, run Remove-Item Env:CHATKHU_API_KEY in this session."
+    ),
     403: "ChatKHU denied access (HTTP 403). Check gateway permissions.",
     429: "ChatKHU rate limited the request (HTTP 429). Wait before retrying.",
 }
@@ -115,9 +124,38 @@ def token_count(value: str) -> int:
     return count
 
 
+def check_configuration(*, preflight: bool) -> None:
+    settings = Settings.from_environment()
+    if settings.environment_overrides:
+        names = ", ".join(settings.environment_overrides)
+        print(f"The process overrides the root .env for {names}. Unset these process variables to use the file.",
+              file=sys.stderr)
+    if preflight and settings.provider != "chatkhu":
+        raise DiagnosticError("Set WORLDWEAVER_PROVIDER to chatkhu before running the ChatKHU preflight.")
+    if settings.configuration_error:
+        raise DiagnosticError(settings.configuration_error)
+    if settings.mode == "live" and not settings.api_key:
+        raise DiagnosticError(settings.credential_message)
+    if preflight:
+        assert settings.api_key is not None
+        models = authorized_models(read_gateway(MODELS_PATH, settings.api_key), settings.api_key)
+        if settings.model not in models:
+            raise DiagnosticError("ChatKHU did not list CHATKHU_MODEL. Choose an authorized text model ID.")
+        print("The ChatKHU key is authorized for the configured text model. Generation was not tested.")
+    else:
+        print(json.dumps({
+            "configuration": "valid locally", "provider": settings.provider, "model": settings.model,
+            **({"api": settings.chatkhu_api} if settings.provider == "chatkhu" else {}),
+            "timeoutSeconds": settings.timeout_seconds, "maxOutputTokens": settings.max_output_tokens,
+            "scenarioMaxOutputTokens": settings.scenario_max_output_tokens or settings.max_output_tokens,
+        }))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = DiagnosticParser(prog="python -m scripts.chatkhu", description=__doc__, allow_abbrev=False)
     actions = parser.add_subparsers(dest="command", required=True)
+    actions.add_parser("check", help="Check effective local settings offline.", allow_abbrev=False)
+    actions.add_parser("preflight", help="Check ChatKHU access to the configured text model using one GET.", allow_abbrev=False)
     actions.add_parser("models", help="List authorized text model IDs.", allow_abbrev=False)
     actions.add_parser("credits", help="Show total remaining credits.", allow_abbrev=False)
     estimate = actions.add_parser("estimate", help="Estimate token credits using published BAZE rates.", allow_abbrev=False)
@@ -126,15 +164,16 @@ def main(argv: list[str] | None = None) -> int:
     estimate.add_argument("--output-tokens", required=True, type=token_count, help="Total billable output tokens including reasoning.")
     args = parser.parse_args(argv)
 
-    environment = load_environment()
-    key = get_chatkhu_key(environment)
-    if key is None:
-        print("Set CHATKHU_API_KEY in the local environment.", file=sys.stderr)
-        return 1
-    if shares_openai_key(key, environment):
-        print("Configure a separate ChatKHU gateway key.", file=sys.stderr)
-        return 1
     try:
+        if args.command in {"check", "preflight"}:
+            check_configuration(preflight=args.command == "preflight")
+            return 0
+        environment = load_environment()
+        key = get_chatkhu_key(environment)
+        if key is None:
+            raise DiagnosticError("Set CHATKHU_API_KEY in the local environment.")
+        if shares_openai_key(key, environment):
+            raise DiagnosticError("Configure a separate ChatKHU gateway key.")
         if args.command == "credits":
             print(json.dumps({"remainingCredits": remaining_credits(read_gateway(CREDITS_PATH, key), key)}))
         else:
@@ -143,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps({"modelIds": sorted(models)}))
             else:
                 print(json.dumps(estimate_credits(args.model, models, args.input_tokens, args.output_tokens)))
-    except DiagnosticError as error:
+    except (DiagnosticError, ConfigurationError) as error:
         print(str(error), file=sys.stderr)
         return 1
     return 0

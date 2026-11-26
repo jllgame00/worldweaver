@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import NarrativeRegistry from './NarrativeRegistry';
 import type { FormEvent } from 'react';
 import { copy, storyLabels } from './copy';
 import { Coverage, FactList } from './Direction';
@@ -103,6 +104,7 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
               disabled={reviewDisabled} onChange={({ target }) => setReviewed(target.checked)} />{copy.reviewed}</label>
             <button type="button" className="primary" disabled={reviewDisabled || !reviewed} onClick={() => void approve()}>{copy.approve}</button>
           </section>
+          {fresh && narrative.approved && <NarrativeRegistry project={project} disabled={disabled || dirty} commit={commit}/>}
           <section className="panel facts-panel">
             {source && <>
               <div className="source-heading"><h2>{copy.sourceDirection}</h2><p className="creative">{source.story.title}</p>

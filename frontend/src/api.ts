@@ -3,6 +3,12 @@ import type { AgentRun, Project } from './project.generated';
 import { generationFailure, isCandidateResult, isGenerationStatus } from './validation';
 import type { CandidateResult, GenerationStatus } from './validation';
 
+export function generationIntent(configuration: GenerationStatus) {
+  return configuration.provider === 'chatkhu'
+    ? `chatkhu:${configuration.api}:${configuration.model}`
+    : `${configuration.mode}:${configuration.model}`;
+}
+
 export class GenerationError extends Error {
   constructor(message: string, readonly run?: AgentRun, readonly configurationChanged = false) {
     super(message);
@@ -17,9 +23,7 @@ export async function fetchGenerationStatus(signal: AbortSignal): Promise<Genera
 }
 
 export async function generateDirections(project: Project, configuration: GenerationStatus, signal: AbortSignal): Promise<CandidateResult> {
-  const fingerprint = configuration.provider === 'chatkhu'
-    ? `chatkhu:${configuration.api}:${configuration.model}`
-    : `${configuration.mode}:${configuration.model}`;
+  const fingerprint = generationIntent(configuration);
   let response: Response;
   try {
     response = await fetch('/api/candidates', {

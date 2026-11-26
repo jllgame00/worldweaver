@@ -6,6 +6,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpe
 from openai.types.responses import Response, ResponseCreateParams
 
 from .contracts import SCHEMA, load_unique_json, schema_location
+from .scenario_wire import scenario_format
 from .provider import GenerationReply, GenerationRequest, ProviderError, ProviderUsage
 
 
@@ -78,14 +79,22 @@ STRUCTURED_FORMAT = {"name": "worldweaver_directions_v1", "strict": True, "schem
 
 def normalized_usage(
     input_tokens: int | None, output_tokens: int | None, total: int | None, cached: int | None,
+    reasoning: int | None = None,
 ) -> ProviderUsage | None:
-    if type(input_tokens) is not int or type(output_tokens) is not int or min(input_tokens, output_tokens) < 0:
+    if type(output_tokens) is not int or output_tokens < 0:
         return None
-    if total is not None and (type(total) is not int or total != input_tokens + output_tokens):
+    if input_tokens is not None and (type(input_tokens) is not int or input_tokens < 0):
         return None
-    if cached is not None and (type(cached) is not int or not 0 <= cached <= input_tokens):
+    if total is not None and (type(total) is not int or total < output_tokens
+                              or (input_tokens is not None and total != input_tokens + output_tokens)):
         return None
-    return ProviderUsage(input_tokens, output_tokens, cached)
+    if input_tokens is None:
+        cached = None
+    elif cached is not None and (type(cached) is not int or not 0 <= cached <= input_tokens):
+        return None
+    if reasoning is not None and (type(reasoning) is not int or not 0 <= reasoning <= output_tokens):
+        reasoning = None
+    return ProviderUsage(input_tokens, output_tokens, cached, reasoning)
 
 
 def resolved_model(configured: str, received: str) -> str | None:
@@ -96,20 +105,28 @@ def resolved_model(configured: str, received: str) -> str | None:
 
 
 class OpenAIProvider:
-    def __init__(self, client: AsyncOpenAI, *, max_output_tokens: int = 6000, max_input_bytes: int = 32768):
+    def __init__(
+        self, client: AsyncOpenAI, *, max_output_tokens: int = 6000, max_input_bytes: int = 32768,
+        scenario_max_output_tokens: int | None = None,
+    ):
         self.client = client
         self.max_output_tokens = max_output_tokens
+        self.scenario_max_output_tokens = (
+            max_output_tokens if scenario_max_output_tokens is None else scenario_max_output_tokens
+        )
         self.max_input_bytes = max_input_bytes
 
     async def generate(self, request: GenerationRequest) -> GenerationReply:
-        creative_data = json.dumps({
+        instructions, response_format = (INSTRUCTIONS, STRUCTURED_FORMAT) if request.task == "candidates" else scenario_format(request.task)
+        creative_data = json.dumps(request.context if request.context is not None else {
             "userContent": request.content, "canonicalFacts": request.canonical_facts,
         }, ensure_ascii=False, separators=(",", ":"))
         if len(creative_data.encode("utf-8")) > self.max_input_bytes:
             raise ProviderError("generation_input_too_large", attempted=False)
 
         try:
-            reply = await self._request_reply(request.model, creative_data)
+            limit = self.scenario_max_output_tokens if request.task == "scenario" else self.max_output_tokens
+            reply = await self._request_reply(request.model, creative_data, instructions, response_format, limit)
         except APITimeoutError:
             raise TimeoutError from None
         except APIConnectionError:
@@ -118,6 +135,8 @@ class OpenAIProvider:
             if exc.status_code == 408:
                 raise TimeoutError from None
             raise ProviderError(self._status_error(exc)) from None
+        except json.JSONDecodeError:
+            raise ProviderError("invalid_provider_response") from None
 
         try:
             if len(reply.text) > 256_000:
@@ -125,7 +144,8 @@ class OpenAIProvider:
             decoded = load_unique_json(reply.text)
         except (ValueError, RecursionError):
             raise ProviderError("invalid_provider_response", usage=reply.usage, model=reply.model) from None
-        error = next(WIRE_VALIDATOR.iter_errors(decoded), None)
+        validator = WIRE_VALIDATOR if request.task == "candidates" else Draft202012Validator(response_format["schema"])
+        error = next(validator.iter_errors(decoded), None)
         if error is not None:
             field = schema_location(error)
             code = "candidate_count" if field == "/candidates" and error.validator in {"minItems", "maxItems"} else "invalid_provider_response"
@@ -144,13 +164,15 @@ class OpenAIProvider:
     async def _send_responses(self, params: ResponseCreateParams) -> Response:
         return await self.client.responses.create(**params)
 
-    async def _request_reply(self, model_id: str, creative_data: str) -> GenerationReply:
+    async def _request_reply(
+        self, model_id: str, creative_data: str, instructions: str, response_format: dict, output_limit: int,
+    ) -> GenerationReply:
         params: ResponseCreateParams = {
             "model": model_id,
-            "instructions": INSTRUCTIONS,
+            "instructions": instructions,
             "input": creative_data,
-            "text": {"format": {"type": "json_schema", **STRUCTURED_FORMAT}},
-            "max_output_tokens": self.max_output_tokens,
+            "text": {"format": {"type": "json_schema", **response_format}},
+            "max_output_tokens": output_limit,
             "store": False,
             "service_tier": "default",
         }
@@ -163,12 +185,20 @@ class OpenAIProvider:
             usage = normalized_usage(
                 reported.input_tokens, reported.output_tokens, getattr(reported, "total_tokens", None),
                 getattr(getattr(reported, "input_tokens_details", None), "cached_tokens", None),
+                getattr(getattr(reported, "output_tokens_details", None), "reasoning_tokens", None),
             )
         model = resolved_model(model_id, response.model)
+        if response.status == "incomplete":
+            reason = getattr(response.incomplete_details, "reason", None)
+            code = "provider_incomplete"
+            if reason == "max_output_tokens":
+                code = "provider_output_limit"
+            elif reason == "content_filter":
+                code = "provider_content_filter"
+            raise ProviderError(code, usage=usage, model=model)
+        if response.status != "completed":
+            raise ProviderError("provider_error", usage=usage, model=model)
         if any(part.type == "refusal" for item in response.output if item.type == "message" for part in item.content):
             raise ProviderError("provider_refused", usage=usage, model=model)
-        if response.status != "completed":
-            code = "provider_incomplete" if response.status == "incomplete" else "provider_error"
-            raise ProviderError(code, usage=usage, model=model)
 
         return GenerationReply(response.output_text, usage, model)

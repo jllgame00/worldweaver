@@ -10,38 +10,47 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import AsyncOpenAI, DefaultAsyncHttpxClient
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 
 from .chatkhu_config import CHATKHU_BASE_URL
 from .chatkhu_provider import ChatKHUProvider
-from .contracts import Candidate, ProjectSnapshot, Run
+from .contracts import Candidate, ProjectSnapshot, Run, load_unique_json
 from .mock_provider import MockProvider
 from .narrative import GenerationRejected, generate
 from .openai_provider import OpenAIProvider
 from .provider import StructuredProvider
+from .scenario import RevisionInput, ScenarioInput, ScenarioRejected, propose
+from .scenario_validation import Finding, validate_graph
 from .settings import Settings
 
 
 DIST = Path(__file__).resolve().parents[2] / "frontend/dist"
 MAX_PROJECT_BYTES = 1024 * 1024
 GENERATION_ERRORS = {
+    "scenario_source": (422, "Approve a current narrative before generating or revising its scenario."),
+    "revision_target": (422, "Select a scenario entity and enter revision instructions."),
+    "invalid_settings": (422, "Check the scenario generation settings."),
+    "invalid_scenario_response": (502, "The provider returned an invalid scenario response."),
+    "invalid_scenario": (502, "The proposed scenario failed deterministic graph checks."),
     "empty_content": (422, "Add at least one creative fragment before generating."),
     "conflicting_input": (422, "The same fragment is marked both mandatory and excluded. Resolve its treatment before generating."),
     "candidate_count": (502, "The provider must return exactly three candidates."),
     "duplicate_directions": (502, "The provider returned identical story directions. Try generating again."),
-    "invalid_provider_response": (502, "The provider returned an invalid candidate response."),
+    "invalid_provider_response": (502, "The provider response could not be read as the required structured JSON. Review the reported field and the model's structured output support."),
     "invalid_coverage": (502, "The provider response did not account for the submitted fragments correctly."),
     "fact_conflict": (422, "The provider reported a conflict with a pinned fact. Review the input and try again."),
-    "provider_timeout": (504, "Generation timed out. You can try again."),
+    "provider_timeout": (504, "The generation deadline expired. Reduce the requested scope or check WORLDWEAVER_TIMEOUT_SECONDS (maximum 120 seconds)."),
     "provider_unavailable": (503, "The provider is temporarily unavailable."),
     "provider_quota": (429, "The provider quota is unavailable."),
     "provider_insufficient_credits": (402, "ChatKHU has insufficient credits for this request. Check the balance and output limit."),
     "provider_access_denied": (403, "ChatKHU does not permit this gateway request. Check your API model access."),
     "provider_rate_limit": (429, "The provider is rate limiting requests. Wait before trying again."),
     "provider_authentication": (503, "The server could not authenticate with the generation provider. Check its credentials and project access."),
-    "provider_incomplete": (502, "The provider returned an incomplete result. Try a shorter brief or adjust the server's output limit."),
+    "provider_incomplete": (502, "The provider returned an incomplete result without a recognized reason. The partial response was discarded. Review the provider status before requesting another generation."),
+    "provider_content_filter": (422, "The provider stopped generation because of its content filter. Review the submitted material before making another request."),
+    "provider_output_limit": (502, "The provider reached the generation token budget. The requested output cap was {limit} tokens including reasoning. Reduce the requested scope or review the configured cap before making another request."),
     "provider_refused": (422, "The provider declined this generation request. Review the brief before trying again."),
     "provider_request_rejected": (502, "The provider rejected the request. Check the configured model and its Structured Outputs support."),
     "generation_input_too_large": (413, "The fragments and pinned facts exceed the generation input limit."),
@@ -72,12 +81,17 @@ class ProposalResponse(BaseModel):
     run: Run
 
 
-def error_response(status: int, code: str, message: str, run: Run | None = None, field: str | None = None) -> JSONResponse:
+def error_response(status: int, code: str, message: str, run: Run | None = None, field: str | None = None,
+                   findings: list[Finding] | None = None, recovery: dict | None = None) -> JSONResponse:
     if field is not None:
         message = f"{message} Field {field}."
-    error = {"code": code, "message": message}
+    error: dict[str, object] = {"code": code, "message": message}
+    if findings:
+        error["findings"] = findings
+    if recovery is not None:
+        error["recovery"] = recovery
     return JSONResponse(
-        status_code=status,
+        status_code=status, headers={"Cache-Control": "no-store"},
         content={"error": {**error, **({"run": run} if run is not None else {})}},
     )
 
@@ -95,10 +109,11 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         client = AsyncOpenAI(
             api_key=config.api_key, base_url=CHATKHU_BASE_URL if gateway else "https://api.openai.com/v1",
             organization="" if gateway else None, project="" if gateway else None,
-            timeout=config.timeout_seconds / config.live_max_attempts, max_retries=0,
+            timeout=config.timeout_seconds, max_retries=0,
             http_client=DefaultAsyncHttpxClient(follow_redirects=False, trust_env=False),
         )
-        limits = {"max_output_tokens": config.max_output_tokens, "max_input_bytes": config.max_input_bytes}
+        limits = {"max_output_tokens": config.max_output_tokens, "max_input_bytes": config.max_input_bytes,
+                  "scenario_max_output_tokens": config.scenario_max_output_tokens}
         adapter = ChatKHUProvider(client, api=config.chatkhu_api, **limits) if gateway else OpenAIProvider(client, **limits)
 
     @asynccontextmanager
@@ -111,6 +126,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
 
     app = FastAPI(title="WORLDWEAVER", version="1.0.0", lifespan=lifespan)
     active_live = False
+    scenario_output_limit = config.scenario_max_output_tokens or config.max_output_tokens
     recent_live: dict[tuple[str, int], float] = {}
     if (DIST / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
@@ -128,10 +144,9 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         if live and not local_live_request(request):
             return 403, "live_local_only", "Live AI generation is available only to local users of this development server."
         if config.configuration_error:
-            return 503, "provider_configuration_invalid", "Generation is disabled. Review the server credentials, model, API and limits."
+            return 503, "provider_configuration_invalid", config.configuration_error
         if adapter is None:
-            name = "ChatKHU Gateway" if gateway else "OpenAI"
-            return 503, "provider_not_configured", f"{name} is selected but the server API key is missing."
+            return 503, "provider_not_configured", config.credential_message
         return None
 
     @app.get("/api/generation")
@@ -142,36 +157,65 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         }
         if gateway:
             status["api"] = config.chatkhu_api
-        if live:
+        if live and not config.configuration_error:
             status["limits"] = {
                 "maxInputBytes": config.max_input_bytes, "maxOutputTokens": config.max_output_tokens,
-                "maxAttempts": config.live_max_attempts,
+                "maxAttempts": config.live_max_attempts, "timeoutSeconds": config.timeout_seconds,
+                "scenarioMaxOutputTokens": scenario_output_limit,
             }
         if failure is not None:
             status["message"] = failure[2]
         return status
 
+    async def read_json(request: Request) -> JsonValue | JSONResponse:
+        body = bytearray()
+        try:
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > MAX_PROJECT_BYTES:
+                    return error_response(413, "project_too_large", "This project exceeds the request size limit.")
+                body.extend(chunk)
+            return load_unique_json(body.decode("utf-8"))
+        except ClientDisconnect:
+            return error_response(499, "cancelled", "The request was cancelled.")
+        except (ValueError, RecursionError):
+            return error_response(422, "invalid_project", "The request must be a valid JSON project.")
+
+    @app.post("/api/scenario/validate", response_model=None)
+    async def validate_scenario(request: Request):
+        data = await read_json(request)
+        if isinstance(data, JSONResponse):
+            return data
+        return validate_graph(data)
+
+    @app.post("/api/scenario", response_model=None)
+    @app.post("/api/scenario/revise", response_model=None)
     @app.post("/api/candidates", response_model=ProposalResponse)
-    async def candidates(request: Request) -> ProposalResponse | JSONResponse:
+    async def proposal(request: Request):
         nonlocal active_live
         failure = unavailable(request)
         if failure is not None:
             return error_response(*failure)
         assert adapter is not None
+        route = request.url.path
+        expected_cap = request.headers.get("x-worldweaver-scenario-output-limit")
+        if live and route == "/api/scenario" and expected_cap is not None and expected_cap != str(scenario_output_limit):
+            return error_response(409, "generation_configuration_changed", "Review the updated scenario output limit before generating.")
         expected = request.headers.get("x-worldweaver-generation")
         if (live or expected is not None) and expected != config.generation_intent:
             return error_response(409, "generation_configuration_changed", "Review the current provider before generating again.")
         if live and request.headers.get("content-type", "").partition(";")[0].strip().lower() != "application/json":
             return error_response(415, "json_required", "Live requests must use application/json.")
-        body = bytearray()
+        data = await read_json(request)
+        if isinstance(data, JSONResponse):
+            return data
+        scenario_input = None
         try:
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > MAX_PROJECT_BYTES:
-                    return error_response(413, "project_too_large", "This project exceeds the generation request size limit.")
-                body.extend(chunk)
-            project = ProjectSnapshot.model_validate_json(body)
-        except ClientDisconnect:
-            return error_response(499, "cancelled", "Generation was cancelled.")
+            if route == "/api/candidates":
+                project = ProjectSnapshot.model_validate(data)
+            else:
+                model = RevisionInput if route.endswith("/revise") else ScenarioInput
+                scenario_input = model.model_validate(data)
+                project = scenario_input.project
         except ValidationError as exc:
             issue = exc.errors(include_input=False, include_url=False)[0]
             field = issue.get("ctx", {}).get("field")
@@ -188,7 +232,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             if live_key in recent_live:
                 return error_response(409, "duplicate_generation", "This project revision was just submitted. Wait before trying again.")
             active_live = True
-        task = asyncio.create_task(generate(
+        task = asyncio.create_task(propose(scenario_input, adapter, config) if scenario_input is not None else generate(
             project.narrative_data, adapter, mode=config.mode, model=config.model, timeout=config.timeout_seconds,
             provider_name=config.provider, max_attempts=config.live_max_attempts if live else None,
         ))
@@ -201,6 +245,14 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         except GenerationRejected as exc:
             code = exc.code if exc.code in GENERATION_ERRORS else "provider_error"
             status, message = GENERATION_ERRORS[code]
+            if code == "provider_output_limit":
+                cap = scenario_output_limit if isinstance(scenario_input, ScenarioInput) else config.max_output_tokens
+                message = message.format(limit=cap)
+            elif code == "provider_authentication" and gateway:
+                message = ("ChatKHU rejected authentication (HTTP 401). Run python -m scripts.chatkhu check "
+                           "in the startup shell to inspect overrides, then python -m scripts.chatkhu preflight.")
+            if isinstance(exc, ScenarioRejected):
+                return error_response(status, code, message, exc.run, exc.field, exc.findings, exc.recovery)
             return error_response(status, code, message, exc.run, exc.field)
         finally:
             try:
@@ -213,6 +265,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
                         del recent_live[next(iter(recent_live))]
                     recent_live[live_key] = monotonic() + 3
                     active_live = False
+        if scenario_input is not None:
+            return result
         return ProposalResponse(baseRevision=result.base_revision, candidates=result.candidates, run=result.run)
 
     @app.get("/{path:path}", response_model=None, include_in_schema=False)

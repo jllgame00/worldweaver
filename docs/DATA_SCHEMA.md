@@ -86,3 +86,41 @@ Points are integer [x,y] grid cells, origin top left. Rows must have equal width
 - Dispatch imports by exact schemaVersion. Start with 1.0.0 only. Future supported versions use tested, ordered, lossless migrations on a copy, followed by validation. Reject unknown versions with an actionable version message and retain the file. Use a separate generatorVersion for geometry changes. Reopen stored geometry without rerunning the generator.
 
 Verification receipts cover exactly their run's baseRevision. Accepting a repair advances the design revision. Run full verification again on the accepted snapshot before final approval. Recording checks and user approval is a metadata transaction and leaves the design revision unchanged. It still participates in local save conflict detection. Imported receipts are historical. Keep the trusted IDs of locally executed verify runs in browser storage outside the portable design. A newly imported project needs a fresh full check and local approval before its current design can display as approved. Draft export always remains available.
+
+## Phase 2 portable extension
+
+Draft 4 and schemaVersion 1.0.0 remain in use. Scenario metadata is optional on Project. Existing nodes, edges, quests, endings, characters and factions stay in their original collections. Existing v1 files load without migration. Older applications with the original closed schema will reject a file containing the extension. The generated TypeScript types are checked against the schema during the production build.
+
+| Design concept | Canonical representation |
+|---|---|
+| Scenario identity and source | scenario.id, title, summary, sourceNarrativeId, settings, approved. basis.scenario records narrative and content versions. versions.scenario tracks semantic changes. Scenario AgentRun records live in Project.runs, validation findings link to their run. |
+| Chapters | Ordered scenario.chapters with id, title, purpose and summary. The index is the order. Node.chapterId supplies membership. An unassigned draft can be saved and must receive a chapter before approval. |
+| Nodes and choices | Existing kinds plus dialogue, encounter, condition and transition. A quest node links to its main or side Quest and an ending node to its Ending. Edges carry choice labels, optional guards, effects and the travel requirement. The node inspector derives incoming and outgoing links. |
+| State | A StateTerm contains kind, key and string value. Conditions compare equality. Consequences assign values. Terms cover quest, item, decision, relationship, flag, character and location. Entity-valued keys resolve by kind. Quest completion and failure use condition lists. |
+| Geography | world.locations holds existing places. scenario.locations holds proposed identities, names, canonical location types and purposes. geography uses from, to, relation and description. For separates, via identifies the distinct separating place. Required-travel edges resolve both endpoint locations. Phase 3 must retain IDs when placing approved proposals and transfer them atomically into the world catalog. |
+| Layout | scenario.layout stores nodeId and signed canvas x/y. These numbers carry no geographical or narrative meaning. |
+| Exchange | Drafts and approved snapshots export as UTF-8 JSON. The importer validates an isolated candidate. An explicit same-ID copy gets a new project ID and retains child IDs. Imported scenario approval needs local review. Markdown includes chapter order, events, choices, quests, endings, locations, revision and open findings. |
+
+An upstream source change retains the old source ID and revision markers as history. Regenerate and compare a replacement, or review the changed source and explicitly reconcile the existing graph as a draft. Reconciliation advances its basis and preserves all graph identities.
+
+## Entity references in v1 (Phase 2.2)
+
+`Project.characters` and `Project.factions` remain the canonical named records. A character's optional `factionId` resolves to one faction. The optional `Project.stateEntities` array stores `{ id, kind, name }` for items/artifacts, decisions and narrative flags. Declared IDs share the global project ID space. An explicit empty array means there are no registered state entities.
+
+| StateTerm.kind | Required domain of key |
+|---|---|
+| character | Project.characters |
+| relationship | Project.factions |
+| location | world.locations or scenario.locations |
+| quest | Quest in the proposed/current graph |
+| item, decision, flag | stateEntities with that exact kind |
+
+The same domains apply on node and edge entry conditions/effects and on quest completion/failure. Values remain design-authored strings with exact equality and assignment. Existing quest prerequisite logic uses the completed state. Display names, fragment IDs and role descriptions cannot substitute for IDs.
+
+Opening an older v1 project writes nothing. If stateEntities is absent, only legacy item, decision and flag keys actually present in StateTerms have implicit identities, scoped by kind. An accepted replacement materializes this inventory. Unique IDs are preserved. Collisions with another kind or an existing canonical ID receive an ID prefixed by kind, shortened to 96 characters with a numeric suffix when needed. The previous graph, layout, keys and approved prose are untouched before acceptance. Optional finding fields fieldPath, referenceId, expectedType, actualType and witnessPath carry diagnostic evidence. Project storage version and IndexedDB origin remain unchanged.
+
+## Phase 2.3 progression evidence
+
+The v1 Draft 4 schema adds two optional fields to ValidationFinding. `blockedTransitions` contains the JSON Pointer, typed state key, actual value (null when unset), required value and candidate producer IDs. Edge and destination IDs identify a transition when present. A visited-node requirement uses kind `visited`. `causeNodeId` links a downstream finding to a unique demonstrated blocked scene. These fields describe the checked revision. They remain historical evidence when later edits supersede a finding. Older projects and older findings continue to load without a migration.
+
+Quest values are `active`, `completed` and `failed`. An absent quest key means it has yet to activate. A quest owns one quest node. Empty completion preserves the original convention of completing the authored encounter upon execution. A nonempty completion requires all its terms to hold on that route. After each node or playable edge, active quests settle to terminal states until stable, checking failure first. Phase 3 can reuse the same scenario location IDs and travel requirements; geographical reachability still requires a generated world.

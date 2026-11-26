@@ -1,7 +1,8 @@
 import json
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Literal, NotRequired, Self, TypedDict, cast
+from typing import Any, Literal, NotRequired, Self, TypedDict, cast
 
 from jsonschema import Draft4Validator
 from jsonschema.exceptions import ValidationError as SchemaError
@@ -72,7 +73,7 @@ class Receipt(TypedDict):
 
 class Run(TypedDict):
     id: str
-    stage: Literal["candidates"]
+    stage: Literal["candidates", "scenario"]
     baseRevision: int
     mode: Literal["mock", "live"]
     status: Literal["proposed", "failed"]
@@ -130,6 +131,141 @@ def valid_coverage(candidates: list[Candidate], content: list[Content], *, fresh
     return True
 
 
+class StateEntity(TypedDict):
+    id: str
+    kind: Literal["item", "decision", "flag"]
+    name: str
+
+
+def state_terms(project: dict[str, Any]) -> Iterator[tuple[str, str, dict]]:
+    for group, fields in (("nodes", ("conditions", "consequences")), ("edges", ("conditions", "consequences")),
+                          ("quests", ("completion", "failure"))):
+        for index, row in enumerate(project[group]):
+            for field in fields:
+                for offset, term in enumerate(row.get(field, [])):
+                    yield row["id"], f"/{group}/{index}/{field}/{offset}/key", term
+
+
+def effective_state_entities(project: dict[str, Any]) -> list[StateEntity]:
+    if "stateEntities" in project:
+        return project["stateEntities"]
+    # Earlier v1 projects stored these three namespaces only in their state terms.
+    keys = {(term["kind"], term["key"]) for _, _, term in state_terms(project)
+            if term["kind"] in ("item", "decision", "flag")}
+    return [{"id": key, "kind": kind, "name": key} for kind, key in sorted(keys)]
+
+
+def prepared_state_entities(project: dict[str, Any]) -> list[StateEntity]:
+    rows = effective_state_entities(project)
+    if "stateEntities" in project:
+        return rows
+    existing = set(entity_ids(project))
+    counts = Counter(row["id"] for row in rows)
+    reserved = existing | counts.keys()
+    prepared = []
+    for row in rows:
+        key = row["id"]
+        if key in existing or counts[key] > 1:
+            base = f'{row["kind"]}-{key}'
+            key = base[:96]
+            suffix = 2
+            while key in reserved:
+                tail = f"-{suffix}"
+                key = base[:96 - len(tail)] + tail
+                suffix += 1
+            reserved.add(key)
+        prepared.append(StateEntity(id=key, kind=row["kind"], name=row["name"]))
+    return prepared
+
+
+class ReferenceIssue(TypedDict):
+    fieldPath: str
+    referenceId: str
+    expectedType: str
+    actualType: NotRequired[str]
+
+
+def reference_domains(project: dict[str, Any]) -> tuple[dict[str, set[str]], dict[str, str], dict[str, str]]:
+    """Index canonical references by expected type, including legacy state namespaces."""
+    scenario = project.get("scenario", {})
+    world = project.get("world", {})
+    by_type: dict[str, set[str]] = defaultdict(set)
+    actual: dict[str, str] = {}
+    for record, kind in ((project, "project"), (project.get("narrative"), "narrative"),
+                         (world, "world"), (scenario, "scenario")):
+        if record:
+            actual[record["id"]] = kind
+            by_type[kind].add(record["id"])
+    for container, groups in (
+        (project, {"nodes": "node", "quests": "quest", "characters": "character", "factions": "faction",
+                   "canonicalFacts": "fact", "userContent": "content", "storyCandidates": "candidate",
+                   "edges": "edge", "endings": "ending", "runs": "run", "findings": "finding"}),
+        (scenario, {"chapters": "chapter", "locations": "location"}),
+        (world, {"locations": "location", "regions": "region", "features": "terrain feature", "routes": "route"}),
+    ):
+        for group, kind in groups.items():
+            for row in container.get(group, []):
+                actual[row["id"]] = kind
+                by_type[kind].add(row["id"])
+    for state in effective_state_entities(project):
+        # A legacy state key may also name a different entity.
+        actual.setdefault(state["id"], state["kind"])
+        by_type[state["kind"]].add(state["id"])
+    node_kinds = {row["id"]: row["kind"] + " node" for row in project["nodes"]}
+    for key, kind in node_kinds.items():
+        by_type[kind].add(key)
+
+    return by_type, actual, node_kinds
+
+
+def scenario_references(project: dict[str, Any], *, historical: bool = False) -> Iterator[tuple[str, ReferenceIssue]]:
+    scenario = project.get("scenario", {})
+    by_type, actual, node_kinds = reference_domains(project)
+
+    def check(owner: str, path: str, key: str, expected: str) -> Iterator[tuple[str, ReferenceIssue]]:
+        if key not in by_type[expected]:
+            issue: ReferenceIssue = {"fieldPath": path, "referenceId": key, "expectedType": expected}
+            found = node_kinds.get(key) if expected.endswith(" node") else None
+            found = found or actual.get(key)
+            if found:
+                issue["actualType"] = found
+            yield owner, issue
+
+    def fields(owner: str, path: str, row: dict, targets: dict[str, str]) -> Iterator[tuple[str, ReferenceIssue]]:
+        for field, expected in targets.items():
+            value = row.get(field, [])
+            if isinstance(value, str):
+                yield from check(owner, f"{path}/{field}", value, expected)
+            else:
+                for offset, key in enumerate(value):
+                    yield from check(owner, f"{path}/{field}/{offset}", key, expected)
+
+    if scenario:
+        basis = project["basis"].get("scenario", {})
+        if not historical or basis.get("narrative") == project["versions"]["narrative"]:
+            yield from fields(scenario["id"], "/scenario", scenario, {"sourceNarrativeId": "narrative"})
+        if not historical or basis.get("content") == project["versions"]["content"]:
+            yield from fields(scenario["id"], "/scenario", scenario, {"factIds": "fact", "contentIds": "content"})
+        for i, geo in enumerate(scenario["geography"]):
+            yield from fields(scenario["id"], f"/scenario/geography/{i}", geo, dict.fromkeys(("from", "to", "via"), "location"))
+        for i, point in enumerate(scenario["layout"]):
+            yield from fields(scenario["id"], f"/scenario/layout/{i}", point, {"nodeId": "node"})
+    for group, targets in (
+        ("characters", {"factionId": "faction"}),
+        ("nodes", {"chapterId": "chapter", "locationId": "location", "characterIds": "character",
+                   "factionIds": "faction", "requiresVisited": "node"}),
+        ("edges", dict.fromkeys(("from", "to", "requiresVisited"), "node")),
+        ("quests", {"nodeId": "quest node", "prerequisiteIds": "quest", "locationIds": "location",
+                    "characterIds": "character", "factionIds": "faction"}),
+        ("endings", {"nodeId": "ending node"}),
+    ):
+        for i, row in enumerate(project[group]):
+            yield from fields(row["id"], f"/{group}/{i}", row, targets)
+    for owner, path, term in state_terms(project):
+        expected = "faction" if term["kind"] == "relationship" else term["kind"]
+        yield from check(owner, path, term["key"], expected)
+
+
 def valid_project_references(data: dict[str, JsonValue], identifiers: set[str]) -> bool:
     def records(group: dict[str, JsonValue], field: str) -> list[dict[str, JsonValue]]:
         return cast(list[dict[str, JsonValue]], group.get(field, []))
@@ -138,22 +274,12 @@ def valid_project_references(data: dict[str, JsonValue], identifiers: set[str]) 
         return {cast(str, row["id"]) for row in rows}
 
     world = cast(dict[str, JsonValue], data.get("world", {}))
-    characters = records(data, "characters")
-    nodes = records(data, "nodes")
-    edges = records(data, "edges")
     locations = records(world, "locations")
     faction_ids = ids(records(data, "factions"))
     region_ids = ids(records(world, "regions"))
     location_ids = ids(locations)
-    node_ids = ids(nodes)
     run_ids = ids(records(data, "runs"))
     single_refs = (
-        (characters, "factionId", faction_ids),
-        (nodes, "locationId", location_ids),
-        (edges, "from", node_ids),
-        (edges, "to", node_ids),
-        (records(data, "quests"), "nodeId", ids([node for node in nodes if node["kind"] == "quest"])),
-        (records(data, "endings"), "nodeId", ids([node for node in nodes if node["kind"] == "ending"])),
         (records(world, "regions"), "controllerId", faction_ids),
         (locations, "regionId", region_ids),
         (records(world, "routes"), "from", location_ids),
@@ -161,8 +287,6 @@ def valid_project_references(data: dict[str, JsonValue], identifiers: set[str]) 
         (records(data, "findings"), "runId", run_ids),
     )
     list_refs = (
-        (nodes, "characterIds", ids(characters)),
-        (nodes + edges, "requiresVisited", node_ids),
         ([row for row in records(data, "findings") if row["status"] != "superseded"], "entityIds", identifiers),
     )
     approval = cast(dict[str, JsonValue], data.get("approval", {}))
@@ -194,14 +318,18 @@ class ProjectSnapshot(RootModel[dict[str, JsonValue]]):
         narrative_basis = basis.get("narrative", {})
         fresh = candidate_basis.get("content") == versions["content"]
 
+        invalid = next(scenario_references(data, historical=True), None)
+        if invalid:
+            raise PydanticCustomError("project_references", "Project reference mismatch", {"field": invalid[1]["fieldPath"]})
         if (
-            len(identifiers) != len(set(identifiers))
+            ("scenario" in data and not basis.get("scenario"))
+            or len(identifiers) != len(set(identifiers))
             or not valid_project_references(data, set(identifiers))
             or any("sourceContentId" in fact and fact["sourceContentId"] not in content_ids for fact in facts)
             or (narrative is not None and narrative["sourceCandidateId"] not in candidate_ids)
             or bool(candidates) != bool(candidate_basis)
             or bool(narrative) != bool(narrative_basis)
-            or any(source > versions[field] for stage in (candidate_basis, narrative_basis) for field, source in stage.items())
+            or any(source > versions[field] for stage in (candidate_basis, narrative_basis, basis.get("scenario", {})) for field, source in stage.items())
             or not valid_coverage(candidates, content, fresh=fresh)
         ):
             raise ValueError("project_references")

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Literal, Protocol
 
-from .contracts import Content, Fact
+from .contracts import Content, Fact, Run
 
 
 @dataclass(frozen=True)
@@ -9,13 +9,38 @@ class GenerationRequest:
     model: str
     content: tuple[Content, ...]
     canonical_facts: tuple[Fact, ...]
+    task: Literal["candidates", "scenario", "revision"] = "candidates"
+    context: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
 class ProviderUsage:
-    input_tokens: int
+    input_tokens: int | None
     output_tokens: int
     cached_input_tokens: int | None
+    reasoning_tokens: int | None = None
+
+
+def record_provider_usage(run: Run, usage: ProviderUsage | None, model: str | None) -> None:
+    if model:
+        run["receipts"].append({"tool": "provider_model", "outcome": "passed", "detail": f"model={model}"})
+    if usage is None:
+        return
+    counts = []
+    if usage.input_tokens is not None:
+        run["tokens"] = run.get("tokens", 0) + usage.input_tokens + usage.output_tokens
+        counts.append(f"inputTokens={usage.input_tokens}")
+    if usage.cached_input_tokens is not None:
+        counts.append(f"cachedInputTokens={usage.cached_input_tokens}")
+    counts.append(f"outputTokens={usage.output_tokens}")
+    run["receipts"].append({
+        "tool": "provider_usage", "outcome": "passed",
+        "detail": " ".join(counts),
+    })
+    if usage.reasoning_tokens is not None:
+        run["receipts"].append({
+            "tool": "provider_reasoning", "outcome": "passed", "detail": f"reasoningTokens={usage.reasoning_tokens}",
+        })
 
 
 @dataclass(frozen=True)

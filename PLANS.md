@@ -22,3 +22,13 @@ Phase 1.5 implements the OpenAI adapter. Actual provider verification remains pe
 Phase 1.5-C prioritizes ChatKHU Gateway and retains the direct OpenAI and development mock adapters. Actual generation verification requires a working gateway credential and owner approval of the model and credit budget.
 
 Course requirements set a minimum evidence bar. The public product also needs verified narrative quality, reliable editing and persistence, and an approved live provider and operating budget. Use mock providers for deterministic development and automated testing.
+
+## Phase 2 review gate
+
+Phase 2.2 adds reviewed, typed entity declarations for older approved narratives and offline reference repair. Owner verification uses the same single ChatKHU scenario request budget. [Phase 2.2 report](docs/PHASE_2_2_REPORT.md)
+
+The Phase 2.1 reliability update preserves the one-request scenario workflow. Local and mocked integration checks passed. Successful live ChatKHU scenario generation remains the owner review gate. [Phase 2.1 report](docs/PHASE_2_1_REPORT.md)
+
+Scenario Studio now implements the approved narrative → editable graph → reviewed scenario workflow, interchange, and local startup scripts. The owner review uses one separately authorized ChatKHU request. Automated mock, rendered browser and live evidence are recorded separately in the [Phase 2 report](docs/PHASE_2_REPORT.md). Phase 3 requires a new request.
+
+Phase 2.3 keeps one generation request and compiles the typed design against per-route quest and state semantics. The owner gate is a three-chapter branching run from an existing approved narrative, followed by either reviewed acceptance or local repair and revalidation. The integration gate for Phase 3 also requires a current approved scenario with reviewed location and travel requirements. [Progression reliability evidence](docs/PHASE_2_3_REPORT.md)

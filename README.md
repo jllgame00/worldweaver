@@ -2,7 +2,7 @@
 
 **From scattered ideas to a living world.**
 
-WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위에서 함께 편집하는 내러티브 설계 도구다. 인디 개발자, 게임·내러티브 디자이너, 소규모 팀과 학생이 주요 사용자다. 장기 목표는 창작자가 이야기와 세계 설정을 연결해 편집할 수 있는 공개 서비스다. 「오픈소스 SW 개발방법 및 도구」 HW6의 요구사항은 최소 검증 기준으로 삼는다. 현재 이야기 초안을 작성하고 브라우저에 저장할 수 있으며, **Phase 1.5-C**에서 ChatKHU Gateway를 제공자로 선택할 수 있다. 실제 생성 검증은 대기 중이다.
+WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위에서 함께 편집하는 내러티브 설계 도구다. 인디 개발자, 게임·내러티브 디자이너, 소규모 팀과 학생이 주요 사용자다. 장기 목표는 창작자가 이야기와 세계 설정을 연결해 편집할 수 있는 공개 서비스다. 「오픈소스 SW 개발방법 및 도구」 HW6의 요구사항은 최소 검증 기준으로 삼는다. 현재 승인된 이야기에서 플레이 가능한 분기와 퀘스트를 설계하고, 시나리오 초안과 승인본을 브라우저에 저장할 수 있다.
 
 예를 들어 플레이어가 수문에서 증언을 모은 뒤 명부를 공개할지 봉인할지 고른다고 하자. 설계자는 각 결말이 벌어지는 장소를 지도에서 확인하고, 공개 장소로 가는 유일한 도로를 지웠을 때 어느 분기가 막히는지 확인할 수 있어야 한다. 이 동작이 제품의 핵심 목표다. [합성 예시 프로젝트](docs/examples/salt-census.json)
 
@@ -13,23 +13,29 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 3. 제공자가 제안한 세 방향의 갈등, 결말, 소재 반영 근거를 비교한다. 저장된 후보의 출처는 개발용 mock과 실연동으로 구분해 표시한다. 후보를 골라 이야기 필드를 편집한 뒤 고정 사실과 내용을 검토해 승인한다.
 4. 브라우저의 IndexedDB에 저장된 프로젝트를 같은 브라우저 프로필과 주소에서 다시 연다. 소재 변경 후 기존 후보와 이야기는 재검토가 필요한 상태로 남는다.
 
-분기 그래프, 세계 지도, JSON 교환과 Markdown 내보내기는 이후 단계에서 다룬다.
+5. **Scenario Studio**에서 승인된 이야기의 분량, 장 수, 분기, 퀘스트 비중, 결말과 추가 지시를 정하고 **Generate scenario**를 한 번 누른다. 제안을 확인하고 **Accept proposal**을 누르면 초안이 저장된다.
+6. 그래프에서 사건이나 연결선을 선택해 오른쪽 편집기에서 수정한다. **Outline**으로 전환하면 키보드로 같은 항목을 편집할 수 있다. **Revise selected node / quest / chapter**는 선택한 대상의 전후 비교를 열며, 채택하기 전까지 저장된 내용이 유지된다.
+7. **Validate scenario**에서 결말까지의 경로와 지적 사항을 확인한다. 고정 사실과 선택의 결과를 검토하고 확인란을 선택한 뒤 **Approve scenario**를 누른다. **Saved locally**가 나타나면 같은 주소에서 다시 열 수 있다.
+8. **Export project JSON**은 프로젝트 전체를, **Export scenario Markdown**은 읽기용 설계서를 저장한다. **Projects → Import project JSON**으로 복구한다. 같은 ID가 있으면 별도 사본 생성을 확인한다. 가져온 시나리오는 로컬에서 다시 검증하고 승인한다.
+
+소유자의 실제 생성 시도에서 인증, 미완성 응답, 서버 설정 오류가 보고됐다. 수정 후 실제 시나리오 완성 여부는 아래 ChatKHU 절차로 확인할 수 있다. [Phase 2.1 검증 보고서](docs/PHASE_2_1_REPORT.md)
 
 ## 로컬에서 실행
 
-Python 3.13, Node.js 24 및 npm이 필요하다. 저장소 루트에서 PowerShell로 다음을 실행한다.
+Windows에 Python 3.13과 Node.js 24 이상(npm 포함)을 설치한다. 저장소 루트에서 PowerShell을 열고 다음을 실행한다. 처음 실행하거나 의존성이 바뀌었을 때는 `setup.ps1`을 먼저 실행한다.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
-npm.cmd --prefix frontend ci
+.\scripts\setup.ps1
+.\scripts\start-dev.ps1
 ```
 
-백엔드와 프런트엔드는 각각 별도 터미널에서 실행한다. 개발 화면은 `http://127.0.0.1:5173`, 백엔드 헬스는 `http://127.0.0.1:8000/health`에서 확인한다.
+설정 스크립트는 로컬 `.venv`를 준비하고 고정된 Python 의존성과 프런트엔드 잠금 파일의 패키지를 설치한다. 실행 스크립트는 FastAPI와 Vite를 루프백에서 시작한다. 준비 안내가 나오면 `http://127.0.0.1:5173`을 연다. `Ctrl+C`로 이 터미널에서 시작한 두 서버를 종료한다. 8000 또는 5173 포트를 이미 쓰고 있으면 해당 서버를 원래 터미널에서 종료한 뒤 다시 실행한다.
+
+계정이나 키 없이 동작을 확인하려면 실행할 터미널에서 `$env:WORLDWEAVER_PROVIDER = 'mock'`을 지정한다. 상태 조회는 생성 요청을 보내지 않는다.
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1 --no-proxy-headers
-npm.cmd --prefix frontend run dev
+Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-RestMethod http://127.0.0.1:5173/api/generation | Select-Object mode, provider, model, available
 ```
 
 배포 형태를 로컬에서 확인하려면 `npm.cmd --prefix frontend run build` 후 백엔드를 다시 시작하고 `http://127.0.0.1:8000`을 연다. 포트가 다르면 브라우저 저장소도 각각 별도로 열린다.
@@ -41,56 +47,55 @@ npm.cmd --prefix frontend run dev
 - Chrome 또는 Edge에서 해당 주소를 연 채 `F12`를 누른다. **Application → Storage → IndexedDB → worldweaver-v1 → projects**로 이동해 `Value` 셀의 `project`를 펼친다. `userContent`가 12개이고 `canonicalFacts`가 3개인 레코드가 있는지 확인한다. 기존 자료를 보존하려면 **Clear site data**, **Delete database**, 레코드 삭제 기능은 사용하지 않는다.
 - 개발 서버의 **Projects**에서 **잊혀진 달**을 누르면 소재 12개와 고정 사실 3개를 갖춘 새 프로젝트가 저장되고 열린다. 클릭할 때마다 새 ID를 사용하므로 같은 제목으로 저장한 기존 프로젝트도 다시 열 수 있다.
 
-## ChatKHU 제공자 설정
+## 승인된 이야기의 인물·세력과 시나리오 참조 확인
 
-백엔드와 Python CLI는 저장소 루트의 `.env`를 읽는다. 셸이나 VS Code가 프로세스에 직접 지정한 환경 변수가 같은 이름의 파일 값보다 우선하며, 빈 값도 우선한다. `.env.example`은 변수 목록이다. 기존 루트 `.env`에 ChatKHU 설정이 있으면 그대로 사용한다. 키를 현재 PowerShell에 직접 지정할 때는 아래 방식으로 입력할 수 있다. [ChatKHU 인증](https://docs.mindlogic.ai/docs/khu/api-gateway/getting-started/authentication) · [환경 변수 예시](.env.example)
+기존 승인 이야기를 그대로 사용할 수 있다. **Narrative → Canonical entities**에서 정해 둔 인물 이름·역할, 세력 이름·목표, 아이템, 선택, 플래그를 먼저 등록할 수 있다. 이미 등록된 ID는 다음 생성에서 그대로 사용한다. 등록을 생략하면 시나리오가 필요한 새 개체를 같은 요청 안에서 제안한다.
 
-```powershell
-# Optional when the key is already in the root .env
-$env:CHATKHU_API_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'ChatKHU Gateway API key' -AsSecureString)).Password
-.\.venv\Scripts\python.exe -m scripts.chatkhu models
-.\.venv\Scripts\python.exe -m scripts.chatkhu credits
-```
+1. 아래 절차로 같은 PowerShell과 브라우저 프로필을 사용해 **잊혀진 달**을 연다. 기존의 승인된 이야기를 선택한다.
+2. **Scenario Studio**에서 표준 3장·분기·복수 결말과 표시된 예산을 확인한 후 **Generate scenario**를 한 번 누른다.
+3. **Proposal entities**에서 기존 개체와 추가 개체, 소속 세력, 사용처와 조건을 확인한다. **Accept proposal**을 누르면 개체와 그래프가 함께 저장된다. **Validate scenario**에서 결말 경로를 확인하고 검토 후 **Approve scenario**를 누른다. 새로고침 후 같은 프로젝트에서 ID와 승인 상태를 다시 확인한다.
+4. 거절될 경우 **Proposal findings**에서 유형별 목록을 펼쳐 문제 ID와 필드 경로를 확인한다. **Relink rejected references**가 열리면 올바른 대상 ID를 선택한다. 빠진 인물·세력·상태 개체가 있으면 **Add entity to proposal**로 선언할 수 있다. **Check corrections without generation**은 로컬 검증만 실행한다. 통과하면 다시 제안을 검토하고 채택한다. 복구 가능한 거절 원본은 같은 브라우저의 별도 진단 저장소에 남는다.
 
-`models`는 공식 `GET /models/?type=llm`이 반환한 계정별 텍스트 모델 ID를 보여 준다. `credits`는 `GET /credits/`에서 총 잔액을 읽는다. 웹 채팅 화면의 모델과 API 모델의 권한은 다를 수 있다. 401이면 Gateway에서 키의 활성 상태와 소속을 확인한다. [모델 조회](https://docs.mindlogic.ai/docs/khu/api-gateway/getting-started/models) · [크레딧 조회](https://docs.mindlogic.ai/docs/khu/api-gateway/reference/credits)
+소유자가 보고한 최근 시도는 출력 5,528토큰, 추론 0으로 응답을 받았고 진행 검사에서 세 결말이 모두 막혔다. Phase 2.3 검증 절차는 다음과 같다. [이전 참조 오류 분석](docs/PHASE_2_2_REPORT.md)
 
-아래 견적은 예시 입력 1,000토큰과 최대 출력 6,000토큰을 기준으로 한다. 도구는 `/models/`에서 `gpt-6.1-sol`의 사용 가능 여부를 확인하고 공개 ChatKHU 단가로 텍스트 크레딧을 추정한다. 실제 차감액은 계정 단가와 캐시 등에 따라 달라진다. 공식 `/estimate/`의 지원 범위는 이미지·비디오·음악이다. [공개 모델 단가](https://docs.mindlogic.ai/docs/khu/baze/product/model-credits) · [견적 API](https://docs.mindlogic.ai/docs/khu/api-gateway/reference/estimate)
+### 분기와 결말 검증 및 거절 초안 복구
 
-```powershell
-.\.venv\Scripts\python.exe -m scripts.chatkhu estimate --model gpt-6.1-sol --input-tokens 1000 --output-tokens 6000
-```
+1. 기존 프로젝트를 저장한 프로필과 주소를 사용한다. 인증에 성공했던 PowerShell에서 `.\.venv\Scripts\python.exe -m scripts.chatkhu check`로 모델과 한도를 확인하고 `.\scripts\start-dev.ps1`을 실행한다.
+2. **Projects → Open → 잊혀진 달**에서 이미 승인한 이야기를 확인한다. **Scenario Studio**에서 `standard`, 3장, `branching`, `multiple`을 선택한다. 모델은 `gpt-6.2-sol`, API는 `responses`, 시간은 120초, 일반 출력은 6,000, 시나리오 출력은 12,000토큰, 최대 시도는 1회다. 예산을 승인한 소유자가 **Generate scenario**를 한 번 누른다.
+3. 진행 오류가 나오면 **Rejected proposal editor**에서 **Blocked at**의 장면, 도달 경로, 퀘스트의 현재·필요 상태를 읽는다. **Technical details**에서 연결·대상 ID와 조건 경로를 확인한다. 가령 반출 허가가 `active`인데 출구가 `completed`를 요구한다면, 먼저 도장을 얻는 사건이 같은 경로에서 실제로 실행되는지 확인한다. 의도에 맞게 해당 사건의 효과, 퀘스트의 목표 조건 또는 연결을 편집한다.
+4. **Revalidate edited proposal**로 결정론적 검사를 다시 실행한다. 로컬 백엔드가 실행 중이면 모델 호출과 크레딧 사용은 0이다. 수정 전후를 검토하고 **Accept proposal**을 누르면 초안으로 저장된다. **Validate scenario**에서 결말별 경로를 확인하고, 고정 사실과 장소 이동을 검토한 후 **Approve scenario**를 누른다. 새로고침 후 같은 프로젝트를 다시 열어 승인 상태와 편집 내용이 보이는지 확인한다.
+5. 거절 원본은 명시적으로 폐기할 때까지 보관한다. 작업 중인 수정은 현재 화면에 있으므로 이동 전에 재검증하고 채택한다. **Rejected scenario file → Export original rejected graph**는 창작 내용이 포함된 진단 파일을 저장한다. **Open rejected scenario file**은 같은 프로젝트·리비전에서 원본을 복원한다. 사이트 저장소를 사용할 수 없다는 안내가 뜨면 탭을 닫기 전에 파일을 저장한다. [Phase 2.3 결과와 한계](docs/PHASE_2_3_REPORT.md)
 
-목록에서 모델을 확인하고 모델과 크레딧 예산을 승인한 뒤, 같은 PowerShell에서 제공자를 선택해 백엔드를 재시작한다. 아래 `gpt-6.1-sol`은 공식 문서가 Responses API와 구조화 출력을 지원한다고 명시한 모델의 설정 예시다. Chat Completions가 필요한 모델은 해당 모델의 `json_schema` 지원을 확인하고 `CHATKHU_API=chat_completions`로 명시한다. [ChatKHU Responses API](https://docs.mindlogic.ai/docs/khu/api-gateway/reference/responses-api) · [OpenAI 모델 기능](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+## ChatKHU 제공자 설정과 시나리오 생성 확인
+
+백엔드와 CLI는 저장소 루트의 UTF-8 `.env`를 읽는다. BOM을 지원한다. 현재 프로세스에 같은 변수가 있으면 빈 값도 파일보다 우선한다. 아래 절차는 파일을 수정하지 않는다. [환경 변수 예시](.env.example)
+
+1. 기존 개발 서버를 실행한 터미널에서 `Ctrl+C`로 종료하고 저장소 루트에서 PowerShell을 연다. 처음 설치한 경우 `.\scripts\setup.ps1`을 실행한다.
+2. 아래 값을 **서버를 시작할 PowerShell**에 지정한다. 전체 시나리오 12,000토큰은 표준 3장 분기 검증용 선택값이다. 별도 설정이 없으면 전체 시나리오도 기본 출력 한도를 사용한다. 두 출력 한도의 허용 범위는 각각 128~16,000 정수이며 시간 제한은 0초 초과 120초 이하다.
 
 ```powershell
 $env:WORLDWEAVER_PROVIDER = 'chatkhu'
-$env:CHATKHU_MODEL = 'gpt-6.1-sol'
+$env:CHATKHU_MODEL = 'gpt-6.2-sol'
 $env:CHATKHU_API = 'responses'
+$env:WORLDWEAVER_TIMEOUT_SECONDS = '120'
+$env:WORLDWEAVER_MAX_OUTPUT_TOKENS = '6000'
+$env:WORLDWEAVER_SCENARIO_MAX_OUTPUT_TOKENS = '12000'
 $env:WORLDWEAVER_LIVE_MAX_ATTEMPTS = '1'
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1 --no-proxy-headers
+.\.venv\Scripts\python.exe -m scripts.chatkhu check
 ```
 
-브라우저는 상태를 조회해 ChatKHU Gateway와 모델을 표시한다. 직접 API로 실행할 때는 확인한 설정을 `X-Worldweaver-Generation: chatkhu:responses:gpt-6.1-sol`처럼 보낸다. Gateway의 402는 잔액 또는 해당 요청의 예약 크레딧 부족으로 표시한다. 키는 Gateway HTTPS 호스트에만 전달하고, 생성이 실패하면 명시적 오류를 반환한다.
-
-### 로컬 생성 핫픽스 재시작
-
-1. 백엔드와 프런트엔드를 실행 중인 터미널에서 각각 `Ctrl+C`를 누른다.
-2. 백엔드 터미널에서 저장소 루트로 이동해 의존성을 설치하고 서버를 시작한다.
+3. `check`는 오프라인으로 실제 설정과 파일을 덮어쓴 변수 **이름**을 보여 준다. `CHATKHU_API_KEY` 충돌이 있고 루트 파일의 키를 사용할 경우에만 `Remove-Item Env:CHATKHU_API_KEY -ErrorAction SilentlyContinue`를 실행한다. 현재 셸의 키가 의도한 키라면 유지한다. 키를 화면에 출력할 필요가 없다.
+4. 같은 셸에서 아래 두 명령을 차례로 실행한다. `preflight`가 실패하면 오류를 해결한 뒤 진행한다. 이 명령은 선택한 키로 `GET /models/?type=llm`을 한 번 호출해 모델 권한을 확인한다. 서버 시작 자체는 오프라인 설정 검사만 수행한다. [ChatKHU 모델 조회](https://docs.mindlogic.ai/docs/khu/api-gateway/getting-started/models)
 
 ```powershell
-Set-Location 'D:\univ\3-1\OpenSW\HW6'
-.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1 --no-proxy-headers
+.\.venv\Scripts\python.exe -m scripts.chatkhu preflight
+.\scripts\start-dev.ps1
 ```
 
-3. 별도 프런트엔드 터미널에서 Vite를 다시 시작한다.
+5. 기존 **잊혀진 달**을 저장한 브라우저 프로필과 동일한 주소에서 **Projects → Open**으로 연다. 예전에 사용한 주소가 `http://127.0.0.1:5173`이면 그대로 사용한다. `localhost`는 별도 IndexedDB를 사용한다. 승인된 이야기가 있으면 그대로 연다.
+6. **Scenario Studio**에서 표준 3장과 분기를 선택하고 제공자·모델·요청 1회·토큰·시간을 확인한다. 비용을 승인한 경우에만 **Generate scenario**를 한 번 누른다. 성공하면 제안에서 분기와 퀘스트를 검토한 뒤 **Accept proposal → Validate scenario → Approve scenario** 순서로 진행하고 저장 후 다시 연다. 실패하면 오류 사유와 표시된 사용량을 확인하고 재요청 여부를 직접 결정한다.
 
-```powershell
-Set-Location 'D:\univ\3-1\OpenSW\HW6'
-npm.cmd --prefix frontend run dev
-```
-
-기존 브라우저 프로필에서 이전과 같은 호스트명과 포트로 새로고침한다. `http://localhost:5173`과 `http://127.0.0.1:5173` 모두 생성 요청을 전달할 수 있으며, IndexedDB는 두 주소를 서로 다른 출처로 취급한다. 루트 `.env`의 값으로 실행하려면 같은 이름에 지정된 프로세스 환경 변수를 확인한다.
+401은 키 인증, 403은 권한, 402는 잔액 또는 요청 예약 크레딧을 확인한다. 인증에 성공해도 제공자가 이번 시나리오를 시간과 출력 한도 안에서 완성할지는 별도 확인이 필요하다. 출력 한도는 추론을 포함하며 크레딧 금액과 단위가 다르다. `credits`로 현재 잔액을 별도로 조회할 수 있다. [ChatKHU Responses API](https://docs.mindlogic.ai/docs/khu/api-gateway/reference/responses-api) · [크레딧 조회](https://docs.mindlogic.ai/docs/khu/api-gateway/reference/credits) · [Phase 2.1 검증 보고서](docs/PHASE_2_1_REPORT.md)
 
 ## 직접 OpenAI 및 개발용 mock 설정
 
@@ -115,7 +120,7 @@ $env:WORLDWEAVER_LIVE_MAX_ATTEMPTS = '1'
 
 React·TypeScript·Vite 프런트엔드와 FastAPI·Pydantic 백엔드를 사용한다. 정본은 버전이 있는 하나의 Project다. 서버는 제공자 응답을 정본 스키마로 검사하고 현재 프로젝트 리비전에 대한 제안으로 반환한다. 프로젝트와 제공자 설정은 각각 브라우저와 서버에서 관리한다. [아키텍처](docs/ARCHITECTURE.md) · [데이터 계약](docs/DATA_SCHEMA.md)
 
-런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 자동 복구는 최대 두 번이며 중요한 서사 변경에는 사용자 승인이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
+런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 현재 시나리오 생성의 모델 호출은 한 번이며, 진행 오류 수정에는 설계자의 편집과 명시적 채택이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
 
 검증에는 pytest와 Vitest를 사용한다. 일반 CI는 mock을 사용하도록 설계했으며, CI 구성과 배포는 후속 단계에서 진행한다. [TDD 계획](docs/TDD_PLAN.md) · [CI/CD 계획](docs/DEVOPS_PLAN.md)
 

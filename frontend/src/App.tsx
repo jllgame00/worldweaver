@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchGenerationStatus, generateDirections, GenerationError } from './api';
 import Content from './Content';
+import ScenarioStudio from './ScenarioStudio';
+import { scenarioCopy } from './studioWorkflowCopy';
+import { importProject, InvalidProjectReference } from './scenarioWorkflow';
 import { copy } from './copy';
 import Dashboard from './Dashboard';
 import { DirectionDetail, Directions, StoryFields } from './Direction';
 import Narrative from './Narrative';
-import { acceptBatch, candidatesFresh, chooseDirection, createProject } from './project';
+import { acceptBatch, candidatesFresh, chooseDirection, createProject, newId } from './project';
 import type { Project, StoryCandidate } from './project.generated';
 import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
 import type { CandidateResult, GenerationStatus } from './validation';
 
-type Studio = 'content' | 'directions' | 'narrative';
+type Studio = 'content' | 'directions' | 'narrative' | 'scenario';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
 
 function startingStudio(project: Project): Studio {
+  if (project.scenario) return 'scenario';
   if (project.narrative) return 'narrative';
   return project.storyCandidates.length ? 'directions' : 'content';
 }
@@ -183,10 +187,10 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           </>}
         </div>
         {project && <nav className="studio-nav" aria-label={copy.studioNav}>
-          {(['content', 'directions', 'narrative'] as const).map((name) => (
+          {(['content', 'directions', 'narrative', 'scenario'] as const).map((name) => (
             <button key={name} type="button" aria-current={studio === name ? 'page' : undefined}
               disabled={name === 'directions' ? !project.storyCandidates.length : name === 'narrative' && !project.narrative}
-              onClick={() => setView(name)}>{copy[name]}</button>
+              onClick={() => setView(name)}>{name==='scenario'?scenarioCopy.title:copy[name]}</button>
           ))}
         </nav>}
       </header>
@@ -206,7 +210,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
               <span className="provider-mode" role="status">{providerLabel}</span></div>
             {generating ? <div className="actions generation-state"><span role="status">{copy.generating}</span>
               <button type="button" className="quiet" onClick={cancel}>{copy.cancelGeneration}</button></div>
-              : <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
+              : studio!=='scenario' && <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
                 onClick={() => void startGeneration()}>{copy.generate}</button>}
           </div>
           {generationIssue && <div className="notice">
@@ -239,6 +243,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             : studio === 'directions' ? <Directions project={project} fresh={fresh} disabled={disabled || !!proposal || !!switching} choose={choose}
               inspect={(id) => setView({ detail: id, from: 'directions' })} />
               : studio === 'narrative' && !project.narrative && <p className="empty panel">{copy.noNarrative}</p>}
+          {view==='scenario' && <ScenarioStudio key={project.id+'-'+editorEpoch} project={project} disabled={disabled || generating} generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
           <div hidden={view !== 'content'}>
             <Content key={`${project.id}-${editorEpoch}`} project={project} disabled={disabled} commit={store.commit} />
           </div>
@@ -246,9 +251,30 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             <Narrative key={`${project.narrative.id}-${editorEpoch}`} project={project} narrative={project.narrative} disabled={disabled}
               inspect={(id) => setView({ detail: id, from: 'narrative' })} commit={store.commit} />
           </div>}
-        </> : <Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
+        </> : <><Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
           open={(id) => void reopen(id)} create={(title) => openNewProject(createProject(title))}
-          sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />}
+          sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />
+          <label className="panel">{scenarioCopy.import}<input type="file" accept="application/json,.json" disabled={disabled||store.loading}
+            onChange={async e=>{
+              const file=e.target.files?.[0];e.target.value='';if(!file) return;
+              try {
+                if(file.size>16*1024*1024) throw Error(scenarioCopy.large);
+                const imported=importProject(await file.text());
+                if(store.projects.some(row=>row.project.id===imported.id)) {
+                  if(!window.confirm(scenarioCopy.duplicate)) return;
+                  const oldId=imported.id;
+                  imported.id=newId('project');
+                  for(const finding of imported.findings) finding.entityIds=finding.entityIds.map(id=>id===oldId?imported.id:id);
+                }
+                delete imported.approval;
+                if(imported.scenario) imported.scenario.approved=false;
+                setNotice(imported.scenario?{message:scenarioCopy.importReview}:undefined);
+                if(await store.commit(imported)) setView(startingStudio(imported));
+              } catch (err) {
+                const show = err instanceof InvalidProjectReference || (err instanceof Error && err.message === scenarioCopy.large);
+                setNotice({message: show ? err.message : scenarioCopy.importError, error:true});
+              }
+            }}/></label>{notice?.error && <p role="alert">{notice.message}</p>}</>}
       </main>
     </div>
   );

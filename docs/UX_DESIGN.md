@@ -86,3 +86,11 @@ Each sketch shows reading order and the main action. Labels are illustrative. Ke
 - In linked view, selection highlights once without moving keyboard focus across panes. Multiple events at one place form a selectable list. An unplaced draft location shows its name and placement state. Returning from a finding restores the selected entity.
 - Desktop uses side-by-side editors and a collapsible inspector. At narrow widths use one active pane with Graph/Atlas tabs retaining the same selection, a stacked candidate comparison by field, and a detail sheet. Keep zoom buttons and text lists available without dragging. Announce save state and findings to assistive technology.
 - Separate review of editorial advice from blocking errors. A major proposal opens a before/after preview with accept and decline actions. Draft export includes open issues. Verification for an approved design follows the [workflow](AGENT_WORKFLOW.md).
+
+## Phase 2 editor
+
+The desktop Scenario Studio has three panes. The left rail selects chapters, filters visible nodes by chapter, node type or quest type, and adds chapters, nodes, quests or connections. The center switches between a directed SVG graph and a searchable outline. The inspector edits the selected record and its linked quest or ending. Narrow layouts move the navigation above the graph and stack the inspector below it.
+
+Drag a node or focus it and press an arrow key to move it. Drag the canvas background to pan. Zoom, fit and auto-layout controls sit above the graph. Chapter boundaries group the nodes, and dashed and dotted connections distinguish optional progression and references. The outline and inspector link each choice to its destination without dragging.
+
+Node and chapter deletion previews list affected titles and IDs. A confirmed edit removes or unlinks those dependencies together. Validation findings link to affected records, including a quest or ending through its owner node. Draft fields stay in the inspector when a save fails. Layout changes use a separate transaction from story edits.

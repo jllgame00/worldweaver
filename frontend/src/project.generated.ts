@@ -15,6 +15,7 @@ export type Id = string;
 export type Point = [number, number];
 
 export interface Project {
+  scenario?: Scenario;
   id: Id;
   schemaVersion: "1.0.0";
   title: string;
@@ -38,6 +39,7 @@ export interface Project {
   narrative?: Narrative;
   characters: Character[];
   factions: Faction[];
+  stateEntities?: StateEntity[];
   nodes: ScenarioNode[];
   edges: ScenarioEdge[];
   quests: Quest[];
@@ -45,6 +47,62 @@ export interface Project {
   world?: World;
   findings: ValidationFinding[];
   runs: AgentRun[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "Scenario".
+ */
+export interface Scenario {
+  id: Id;
+  title: string;
+  summary: string;
+  sourceNarrativeId: Id;
+  approved: boolean;
+  settings: ScenarioSettings;
+  chapters: Chapter[];
+  locations: {
+    id: Id;
+    name: string;
+    kind: "city" | "village" | "dungeon" | "landmark" | "port";
+    purpose: string;
+  }[];
+  geography: {
+    from: Id;
+    to: Id;
+    via?: Id;
+    relation: "near" | "beneath" | "separates" | "travel";
+    description: string;
+  }[];
+  factIds: Id[];
+  contentIds: Id[];
+  layout: {
+    nodeId: Id;
+    x: number;
+    y: number;
+  }[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "ScenarioSettings".
+ */
+export interface ScenarioSettings {
+  scale: "short" | "standard";
+  chapterCount: number;
+  branching: "linear" | "branching";
+  mainQuests: "light" | "strong";
+  sideQuests: "none" | "some";
+  endings: "single" | "multiple";
+  instructions: string;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "Chapter".
+ */
+export interface Chapter {
+  id: Id;
+  title: string;
+  purpose: string;
+  summary: string;
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema
@@ -170,11 +228,36 @@ export interface Faction {
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "StateEntity".
+ */
+export interface StateEntity {
+  id: Id;
+  kind: "item" | "decision" | "flag";
+  name: string;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
  * via the `definition` "ScenarioNode".
  */
 export interface ScenarioNode {
+  chapterId?: Id;
+  purpose?: string;
+  outcome?: string;
+  factionIds?: Id[];
+  conditions?: StateTerm[];
+  consequences?: StateTerm[];
   id: Id;
-  kind: "prologue" | "chapter" | "event" | "quest" | "choice" | "ending";
+  kind:
+    | "prologue"
+    | "chapter"
+    | "event"
+    | "quest"
+    | "choice"
+    | "ending"
+    | "dialogue"
+    | "encounter"
+    | "condition"
+    | "transition";
   title: string;
   description: string;
   mandatory: boolean;
@@ -185,9 +268,21 @@ export interface ScenarioNode {
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "StateTerm".
+ */
+export interface StateTerm {
+  kind: "quest" | "item" | "decision" | "relationship" | "flag" | "character" | "location";
+  key: Id;
+  value: string;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
  * via the `definition` "ScenarioEdge".
  */
 export interface ScenarioEdge {
+  kind?: "progression" | "optional" | "reference";
+  conditions?: StateTerm[];
+  consequences?: StateTerm[];
   id: Id;
   from: Id;
   to: Id;
@@ -200,6 +295,16 @@ export interface ScenarioEdge {
  * via the `definition` "Quest".
  */
 export interface Quest {
+  kind?: "main" | "side";
+  title?: string;
+  description?: string;
+  prerequisiteIds?: Id[];
+  completion?: StateTerm[];
+  failure?: StateTerm[];
+  reward?: string;
+  characterIds?: Id[];
+  factionIds?: Id[];
+  locationIds?: Id[];
   id: Id;
   nodeId: Id;
   objective: string;
@@ -292,9 +397,30 @@ export interface ValidationFinding {
   entityIds: Id[];
   explanation: string;
   suggestedRepair: string;
+  fieldPath?: string;
+  causeNodeId?: Id;
+  blockedTransitions?: BlockedTransition[];
+  referenceId?: Id;
+  expectedType?: string;
+  actualType?: string;
+  witnessPath?: Id[];
   status: "open" | "proposed" | "declined" | "resolved" | "superseded";
   checkedRevision: number;
   runId: Id;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "BlockedTransition".
+ */
+export interface BlockedTransition {
+  edgeId?: Id;
+  targetId?: Id;
+  fieldPath: string;
+  kind: string;
+  key: Id;
+  actual: string | null;
+  required: string;
+  producerIds: Id[];
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema

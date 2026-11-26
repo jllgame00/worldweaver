@@ -1,6 +1,48 @@
-# Implementation TDD evidence
+﻿# Implementation TDD evidence
 
-Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했다. 아래는 Phase 1, Phase 1.5, Phase 1.5-C의 구현 증거다.
+Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했다.
+
+## Phase 2.2 · Canonical entity references
+
+All generation below used deterministic or mocked providers. RED results were observed before their corresponding behavior was implemented. Commands used the repository venv and the frontend npm workspace.
+
+| Criterion and command | RED observed | GREEN observed |
+|---|---|---|
+| Full generation and Korean fixture, `python -m pytest -q backend/tests/test_scenario_entities.py` | 5 failed, 2 passed. The structured declaration fixture returned 502 at the root rather than 200. Four adversarial cases received generic contract rejection. Subsequent duplicate-name cases (`-k duplicate_declarations`) initially passed through as 200 in all 8 cases. | Final 19 passed, including the Korean two-ending fixture, exact typed aliases, same-type duplicate names, NFC-equivalent Korean names, conflicting IDs, wrong-domain/unknown refs, canonical and new locations, and a rejected response containing four distinct field paths. |
+| Domain and import checks, `python -m pytest -q backend/tests/test_typed_references.py`, `npm.cmd --prefix frontend test -- typedReferences.test.ts` | 9 pytest and 2 Vitest failures. The declared inventory was rejected, an undeclared key could pass, and affiliation/quest condition errors lacked individual field paths. Additional import path tests failed on a generic project error. | All seven term kinds exercised. Old namespace collisions stay readable and deterministically become unique IDs on a reviewed replacement. Input API and JSON importer identify the field. |
+| Atomic client acceptance, `npm.cmd --prefix frontend test -- scenarioAcceptance.test.ts` | First 2 cases failed. New legitimate cast refs were rejected and a duplicate declaration was ignored. Individual REDs subsequently demonstrated a missing reference repair operation, proposed location replacement, undeclared keys when the declaration block was absent, and generic import errors. | 6 passed. Covers declined/stale boundaries with existing workflow tests, duplicate/overwrite protection, no mutation of the original, single deterministic repair check, JSON export/import and IndexedDB reopen. |
+| Owner review, `npm.cmd --prefix frontend test -- ScenarioStudio.test.tsx ScenarioEditor.test.tsx` | 3 failed, 12 passed in the first UI run. Missing entity preview, guidance for prose-only projects, and a flag field that accepted arbitrary text. A separate grouped-findings test failed before the UI change. | 17 passed. Two additional integration regressions exercised reopening findings and failed generation → typed relink → validation → separate acceptance. |
+| Manual registration, `npm.cmd --prefix frontend test -- NarrativeRegistry.test.tsx` | Individual REDs for missing Entity name control in the approved narrative and in a detached repair draft. | 2 passed. The original story/approval survives registration, and missing cast can be registered within a repair without changing the saved project. |
+| Compatibility and error transport, `python -m pytest -q backend/tests/test_registry_schema.py` | Declared item failed Draft 4 validation. Detached repair test lacked fieldPath. Two wire dependency tests failed due to absent findings for unresolvable chapter/quest links. | 5 passed, including an additional regression for generating the first inventory from an approved project with empty cast, factions and graph. The two prior compact-link tests also passed with their original error codes. |
+
+Final `python -m pytest -q` passed **243** tests (one existing Starlette/AnyIO deprecation). `npm.cmd --prefix frontend test` passed **57** across 10 files. Strict TypeScript, Vite build, generated types, canonical Draft 4, both transport schemas, exact legacy JSON round trip and `git diff --check` passed. Built UI + actual loopback FastAPI with mock generation passed scenario create/revise/validate (HTTP 200), approval/reopen in jsdom/fake IndexedDB. A separate assembled Phase 1 mock integration also passed. A fresh Edge renderer probe returned `spawn EPERM`. No successful rendered browser or live-provider result is claimed. [Phase 2.2 report](PHASE_2_2_REPORT.md)
+
+## Phase 2.1 · Scenario generation reliability
+
+Initial full backend run with the existing Phase 2 worktree: 163 passed. The following RED results preceded their corresponding fixes. All provider calls used mocked boundaries.
+
+| Focused command (repository venv) | Observed RED | Observed GREEN |
+|---|---|---|
+| `python -m pytest -q backend/tests/test_environment.py scripts/test_chatkhu.py -k "safe_configuration_error or offline_check or full_scenario_output_limit or preflight"` | 16 failed on field-level errors, effective settings, scenario cap and auth-only command. One subsequent assertion failed before the CLI showed safe model/API labels. | 16 passed and the additional assertion passed. Covers process/file conflict names, invalid ranges, authentication denial, model entitlement and no generation. |
+| `python -m pytest -q backend/tests/test_chatkhu_provider.py::test_gateway_reports_only_allowlisted_incomplete_metadata backend/tests/test_scenario.py::test_failed_live_response_preserves_valid_scenario backend/tests/test_live_provider.py::test_live_errors_are_safe_and_nonmutating` | 12 failed, 13 passed. Exhaustion and filtering collapsed into one failure and lost numeric receipts. Separate scoped-cap tests observed the base 5,000 instead of 12,000 on both adapters. | Focused checks passed, including receipts, scenario-only cap and preservation of approved work. |
+| `python -m pytest -q backend/tests/test_scenario.py -k standard_compact_proposal` | Both fixtures failed on redundant edge aliases. A separate guarded branch check exposed missing quest guards. A null-reward assertion detected an invented reward. | Both language fixtures pass canonical validation. Guard/effect tests exercise feasible endings and preservation of explicit and absent rewards. |
+| `python -m pytest -q backend/tests/test_scenario_reliability.py` | Five failures on configuration, authentication or incomplete-response diagnostics. A subsequent cap-change test initially returned 422 instead of 409. | Six passed, including rejection before provider dispatch when the reviewed cap changes. |
+| `npm.cmd --prefix frontend test -- ScenarioStudio.test.tsx -t "shows the live scenario budget"` | Missing one-request budget. | Passed, including numeric reasoning usage, single dispatch and persistence of the approved scenario and design revision after failure. |
+
+Final checks: `python -m pytest -q` 209 passed (one existing dependency deprecation). `npm.cmd --prefix frontend test` 42 passed. `npm.cmd --prefix frontend run build` passed generated types, strict TypeScript and Vite. Both strict provider schemas, canonical Draft 4 and exact example round trip passed independent schema checks. Built frontend + loopback mock API returned HTTP 200 for scenario generation, targeted revision and validation, and reopened the approved design via jsdom/fake IndexedDB. [Owner report](PHASE_2_1_REPORT.md)
+
+## Phase 2 · Windows 실행과 시나리오 재열기
+
+| 항목 | 실행과 관찰 |
+|---|---|
+| 실행 스크립트 RED → GREEN | `.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider scripts/test_dev_startup.py -q --tb=line`. RED 종료 1, 수집한 2개 모두 실패. 스크립트가 없어 점유 포트와 기존 디렉터리 보호 안내를 받을 수 없었다. 임시 디렉터리 권한 문제를 고친 뒤 이 RED를 기록했다. GREEN 종료 0, 2개 통과. 프런트엔드 디렉터리에서 호출해 8000 포트 충돌 및 식별 불가한 `.venv`·기존 `.env`의 보존을 검증했다. |
+| ChatKHU CLI 진단 RED → GREEN | `python -m pytest -p no:cacheprovider scripts/test_chatkhu.py -k 401 -q --tb=line`. 주입한 401 응답에서 기존 오류는 키 확인만 안내해 RED 종료 1, 1개 실패, 17개 제외. 셸 우선순위와 값을 표시하지 않는 확인·해제 명령을 안내한 뒤 GREEN 종료 0, 1개 통과, 17개 제외. 응답 본문을 읽거나 실제 Gateway에 접속하지 않았다. |
+| 환경/CLI 회귀 | `python -m pytest -p no:cacheprovider backend/tests/test_environment.py scripts/test_chatkhu.py scripts/test_dev_startup.py -q --tb=line` 종료 0, 28개 통과. 합성 BOM 파일과 다른 작업 디렉터리에서 셸·파일 우선순위, 빈 값·공백·줄바꿈·비ASCII 키 거부를 검증했다. 키 거부 5개는 기존 동작 확인이다. 이 실행에서 캐시 플러그인을 명시적으로 끈 탓에 pytest가 `cache_dir` 설정 경고 1개를 냈다. |
+| 설치와 종료 | Windows PowerShell, Python 3.13.1, Node 24.13.0. 격리된 저장소 복사본에서 기존 고정 의존성이 있는 venv로 `scripts/setup.ps1`을 실행해 종료 0, npm 잠금 파일 설치 및 기존 `.env` 보존을 확인했다. 빈 venv 설치는 Python의 `ensurepip`가 전용 임시 디렉터리에 쓰지 못해 WinError 5로 중단됐다. 이 환경에서는 작업 공간 안으로 TMP를 옮겨도 같은 제한이 있었다. |
+| CLI 파일 경로 RED → GREEN | `python -m pytest scripts/test_chatkhu.py -k script-from-frontend -q --tb=line`. 프런트엔드 디렉터리에서 CLI 파일 경로를 지정한 실제 자식 프로세스가 백엔드 모듈을 찾지 못해 RED 종료 1, 1개 실패. 스크립트로 실행할 때 저장소 루트에서 공통 로더를 찾게 한 뒤 비어 있는 셸 키에 대해 정해진 오류를 받아 GREEN 종료 0, 1개 통과, 18개 제외. `python -m pytest backend/tests/test_environment.py scripts/test_chatkhu.py scripts/test_dev_startup.py -q --tb=line` 종료 0, 29개 통과, 실제 Gateway 요청 0건. |
+| 포트와 종료 | 8000·5173에 기존 프로세스가 있어 그대로 두고, 격리된 복사본의 포트만 바꿔 실행했다. 최초 시도에서 Ctrl+C 뒤 프로세스 트리 종료가 권한 오류로 실패했다. Vite의 시작 시 얻은 프로세스 핸들을 보관하고 Uvicorn을 포그라운드에서 실행하도록 고쳤다. 재검증에서 `15173/api/generation`은 mock, `18183/health`는 ok였다. Ctrl+C 이후 두 포트의 LISTEN이 사라졌고 원래 포트의 PID 두 개는 유지됐다. |
+| 배포용 번들과 실제 로컬 API | `npm.cmd --prefix frontend run build` 종료 0. 별도 루프백 포트 18182에서 mock FastAPI로 번들을 제공했다. `node .scratch/browser/phase2-compiled.mjs` 종료 0. jsdom·fake-indexeddb에서 합성 승인 서사를 가져와 9개 노드 제안을 생성·수락하고 Enter로 첫 노드를 선택했다. 해당 노드의 수정 제안을 수락하고 노드 ID 전체와 고정 사실 보존을 확인했다. 생성·수정·검증은 실제 루프백 HTTP 200이었다. 검증과 검토 체크 후 승인하고 앱을 다시 마운트해 같은 승인과 노드 전체를 확인했다. 검증용 18182 서버도 종료했다. |
+| 실제 브라우저와 보안 | 브라우저 연결 호스트가 응답하지 않았고 Chrome 창 제어는 권한을 받지 못했다. 실제 브라우저 렌더링·디스크 IndexedDB와 사람의 서사 평가는 미검증이다. 루트·셸 키의 일치 여부만 비교해 다른 값임을 확인했다. 당시 401의 직접 원인은 미확정이다. 추적 파일, 제외되지 않은 새 파일과 빌드 자산 100개를 점검한 시점에 실제 키 일치 파일 0개였다. 루트 `.env`는 미추적·제외 상태였다. 실연동 요청 0건. |
 
 ## 로컬 프로젝트 복원과 개발 샘플
 
@@ -96,3 +138,66 @@ GREEN과 회귀에는 저장소 안에 설치한 고정 의존성을 사용했�
 | 예외 | 누락된 증거, 미검증 환경, 남은 위험과 별도 실연동 결과 |
 
 실행 전인 사례는 계획 단계로 유지한다. [TDD 계획](TDD_PLAN.md)
+
+## Phase 2 · Scenario service and deterministic progression
+
+All commands below used the repository Windows virtual environment. Synthetic mock data and intercepted HTTP exercised the provider boundary. No credential access, external generation, retries or paid calls were required.
+
+| Case | Pre-implementation observation | Subsequent verification |
+|---|---|---|
+| S1–S3, generation, scope, live-client guard | `.venv/Scripts/python -m pytest backend/tests/test_scenario.py -q --tb=line` exited 1. All 11 collected cases received HTTP 405 at the absent endpoints. Inputs covered a wrong endpoint type, a disconnected cycle, infeasible history, mandatory reachability, reachable endings, structured conditions, revision scope, stale approval, provider failure and the local-request guard. | After endpoint and graph implementation, the same test file passed all 20 then-collected cases, exit 0. |
+| Duplicate edges, contradictory terms, stale source, quest prerequisite | `-k additional` on the same file before endpoint implementation exited 1, four HTTP 405 failures. | Included in the 20-case GREEN run. |
+| Malformed response, scope injection, dangling alias and explicit fact conflict | `-k "atomic or bounded"` exited 1 with four HTTP 405 failures. The deterministic budget case already passed and is characterization. | All four adverse provider cases returned typed errors, one call and no proposal. |
+| Revision conflict, unreachable secondary ending, historical revision and both gateway formats | `-k "scoped_revision or unreachable_ending_is_error or stale_source or gateway_schema"` exited 1. Reported revision conflict returned 502 instead of 422, an unreachable ending incorrectly passed, and replacing the historical source returned 422. Both fake gateway requests already passed their strict wire checks. | The scenario suite then passed 25 cases, exit 0. Both ChatKHU paths consumed a synthetic usage receipt. |
+| Output bounds and minimized revision context | `-k "oversize_graph or revision_context"` exited 1. A 33-node proposal reached graph validation and the revision input lacked neighbor context. | Bounds now run at the provider-output boundary. The test observes adjacent nodes and the absence of unrelated actors and optional input. Backend and script suite passed 147 cases, exit 0. |
+| Project references, geographic review boundary, incomplete quests, chapter ownership | `-k "wrong_base or pending_geography"` exited 1 (two failures), `-k "unfinished_quest or rejoining"` exited 1 (unfinished quest incorrectly unlocked its successor, feasible-state merge already passed), `-k approval_needs_chapter` exited 1 (chapterless node incorrectly passed). | `.venv/Scripts/python -m pytest backend/tests scripts -q --tb=line -p no:cacheprovider` exited 0 with 152 passed and one existing Starlette/AnyIO deprecation warning. |
+
+The synthetic Salt Census snapshot has revision 5. With the `n-private` prerequisite on its gate transition, the checked dead-end witness is `n-start → n-gate`. The rejoining-branch example still has two reachable endings yet reports the infeasible `n-start → n-gate → n-choose` history. Quest failure conditions take precedence over completion when leaving a quest node. Empty completion succeeds, unsatisfied completion leaves the quest active, and prerequisites require a completed quest. Graph validation checks up to 2,048 feasible states. Editorial consistency and physical travel remain separate reviews.
+
+## Phase 2 · Scenario editor
+
+The editor tests mount the React component in jsdom with the Salt Census fixture and in-memory save callbacks. Provider calls, native browser input and actual IndexedDB persistence are outside these checks.
+
+| Behavior | Observed RED | GREEN and regression |
+|---|---|---|
+| Open a quest finding, edit its objective, follow a branch to an ending, confirm dependent deletion | In `frontend`, `npm.cmd test -- ScenarioEditor.test.tsx` exited 1. Three tests were collected. The inspector link and Outline button were missing. | The same command passed all three cases, exit 0. |
+| Keep an unsaved draft on storage rejection and preserve unrelated state during quest deletion | From the repository root, `npm.cmd --prefix frontend test -- ScenarioEditor.test.tsx` exited 1 with two failures and four passes. The failed save dropped the new node form. Deletion cleared a flag whose key matched a quest ID. | The same command passed six tests, exit 0. A rejected save retains the form. Quest cleanup uses both state kind and key. |
+| Filter visible graph nodes and review the deletion impact | The same command exited 1 with two failures and six passes. The graph had no persistent filter rail and the deletion preview omitted the linked record IDs. | Eight tests passed, exit 0. The preview compares a copy after applying the same deletion used by the commit. |
+| Choose a typed state reference | The same command exited 1 with one failure and ten passes. A quest condition offered a free-text key and had no record selector. | Eleven tests passed, exit 0. The suite also checks pointer release, keyboard movement, a chapter reorder, node creation and progression cycle rejection. |
+
+The editor refactor and focus-restoration type fix passed the strict TypeScript check. The complete frontend suite (`npm.cmd --prefix frontend test`) passed 40 tests in 7 files, exit 0.
+
+Three final regressions captured new REDs. `-k separating_geography` failed with a 502 on the proposed third place, `-k world_route_requires` failed because a map route accepted a scenario-only location, and `-k korean_scenario` failed because the mock omitted the supplied location name. The final `.venv/Scripts/python -m pytest backend/tests scripts -q --tb=line` exited 0 with 155 passed. The existing Starlette warning and a sandbox pytest cache-write warning remained. The Korean synthetic project preserved its supplied place name and used Korean choice labels. A successful mock HTTP test for each configured gateway path checked provider-specific strict schema, endpoint, payload and usage receipt.
+
+## Phase 2 · Portable scenario and Studio integration
+
+Initial branch main, HEAD 9c12143e9b8279a6429972eed81b7066e2e9dcf9, clean worktree. Full test directories initially passed 113 pytest and 22 Vitest tests. An initial root pytest discovery failed with WinError 5 on pre-existing inaccessible pytest-cache-files directories. pytest.ini now points discovery at both test directories and caches in ignored scratch.
+
+| Case | Actual first execution | Verification |
+|---|---|---|
+| Draft and editor layout persistence | `npm.cmd --prefix frontend test -- scenario.test.ts` exited 1. The current Project validator rejected the new metadata, expected true and got false. | Same test exited 0 after extending Draft 4, restoring negative canvas x and positive y through simulated IndexedDB. |
+| Version, edit and interchange workflow | `npm.cmd --prefix frontend test -- scenarioWorkflow.test.ts` exited 1 with three missing public operations. | Same suite passed the original cases after implementation. Historical source data and stable IDs survived a narrative change. |
+| Targeted proposal receipt | Same command exited 1. Applying a proposal without a passing check_scenario receipt unexpectedly succeeded. | After enforcing the receipt the same test passed, then rejected an injected change to a second node. |
+| Future geography | Same command exited 1 on import of two canonical places separated by a third proposed place. | GREEN validated the via ID, exported its name in Markdown and rejected a missing via target. |
+| Manual source reconciliation | Same command exited 1, missing reconcileSource. | The same six-test suite passed after implementing explicit review and draft rebasing without graph replacement. |
+| Requested ending and side quest scope | `.venv/Scripts/python -m pytest -q backend/tests/test_scenario.py -k explicit_scope --tb=line` exited 1. Both providers ignoring a discrete control returned 200. | Same command passed both tests after enforcing the chosen ending count category and presence/absence of side quests. |
+| Integration characterization | Additional cases after implementation exercised missing start, duplicate ID, self-loop, non-playable back-reference, regeneration with historical findings and App-level reject/accept, undo/redo, approval and reopen. | These cases passed initially. The App test used jsdom, stubbed HTTP and fake IndexedDB. The separate compiled-bundle check below used actual loopback HTTP. |
+
+Final integrated run: `.venv/Scripts/python -m pytest -q --tb=line` passed **163**, one existing Starlette deprecation warning. `npm.cmd --prefix frontend test` passed **41** in seven files. `npm.cmd --prefix frontend run typecheck`, `npm.cmd --prefix frontend run build`, Draft4Validator.check_schema plus the canonical example round trip all exited 0. The rebuilt app completed the compiled jsdom smoke with mock FastAPI at 18182 (9 nodes, generation/revision/validation HTTP 200, approval restored). The owning process stopped its server. Live Scenario Studio verification is PENDING.
+
+## Phase 2.3 progression reliability
+
+Starting worktree: main at 9c12143e9b8279a6429972eed81b7066e2e9dcf9 with the earlier phases uncommitted. Baseline: 243 pytest, 57 Vitest passed. All provider boundaries below used deterministic local substitutes.
+
+| Behavior and command | Observed RED | Observed GREEN |
+|---|---|---|
+| `python -m pytest -q backend/tests/test_scenario_progression.py` | Initial lifecycle run: 10 failed, 1 passed. An objective earned on a later step did not settle its active quest. Blocked alternatives lacked guard and witness evidence. | Later-node and edge effects, terminal/failure order, optional paths, circular prerequisites and exclusive routes passed. |
+| `python -m pytest -q backend/tests/test_scenario_progression.py -k "distinct_problems or invalid_explicit_write"` | Two failures: same-node independent blockers acquired a shared cause, and one invalid write appeared twice. | Both passed. Attribution needs a unique cause; one invalid write produces one root. |
+| `python -m pytest -q backend/tests/test_progression_campaign.py` | Provider instructions lacked the executable wire example; valid late acquisition returned HTTP 502. | 10 tests passed, exercising 5 expected-valid and 6 intentionally invalid designs. Count includes both sides of paired fixture tests. |
+| `python -m pytest -q backend/tests/test_progression_recovery.py backend/tests/test_progression_finding_schema.py` | Rejected graph missing from recovery; canonical finding rejected the new guard evidence. | Detached repair yielded two ending witnesses; canonical schema accepted structured evidence and rejected a malformed producer list. |
+| `npm.cmd --prefix frontend test -- progressionFindings.test.tsx rejectedStorage.test.ts` | No root-cause heading; storage overwrote or failed to round-trip the original. Additional RED: Inspect button missing for the blocked edge. | Independent errors and severities survive grouping; links select the blocked edge. Restore, competing writes, stale/cross-project files and separate project export passed with fake IndexedDB. |
+| `npm.cmd --prefix frontend test -- ScenarioStudio.test.tsx` | Detached graph editor and field-level review absent. A reference correction exposing a progression failure could not continue in the editor. | Owner edits, local validation, before/after review, reject, accept and original retention passed. App test observed one mock generation and three deterministic checks. |
+
+Full regression: `.\.venv\Scripts\python.exe -m pytest -q` passed 273, one existing Starlette/AnyIO deprecation warning. `npm.cmd --prefix frontend test -- --reporter=dot` passed 62 in 12 files. Strict TypeScript, generated type consistency, Vite production build, Draft 4 canonical schema, both scenario transport schemas, and sample JSON round trip passed. Integration over an actual loopback listener reproduced the 502, checked the unedited graph (2 states), then rechecked a detached edit (18 states, 3 endings, one fixture-provider invocation in total). The compiled application in jsdom generated, revised, approved and reopened a nine-node project via mock FastAPI and fake IndexedDB. The separate Narrative Studio loopback integration passed. Browser access host unavailable. Live model calls and credit use: zero. [Campaign and owner verification](PHASE_2_3_REPORT.md)
+
+Two focused follow-ups used the same fixtures. `python -m pytest -q backend/tests/test_progression_campaign.py -k korean_gate` failed because the suggested edit omitted the missing state and value. It passed after the suggestion named the required flag and its exact value when no source exists. `npm.cmd --prefix frontend test -- progressionFindings.test.tsx` failed when verbose guard details were shown before expansion, then passed with the human-readable current and required values visible and the full diagnostic under Technical details. `git diff --check` exited 0, and the untracked files passed a separate trailing-whitespace scan.

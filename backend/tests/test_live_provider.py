@@ -86,9 +86,10 @@ def test_live_uses_responses_schema_and_preserves_facts(project):
     ("quota", "provider_quota", None),
     ("timeout", "provider_timeout", None),
     ("outage", "provider_unavailable", None),
-    ("incomplete", "provider_incomplete", 88),
+    ("incomplete", "provider_output_limit", 88),
     ("refusal", "provider_refused", 88),
     ("malformed", "invalid_provider_response", 88),
+    ("invalid_http_json", "invalid_provider_response", None),
     ("missing_field", "invalid_provider_response", 88),
     ("whitespace_story", "invalid_provider_response", 88),
     ("bad_reference", "invalid_coverage", 88),
@@ -104,6 +105,8 @@ def test_live_errors_are_safe_and_nonmutating(project, scenario, code, tokens):
         calls += 1
         if scenario == "timeout":
             raise httpx.ReadTimeout("PRIVATE_PROVIDER_DETAILS", request=request)
+        if scenario == "invalid_http_json":
+            return httpx.Response(200, content='{"PRIVATE_PROVIDER_DETAILS"', headers={"Content-Type": "application/json"})
         if scenario in ("auth", "rate", "quota", "outage"):
             status = {"auth": 401, "rate": 429, "quota": 429, "outage": 503}[scenario]
             error = {"message": "PRIVATE_PROVIDER_DETAILS", "code": "insufficient_quota" if scenario == "quota" else None}
@@ -335,6 +338,26 @@ def test_invalid_provider_usage_and_model_metadata_are_not_persisted(project):
     assert len(result.candidates) == 3
     assert "sk-redacted-test-value" not in json.dumps(result.run)
     assert any(receipt["detail"] == "model=unrecognized" for receipt in result.run["receipts"])
+
+
+def test_truncation_retains_reported_output_counts_when_input_usage_is_absent(project):
+    def respond(request):
+        payload = response_for(project, status="incomplete", text='{"private":"PRIVATE_PARTIAL"')
+        payload["usage"] = {"output_tokens": 55, "output_tokens_details": {"reasoning_tokens": 12}}
+        return httpx.Response(200, json=payload)
+
+    async def run():
+        async with sdk(httpx.MockTransport(respond)) as client:
+            with pytest.raises(GenerationRejected) as caught:
+                await generate(project, OpenAIProvider(client), mode="live", model="gpt-6.2-sol")
+            return caught.value
+
+    error = asyncio.run(run())
+    assert error.code == "provider_output_limit"
+    assert "tokens" not in error.run
+    details = [receipt["detail"] for receipt in error.run["receipts"]]
+    assert "outputTokens=55" in details and "reasoningTokens=12" in details
+    assert "PRIVATE_PARTIAL" not in str(error.run)
 
 
 def test_live_disconnect_cancels_the_provider_task(project):

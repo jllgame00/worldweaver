@@ -165,6 +165,41 @@ def test_direct_intent_cannot_authorize_gateway_for_same_model(monkeypatch, gate
     assert not seen
 
 
+@pytest.mark.parametrize(("api", "reason", "code"), [
+    ("responses", "max_output_tokens", "provider_output_limit"),
+    ("responses", "content_filter", "provider_content_filter"),
+    ("responses", "PRIVATE_GATEWAY_REASON", "provider_incomplete"),
+    ("responses", None, "provider_incomplete"),
+    ("chat_completions", "length", "provider_output_limit"),
+    ("chat_completions", "content_filter", "provider_content_filter"),
+])
+def test_gateway_reports_only_allowlisted_incomplete_metadata(monkeypatch, gateway_env, project, api, reason, code):
+    monkeypatch.setenv("CHATKHU_API", api)
+    visits = []
+
+    def respond(request):
+        visits.append(request.url.path)
+        payload = reply(project, api, text='{"private":"PRIVATE_GATEWAY_PARTIAL"')
+        if api == "responses":
+            payload["status"] = "incomplete"
+            payload["incomplete_details"] = None if reason is None else {"reason": reason}
+            payload["usage"]["output_tokens_details"]["reasoning_tokens"] = 19
+        else:
+            payload["choices"][0]["finish_reason"] = reason
+            payload["usage"]["completion_tokens_details"] = {"reasoning_tokens": 19}
+        return httpx.Response(200, json=payload)
+
+    install_transport(monkeypatch, respond)
+    with loopback(create_app()) as client:
+        result = client.post("/api/candidates", json=project, headers={"X-Worldweaver-Generation": f"chatkhu:{api}:{MODEL}"})
+    error = result.json()["error"]
+    assert error["code"] == code
+    assert error["run"]["calls"] == len(visits) == 1
+    assert error["run"]["tokens"] == 75
+    assert {"tool": "provider_reasoning", "outcome": "passed", "detail": "reasoningTokens=19"} in error["run"]["receipts"]
+    assert "PRIVATE_GATEWAY" not in result.text and GATEWAY_TEST_KEY not in result.text
+
+
 def test_responses_accepts_gateway_usage_without_total_or_cache_details(monkeypatch, gateway_env, project):
     def respond(request):
         payload = reply(project, "responses")
@@ -179,6 +214,38 @@ def test_responses_accepts_gateway_usage_without_total_or_cache_details(monkeypa
     run = result.json()["run"]
     assert run["tokens"] == 75
     assert any(receipt["detail"] == "inputTokens=30 outputTokens=45" for receipt in run["receipts"])
+
+
+@pytest.mark.parametrize(("api", "limit_field"), [("responses", "max_output_tokens"), ("chat_completions", "max_tokens")])
+def test_only_full_scenario_uses_its_output_limit(monkeypatch, gateway_env, project, api, limit_field):
+    from backend.tests.test_scenario import SETTINGS
+    from backend.app.settings import Settings
+
+    monkeypatch.setenv("CHATKHU_API", api)
+    monkeypatch.setenv("WORLDWEAVER_SCENARIO_MAX_OUTPUT_TOKENS", "12000")
+    monkeypatch.setenv("WORLDWEAVER_MAX_OUTPUT_TOKENS", "5000")
+    limits = []
+
+    def respond(request):
+        limits.append(json.loads(request.content)[limit_field])
+        return httpx.Response(200, json=reply(project, api, text="{}"))
+
+    install_transport(monkeypatch, respond)
+    headers = {"X-Worldweaver-Generation": f"chatkhu:{api}:{MODEL}"}
+    for route, data in (
+        ("/api/candidates", project),
+        ("/api/scenario", {"project": project, "settings": SETTINGS}),
+    ):
+        with loopback(create_app()) as client:
+            client.post(route, json=data, headers=headers)
+    assert limits == [5000, 12000]
+    with loopback(create_app(Settings())) as mock:
+        proposal = mock.post("/api/scenario", json={"project": project, "settings": SETTINGS}).json()
+    project.update(proposal["design"])
+    with loopback(create_app()) as client:
+        client.post("/api/scenario/revise", headers=headers, json={"project": project,
+                    "targetId": project["nodes"][0]["id"], "instructions": "Tighten this description."})
+    assert limits == [5000, 12000, 5000]
 
 
 def test_duplicate_json_member_cannot_hide_a_reported_fact_conflict(monkeypatch, gateway_env, project):

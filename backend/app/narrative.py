@@ -7,7 +7,7 @@ from typing import Literal, cast
 from uuid import uuid4
 
 from .contracts import CANDIDATE_VALIDATOR, Candidate, ProjectData, Run, load_unique_json, schema_location, valid_coverage
-from .provider import GenerationReply, GenerationRequest, ProviderError, ProviderUsage, StructuredProvider
+from .provider import GenerationReply, GenerationRequest, ProviderError, StructuredProvider, record_provider_usage
 
 
 @dataclass(frozen=True)
@@ -105,17 +105,6 @@ async def generate(
     if provider_name is not None or mode == "live":
         run["receipts"].append({"tool": "provider_config", "outcome": "passed", "detail": f"provider={provider_name or mode} model={model}"})
 
-    def record_usage(usage: ProviderUsage | None, resolved_model: str | None) -> None:
-        if resolved_model and resolved_model != model:
-            run["receipts"].append({"tool": "provider_model", "outcome": "passed", "detail": f"model={resolved_model}"})
-        if usage is not None:
-            run["tokens"] = run.get("tokens", 0) + usage.input_tokens + usage.output_tokens
-            cache = "" if usage.cached_input_tokens is None else f" cachedInputTokens={usage.cached_input_tokens}"
-            run["receipts"].append({
-                "tool": "provider_usage", "outcome": "passed",
-                "detail": f"inputTokens={usage.input_tokens}{cache} outputTokens={usage.output_tokens}",
-            })
-
     def failure(code: str, tool: str, field: str | None = None) -> GenerationRejected:
         run["receipts"].append({"tool": tool, "outcome": "failed", "detail": code})
         run["durationMs"] = round((monotonic() - started) * 1000)
@@ -137,7 +126,7 @@ async def generate(
             field = None
             if isinstance(exc, ProviderError):
                 code, field = exc.code, exc.field
-                record_usage(exc.usage, exc.model)
+                record_provider_usage(run, exc.usage, exc.model)
                 if not exc.attempted:
                     run["calls"] -= 1
             else:
@@ -149,7 +138,7 @@ async def generate(
             raise failure("provider_error", "generate_structured") from None
 
     if isinstance(raw, GenerationReply):
-        record_usage(raw.usage, raw.model)
+        record_provider_usage(run, raw.usage, raw.model)
         raw = raw.text
     run["receipts"].append({"tool": "generate_structured", "outcome": "passed", "detail": "Response received"})
     try:

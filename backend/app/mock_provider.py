@@ -1,5 +1,6 @@
 import json
 
+from .mock_scenario import mock_scenario
 from .provider import GenerationRequest
 
 
@@ -39,6 +40,15 @@ DIRECTIONS = (
 
 class MockProvider:
     async def generate(self, request: GenerationRequest) -> str:
+        if request.context is not None and request.task == "scenario":
+            return json.dumps(mock_scenario(request.context), ensure_ascii=False)
+        if request.context is not None and request.task == "revision":
+            context = request.context
+            text = context["target"][context["field"]] + "\n" + context["instructions"]
+            if context["field"] == "summary":
+                story = context["narrative"]["story"]
+                text += "\n" + "\n".join([*story["progression"], story["possibleEndings"][0]])
+            return json.dumps({"text": text, "factConflicts": []}, ensure_ascii=False)
         genre = next(
             (item["text"] for item in request.content if item["category"] == "genre" and item["treatment"] != "excluded"),
             "Narrative adventure",

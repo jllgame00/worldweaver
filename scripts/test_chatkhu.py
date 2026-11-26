@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 from http.client import HTTPException
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,9 +14,13 @@ MODEL = "gpt-6.1-sol"
 ESTIMATE = ["estimate", "--model", MODEL, "--input-tokens", "1100", "--output-tokens", "333"]
 
 
-def test_module_requires_an_environment_key():
+@pytest.mark.parametrize("direct", [False, True], ids=["module", "script-from-frontend"])
+def test_module_requires_an_environment_key(direct):
+    root = Path(__file__).resolve().parents[1]
+    args = [str(root / "scripts/chatkhu.py")] if direct else ["-m", "scripts.chatkhu"]
     process = subprocess.run(
-        [sys.executable, "-m", "scripts.chatkhu", "models"],
+        [sys.executable, *args, "models"],
+        cwd=root / "frontend" if direct else root,
         env={**os.environ, "CHATKHU_API_KEY": ""},
         capture_output=True,
         text=True,
@@ -71,6 +76,28 @@ def test_models_only_prints_safe_authorized_llm_ids(gateway, capsys):
     connect.return_value.close.assert_called_once_with()
 
 
+@pytest.mark.parametrize(("listed", "expected"), [(MODEL, 0), ("other-model", 1)])
+def test_preflight_checks_configured_model_with_one_get(gateway, monkeypatch, capsys, listed, expected):
+    main, connect, response = gateway
+    monkeypatch.setenv("WORLDWEAVER_PROVIDER", "chatkhu")
+    monkeypatch.setenv("CHATKHU_MODEL", MODEL)
+    response.read.return_value = model_response((listed, "llm"))
+    assert main(["preflight"]) == expected
+    connect.return_value.request.assert_called_once()
+    assert connect.return_value.request.call_args.args == ("GET", "/v1/gateway/models/?type=llm")
+    output = capsys.readouterr()
+    assert ("authorized" in output.out) if listed == MODEL else ("CHATKHU_MODEL" in output.err)
+    assert KEY not in output.out + output.err
+
+
+def test_preflight_requires_valid_chatkhu_settings_before_network(gateway, monkeypatch, capsys):
+    main, connect, _ = gateway
+    monkeypatch.setenv("WORLDWEAVER_PROVIDER", "mock")
+    assert main(["preflight"]) == 1
+    assert "WORLDWEAVER_PROVIDER" in capsys.readouterr().err
+    connect.assert_not_called()
+
+
 def test_credits_only_prints_the_total_remaining_balance(gateway, capsys):
     main, connect, response = gateway
     response.read.return_value = json.dumps({
@@ -112,7 +139,9 @@ def test_estimate_fails_without_entitlement_or_pricing(gateway, capsys, requeste
 
 @pytest.mark.parametrize(("status", "message"), [
     (302, "ChatKHU request failed."),
-    (401, "ChatKHU authentication failed (HTTP 401). Check the gateway key."),
+    (401, "ChatKHU authentication failed (HTTP 401). Check the gateway key. "
+          "A process CHATKHU_API_KEY overrides the root .env. In PowerShell, Test-Path Env:CHATKHU_API_KEY "
+          "checks for an override. To use the file, run Remove-Item Env:CHATKHU_API_KEY in this session."),
     (403, "ChatKHU denied access (HTTP 403). Check gateway permissions."),
     (429, "ChatKHU rate limited the request (HTTP 429). Wait before retrying."),
     (503, "ChatKHU request failed."),

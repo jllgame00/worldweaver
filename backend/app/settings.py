@@ -1,10 +1,31 @@
 from dataclasses import dataclass, field
 from typing import Literal
-import math
 import re
 
 from .chatkhu_config import ChatKHUAPI, get_chatkhu_key, shares_openai_key
-from .environment import load_environment
+from .environment import ConfigurationError, environment_with_overrides
+
+
+def bounded_int(environment: dict[str, str], name: str, default: int, minimum: int, maximum: int) -> int:
+    message = f"Set {name} to a whole number from {minimum} to {maximum}."
+    try:
+        value = int(environment.get(name) or default)
+    except ValueError:
+        raise ConfigurationError(message) from None
+    if not minimum <= value <= maximum:
+        raise ConfigurationError(message)
+    return value
+
+
+def timeout_seconds(raw: str) -> float:
+    message = "Set WORLDWEAVER_TIMEOUT_SECONDS to a number greater than 0 and at most 120 seconds."
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigurationError(message) from None
+    if not 0 < value <= 120:
+        raise ConfigurationError(message)
+    return value
 
 
 @dataclass(frozen=True)
@@ -16,8 +37,10 @@ class Settings:
     max_output_tokens: int = 6000
     max_input_bytes: int = 32768
     live_max_attempts: int = 1
-    configuration_error: bool = False
+    configuration_error: str | None = None
     chatkhu_api: ChatKHUAPI = "responses"
+    scenario_max_output_tokens: int | None = None
+    environment_overrides: tuple[str, ...] = ()
 
     @property
     def mode(self) -> Literal["mock", "live"]:
@@ -29,12 +52,17 @@ class Settings:
             return f"chatkhu:{self.chatkhu_api}:{self.model}"
         return f"{self.mode}:{self.model}"
 
+    @property
+    def credential_message(self) -> str:
+        name = "CHATKHU_API_KEY" if self.provider == "chatkhu" else "OPENAI_API_KEY"
+        return f"Set {name} to a valid server-side key in the root .env or process environment."
+
     @classmethod
     def from_environment(cls) -> "Settings":
-        environment = load_environment()
+        environment, overrides = environment_with_overrides()
         provider = environment.get("WORLDWEAVER_PROVIDER", "mock").strip()
         if provider not in {"mock", "openai", "chatkhu"}:
-            raise ValueError("WORLDWEAVER_PROVIDER must be mock, openai or chatkhu")
+            raise ConfigurationError("WORLDWEAVER_PROVIDER must be mock, openai or chatkhu")
         live = provider != "mock"
         gateway = provider == "chatkhu"
         direct_key = environment.get("OPENAI_API_KEY", "").strip() if live else ""
@@ -46,22 +74,28 @@ class Settings:
         api = (environment.get("CHATKHU_API") or "responses").strip() if gateway else "responses"
         model_pattern = r"[A-Za-z0-9_.:/-]{1,128}" if gateway else r"[A-Za-z0-9_.:-]{1,128}"
         try:
-            timeout = float(environment.get("WORLDWEAVER_TIMEOUT_SECONDS") or ("90" if live else "8"))
-            output = int(environment.get("WORLDWEAVER_MAX_OUTPUT_TOKENS") or "6000") if live else 6000
-            input_bytes = int(environment.get("WORLDWEAVER_MAX_INPUT_BYTES") or "32768") if live else 32768
-            attempts = int(environment.get("WORLDWEAVER_LIVE_MAX_ATTEMPTS") or "1") if live else 1
-            if (
-                not re.fullmatch(model_pattern, model) or model.startswith("sk-")
-                or model in {direct_key, gateway_key}
-                or shares_openai_key(gateway_key, environment)
-                or api not in {"responses", "chat_completions"}
-                or not math.isfinite(timeout) or not 0 < timeout <= 120
-                or not 128 <= output <= 16000 or not 1 <= input_bytes <= 65536
-                or attempts not in {1, 2}
+            if shares_openai_key(gateway_key, environment):
+                raise ConfigurationError("Use separate CHATKHU_API_KEY and OPENAI_API_KEY credentials.")
+            if not re.fullmatch(model_pattern, model) or model.startswith("sk-") or any(
+                credential and credential in model for credential in (
+                    environment.get("OPENAI_API_KEY", "").strip(), environment.get("CHATKHU_API_KEY", "").strip(),
+                )
             ):
-                raise ValueError
-        except ValueError:
+                name = "CHATKHU_MODEL" if gateway else "WORLDWEAVER_MODEL"
+                raise ConfigurationError(f"Set {name} to an authorized model ID, up to 128 characters.")
+            if api not in {"responses", "chat_completions"}:
+                raise ConfigurationError("Set CHATKHU_API to responses or chat_completions.")
+            timeout = timeout_seconds(environment.get("WORLDWEAVER_TIMEOUT_SECONDS") or ("90" if live else "8"))
+            output, input_bytes, attempts, scenario_output = 6000, 32768, 1, None
             if live:
-                return cls(model="unconfigured", provider=provider, configuration_error=True)
-            raise ValueError("WORLDWEAVER mock configuration is invalid") from None
-        return cls(model, timeout, provider, key, output, input_bytes, attempts, chatkhu_api=api)
+                output = bounded_int(environment, "WORLDWEAVER_MAX_OUTPUT_TOKENS", 6000, 128, 16000)
+                if environment.get("WORLDWEAVER_SCENARIO_MAX_OUTPUT_TOKENS"):
+                    scenario_output = bounded_int(environment, "WORLDWEAVER_SCENARIO_MAX_OUTPUT_TOKENS", output, 128, 16000)
+                input_bytes = bounded_int(environment, "WORLDWEAVER_MAX_INPUT_BYTES", 32768, 1, 65536)
+                attempts = bounded_int(environment, "WORLDWEAVER_LIVE_MAX_ATTEMPTS", 1, 1, 2)
+        except ConfigurationError as exc:
+            if live:
+                return cls(model="unconfigured", provider=provider, configuration_error=str(exc), environment_overrides=overrides)
+            raise
+        return cls(model, timeout, provider, key, output, input_bytes, attempts, chatkhu_api=api,
+                   scenario_max_output_tokens=scenario_output, environment_overrides=overrides)
