@@ -13,3 +13,7 @@ This roadmap is the phase scope authority. A gate records permission to stop and
 | 6 · DevOps and final verification | Approved release scope, authorized GitHub/Render access, selected provider/model and budget | CI, release build, health endpoint, gated deployment, redeploy and smoke evidence, isolated live LLM exercise, final course mapping | D1–D3 and L1, including failed-gate demonstration. | Trace same revision from required CI jobs to service and successful redeploy. Archive sanitized live and mock evidence separately. Reconcile official assignment before submission. | Deployment permission, provider cost, host limits and changed course instructions. |
 
 Sustainability spans the phases. Phase 1 records calls and avoids live CI, Phase 3 measures repeatable local generation, Phase 4 caps repair work and Phase 6 reports observed usage and limitations. No emissions reduction is inferred from call counts.
+
+Phase 0 design review passed at `42ed0cd`. Phase 1 implements the mock-based narrative slice. The [Phase 1 report](docs/PHASE_1_REPORT.md) records verification, open release items and owner review status.
+
+Course requirements set a minimum evidence bar. The public product also needs verified narrative quality, reliable editing and persistence, and an approved live provider and operating budget. Use mock providers for deterministic development and automated testing.

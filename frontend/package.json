@@ -1,0 +1,36 @@
+{
+  "name": "worldweaver-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "node scripts/generate-types.mjs --check && tsc --noEmit && vite build",
+    "typecheck": "node scripts/generate-types.mjs --check && tsc --noEmit",
+    "test": "vitest run",
+    "generate:types": "node scripts/generate-types.mjs",
+    "check:types": "node scripts/generate-types.mjs --check"
+  },
+  "dependencies": {
+    "ajv": "8.17.1",
+    "ajv-draft-04": "1.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.10.4",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.3.0",
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "27.4.0",
+    "json-schema-to-typescript": "15.0.4",
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vitest": "4.1.12"
+  }
+}
