@@ -200,3 +200,11 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--
   max-height: 24rem;
   overflow: auto;
 }
+.intake-tabs { margin-block: 0 1rem; }
+.intake-tabs [aria-selected="true"] { border-color: var(--accent); }
+.intake-panel { display: grid; gap: 1rem; }
+.intake-panel textarea { width: 100%; }
+.intake-review, .intake-row { display: grid; gap: .75rem; }
+.intake-row { min-width: 0; margin: 0; }
+.intake-row legend, .intake-source { overflow-wrap: anywhere; }
+.intake-source { white-space: pre-wrap; margin-inline: 0; }

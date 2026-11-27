@@ -13,7 +13,7 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 기존 **잊혀진 달**을 열고 먼저 JSON을 백업한다. 실제 프로젝트 검토와 수리 실험용 합성 복사본 가져오기, 선택형 ChatKHU 1회 검토를 순서대로 안내한다. [소유자 확인 절차](docs/VERIFICATION_AGENT.md) · [Phase 4 결과와 미검증 범위](docs/PHASE_4_REPORT.md)
 
 1. **Projects**에서 제목을 입력해 새 프로젝트를 만든다.
-2. **Content Studio**에서 한국어 또는 영어 소재를 하나 이상 입력한다. 필수, 선택, 제외로 분류하고 보호할 사실을 따로 고정한다.
+2. **Content**에서 **Paste ideas**로 한국어·영어 원문을 붙여 넣거나 **Edit fragments**에서 직접 소재를 만든다. 필수, 선택, 제외로 분류하고 보호할 사실을 따로 고정한다.
 3. 제공자가 제안한 세 방향의 갈등, 결말, 소재 반영 근거를 비교한다. 저장된 후보의 출처는 개발용 mock과 실연동으로 구분해 표시한다. 후보를 골라 이야기 필드를 편집한 뒤 고정 사실과 내용을 검토해 승인한다.
 4. 브라우저의 IndexedDB에 저장된 프로젝트를 같은 브라우저 프로필과 주소에서 다시 연다. 소재 변경 후 기존 후보와 이야기는 재검토가 필요한 상태로 남는다.
 
@@ -59,10 +59,20 @@ Invoke-RestMethod http://127.0.0.1:5173/api/generation | Select-Object mode, pro
 
 ### 로컬 프로젝트 다시 열기
 
-- 소재와 고정 사실을 입력한 뒤 **Add fragment**, **Pin fact**, 또는 **Save changes**를 누르고 **Saved locally**를 확인한다. 입력란에 남겨 둔 미제출 텍스트는 저장되지 않는다. 새로고침하거나 서버를 재시작한 뒤 **Projects → Open**에서 다시 연다.
+- 직접 편집한 소재와 고정 사실은 **Add fragment**, **Pin fact**, 또는 **Save changes**를 누르고 **Saved locally**를 확인한다. **Paste ideas**의 원문과 추출 초안은 별도의 브라우저 저장소에서 다시 열린다. 새로고침하거나 서버를 재시작한 뒤 **Projects → Open**에서 다시 연다.
 - 목록이 비어 있으면 프로젝트를 입력할 때 사용한 브라우저 프로필에서 `Ctrl+H`로 방문 기록을 열고 당시 주소를 확인한다. `http://localhost:5173`, `http://127.0.0.1:5173`, `http://127.0.0.1:8000`은 각각 다른 저장소를 사용한다. 이전에 다른 Vite 포트를 사용한 기록이 있으면 `npm.cmd --prefix frontend run dev -- --port 5174`처럼 당시 포트를 명시해 그 주소를 연다. 개발 서버는 포트가 이미 사용 중이면 오류를 표시한다.
 - Chrome 또는 Edge에서 해당 주소를 연 채 `F12`를 누른다. **Application → Storage → IndexedDB → worldweaver-v1 → projects**로 이동해 `Value` 셀의 `project`를 펼친다. `userContent`가 12개이고 `canonicalFacts`가 3개인 레코드가 있는지 확인한다. 기존 자료를 보존하려면 **Clear site data**, **Delete database**, 레코드 삭제 기능은 사용하지 않는다.
 - 개발 서버의 **Projects**에서 **잊혀진 달**을 누르면 소재 12개와 고정 사실 3개를 갖춘 새 프로젝트가 저장되고 열린다. 클릭할 때마다 새 ID를 사용하므로 같은 제목으로 저장한 기존 프로젝트도 다시 열 수 있다.
+
+### 자유 입력과 소재 검토
+
+1. 새 테스트용 프로젝트에서 **Content → Paste ideas**를 연다. `인물: 해온`, `Locations` 아래 `- East Sluice`, 그리고 분류 표지 없는 한글 문장을 여러 줄로 입력한다.
+2. **Organize with rules**를 누른다. 키와 네트워크가 필요 없다. 분류 근거가 부족한 줄은 **Needs review**에서 직접 편집하거나 **Review as free-form idea**로 넘긴다. `Exclude: Item: Brass key`처럼 명시하면 **Excluded** 초안이 된다.
+3. **Source evidence**에서 인용을 확인하고 텍스트·분류·취급을 수정한다. **Reject draft**는 원문을 남긴다. **Add selected fragments**는 체크한 항목만 정본에 추가한다.
+4. **Intake history**의 방법과 결과를 확인한다. 프로젝트를 닫았다가 다시 열고 **Paste ideas**에 원문이 남는지 확인한다. 원문·초안·작업 이력은 이 주소의 브라우저 저장소에 남으며 Project JSON에는 들어가지 않는다.
+5. 무료로 AI 경로를 확인하려면 실행 셸에서 `$env:WORLDWEAVER_PROVIDER = 'mock'`으로 시작한다. **Suggest with AI → Authorize one extraction**은 개발 mock을 호출한다. live 모드에서는 확인 시 표시한 모델·상한으로 원문을 한 번 전송한다.
+
+[검증 결과와 저장·비용 범위](docs/PHASE_5B_REPORT.md)
 
 ## 승인된 이야기의 인물·세력과 시나리오 참조 확인
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { categories, copy, treatments } from './copy';
 import { editContent, fragmentInUse, newId } from './project';
@@ -6,11 +6,17 @@ import type { CanonicalFact, Project, UserContent } from './project.generated';
 import { buildWorldBible } from './worldBibleIndex';
 import { WorldBibleImpact } from './WorldBibleImpact';
 import { bibleCopy } from './worldBibleCopy';
+import ContentIntake from './ContentIntake';
+import type { GenerationStatus } from './validation';
 
 interface ContentProps {
   project: Project;
   disabled: boolean;
   commit: (project: Project) => Promise<boolean>;
+  commitIntake?: (project: Project, afterSave: () => void) => Promise<boolean>;
+  databaseName?: string;
+  configuration?: GenerationStatus | null;
+  refreshConfiguration?: () => void;
 }
 
 const blankFragment: Pick<UserContent, 'category' | 'treatment' | 'text'> = { category: 'idea', treatment: 'optional', text: '' };
@@ -26,6 +32,8 @@ function contentFields(row?:UserContent | CanonicalFact): Record<string,string> 
 
 export default function Content(props: ContentProps) {
   const {project,disabled,commit}=props;
+  const [intake, setIntake] = useState(false);
+  const id = useId();
   const [pending,setPending]=useState<{id:string;base:Project;patch:Patch;onSaved:()=>void}>();
   const index=useMemo(()=>pending && buildWorldBible(pending.base),[pending]);
   const save:SaveContent=(id,patch,onSaved)=>{
@@ -51,11 +59,36 @@ export default function Content(props: ContentProps) {
   return (
     <>
       <div className="page-heading"><h1>{copy.contentTitle}</h1><p>{copy.contentIntro}</p></div>
-      <div className="content-grid">
-        <Fragments project={project} save={save} disabled={disabled || !!pending}/>
-        <Facts project={project} save={save} disabled={disabled || !!pending}/>
+      <div className="actions intake-tabs" role="tablist" aria-label="Content input mode"
+        onKeyDown={event => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === 'Home' ? false : event.key === 'End' ? true : !intake;
+          setIntake(next);
+          const tabs = event.currentTarget.querySelectorAll('button');
+          tabs[Number(next)]?.focus();
+        }}>
+        <button type="button" role="tab" id={id + '-edit'} aria-controls={id + '-edit-panel'}
+          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>Edit fragments</button>
+        <button type="button" role="tab" id={id + '-paste'} aria-controls={id + '-paste-panel'}
+          aria-selected={intake} tabIndex={intake ? 0 : -1} onClick={() => setIntake(true)}>Paste ideas</button>
       </div>
-      {pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
+      <div role="tabpanel" id={id + '-edit-panel'} aria-labelledby={id + '-edit'} hidden={intake}>
+        <div className="content-grid">
+          <Fragments project={project} save={save} disabled={disabled || !!pending}/>
+          <Facts project={project} save={save} disabled={disabled || !!pending}/>
+        </div>
+      </div>
+      <div role="tabpanel" id={id + '-paste-panel'} aria-labelledby={id + '-paste'} hidden={!intake}>
+        <ContentIntake project={project} disabled={disabled || !!pending} commit={props.commitIntake ?? (async (next, afterSave) => {
+          const saved = await commit(next);
+          if (saved) afterSave();
+          return saved;
+        })}
+          configuration={props.configuration} refreshConfiguration={props.refreshConfiguration}
+          storageKey={JSON.stringify(['worldweaver-content-intake-v1', props.databaseName ?? 'worldweaver-v1', project.id])} />
+      </div>
+      {!intake && pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
         [...new Set([...Object.keys(previous),...Object.keys(proposed)])].filter(key=>previous[key]!==proposed[key])
           .map(label=>({label,before:previous[label] ?? '',after:proposed[label] ?? ''}))}>
         {pending.base.revision!==project.revision && <p role="alert">{bibleCopy.stale}</p>}

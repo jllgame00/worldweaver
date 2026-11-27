@@ -40,6 +40,12 @@ DIRECTIONS = (
 
 class MockProvider:
     async def generate(self, request: GenerationRequest) -> str:
+        if request.task == "content" and request.context:
+            first = next((line.strip() for line in request.context["sourceText"].splitlines() if line.strip()), "")[:240]
+            return json.dumps({"fragments": [{
+                "category": "idea", "treatment": "optional", "text": first,
+                "evidence": {"quote": first, "occurrence": 1},
+            }] if first else []}, ensure_ascii=False)
         if request.task == "semantic" and request.context:
             records = request.context["records"]
             source = next((r for r in records if r["id"] == request.context.get("targetId")), records[0])

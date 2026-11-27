@@ -47,15 +47,17 @@ jobs:
         shell: python
         run: |
           from jsonschema import Draft4Validator, Draft202012Validator
+          from backend.app.content_extraction import FORMAT as EXTRACTION_FORMAT
           from backend.app.contracts import SCHEMA
           from backend.app.openai_provider import WIRE_SCHEMA
           from backend.app.scenario_wire import scenario_format
           from backend.app.semantic_review import FORMAT
 
           Draft4Validator.check_schema(SCHEMA)
-          for wire in (WIRE_SCHEMA, FORMAT["schema"], *(scenario_format(task)[1]["schema"] for task in ("scenario", "revision"))):
+          for wire in (WIRE_SCHEMA, FORMAT["schema"], EXTRACTION_FORMAT["schema"],
+                       *(scenario_format(task)[1]["schema"] for task in ("scenario", "revision"))):
               Draft202012Validator.check_schema(wire)
-          print("Canonical and four transport schemas passed")
+          print("Canonical and five transport schemas passed")
         env:
           # Actions runs Python step files from RUNNER_TEMP.
           PYTHONPATH: ${{ github.workspace }}

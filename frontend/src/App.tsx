@@ -215,7 +215,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           <div className="actions"><button type="button" className="quiet" onClick={downloadDraft}>{copy.downloadDraft}</button>
             {store.pending.conflict && project ? <button type="button" onClick={() => void reopen(project.id)}>{copy.reopenSaved}</button>
               : <button type="button" disabled={store.saving} onClick={() => {
-                if (store.pending) void store.commit(store.pending.project, store.pending.checkedRunId);
+                if (store.pending) void store.commit(store.pending.project, store.pending.checkedRunId, store.pending.afterSave);
               }}>{copy.retrySave}</button>}</div>
         </div>}
         {project ? <>
@@ -228,7 +228,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
                 onClick={() => void startGeneration()}>{copy.generate}</button>}
           </div>
           {generationIssue && <div className="notice">
-            <p role="alert" className="error">{generationIssue}</p>
+            <p role={store.pending ? 'status' : 'alert'} className="error">{generationIssue}</p>
             <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
           </div>}
           {notice && <p role={notice.error ? 'alert' : 'status'} className={`notice ${notice.error ? 'error' : ''}`}>{notice.message}</p>}
@@ -275,7 +275,9 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             openScenario={id=>navigate('scenario',id)} disabled={disabled || generating} commit={store.commit}
             current={()=>store.writing.current?undefined:store.current.current?.project} databaseName={databaseName}/>}
           <div hidden={view !== 'content'}>
-            <Content key={`${project.id}-${editorEpoch}`} project={project} disabled={disabled} commit={store.commit} />
+            <Content key={`${project.id}-${editorEpoch}`} project={project} disabled={disabled} commit={store.commit}
+              commitIntake={(next, afterSave) => store.commit(next, undefined, afterSave)}
+              databaseName={databaseName} configuration={generation} refreshConfiguration={refreshGenerationStatus} />
           </div>
           {project.narrative && <div hidden={view !== 'narrative'}>
             <Narrative key={`${project.narrative.id}-${editorEpoch}`} project={project} narrative={project.narrative} disabled={disabled}

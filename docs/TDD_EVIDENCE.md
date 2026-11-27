@@ -2,6 +2,19 @@
 
 Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했다.
 
+## Phase 5B owner test commit
+
+`feature/product-polish` started clean at `81bef2ff5a867cfb1ce09962bec74e54da624ee1`, parent `2bd184b6fc18438c3a15366e8fe92ce0375f07d4`. `git diff HEAD^ HEAD --name-status` showed only two added test files. Both files and their assertions remained unchanged through GREEN.
+
+| Focused command | Observed before implementation | Observed after implementation |
+|---|---|---|
+| `npm.cmd --prefix frontend test -- contentIntake.test.tsx --reporter=verbose` | Exit 1, six collected B1–B4 cases reach Content Studio and fail to find the Paste ideas tab | Exit 0, six pass. Timeout, no credentials, invalid response, rejection, selective acceptance and a newer saved revision |
+| `.\.venv\Scripts\python -m pytest -q backend/tests/test_content_extraction.py --tb=short` | Exit 1, four 405 responses. A valid quote expected 200. Malformed JSON, invalid category and nonexistent citation occurrence expected 502 | Exit 0, four pass with a provider mock. Detachment and invalid-output rejection |
+
+Post-GREEN coverage added 13 backend and two frontend cases. Full regression passed 313 pytest and 175 Vitest. Type synchronization, strict TypeScript, Vite build, canonical and five transport schemas, actionlint and Git whitespace checks passed. The compiled integration used jsdom, fake IndexedDB and one real loopback request to the development mock. Native Chrome access was declined. Live provider requests and credit use stayed at zero. [Exact test names and limitations](PHASE_5B_REPORT.md)
+
+GREEN commit SHA pending the owner's separate implementation commit.
+
 ## Phase 2.2 · Canonical entity references
 
 All generation below used deterministic or mocked providers. RED results were observed before their corresponding behavior was implemented. Commands used the repository venv and the frontend npm workspace.

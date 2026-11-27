@@ -5,6 +5,7 @@ from jsonschema import Draft202012Validator
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 from openai.types.responses import Response, ResponseCreateParams
 
+from .content_extraction import FORMAT as CONTENT_FORMAT, INSTRUCTIONS as CONTENT_INSTRUCTIONS, MAX_OUTPUT as CONTENT_MAX_OUTPUT
 from .contracts import SCHEMA, load_unique_json, schema_location
 from .scenario_wire import scenario_format
 from .semantic_review import FORMAT as REVIEW_FORMAT, INSTRUCTIONS as REVIEW_INSTRUCTIONS, MAX_OUTPUT as REVIEW_MAX_OUTPUT
@@ -120,6 +121,8 @@ class OpenAIProvider:
     async def generate(self, request: GenerationRequest) -> GenerationReply:
         if request.task == "semantic":
             instructions, response_format = REVIEW_INSTRUCTIONS, REVIEW_FORMAT
+        elif request.task == "content":
+            instructions, response_format = CONTENT_INSTRUCTIONS, CONTENT_FORMAT
         elif request.task == "candidates":
             instructions, response_format = INSTRUCTIONS, STRUCTURED_FORMAT
         else:
@@ -134,6 +137,8 @@ class OpenAIProvider:
             limit = self.scenario_max_output_tokens if request.task == "scenario" else self.max_output_tokens
             if request.task == "semantic":
                 limit = min(limit, REVIEW_MAX_OUTPUT)
+            elif request.task == "content":
+                limit = min(limit, CONTENT_MAX_OUTPUT)
             reply = await self._request_reply(request.model, creative_data, instructions, response_format, limit)
         except APITimeoutError:
             raise TimeoutError from None

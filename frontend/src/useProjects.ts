@@ -8,6 +8,7 @@ interface PendingSave {
   project: Project;
   conflict: boolean;
   checkedRunId?: string;
+  afterSave?: () => void;
 }
 
 export function useProjects(databaseName: string) {
@@ -36,7 +37,7 @@ export function useProjects(databaseName: string) {
     setRecord(next);
   }
 
-  async function commit(project: Project, checkedRunId?: string): Promise<boolean> {
+  async function commit(project: Project, checkedRunId?: string, afterSave?: () => void): Promise<boolean> {
     if (writing.current) return false;
     writing.current = true;
     setSaving(true);
@@ -46,14 +47,15 @@ export function useProjects(databaseName: string) {
       setProjects((previous) => [saved, ...previous.filter(({ project: existing }) => existing.id !== project.id)]);
       select(saved);
       setPending(undefined);
-      return true;
     } catch (error) {
-      setPending({ project, conflict: error instanceof SaveConflict, checkedRunId });
+      setPending({ project, conflict: error instanceof SaveConflict, checkedRunId, afterSave });
       return false;
     } finally {
       writing.current = false;
       setSaving(false);
     }
+    afterSave?.();
+    return true;
   }
 
   async function reopen(id: string) {
