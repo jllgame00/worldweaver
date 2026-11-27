@@ -8,7 +8,11 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 
 ## 공개 데모와 Docker 배포
 
-공개 이미지에서 홈페이지·예제·API는 같은 주소를 사용합니다. 설치한 모델 키 없이 수동 편집·규칙 정리·지도 생성·결정론적 검증을 사용할 수 있습니다. 공개 이미지에서는 AI 요청을 서버에서 차단합니다. 로컬 프로젝트를 배포 주소로 옮길 때는 기존 주소에서 JSON을 내보낸 뒤 새 주소에서 가져오세요. [Docker Hub·Render 설정, 첫 배포와 롤백](docs/DEPLOYMENT_GUIDE.md) · [재배포 검수](docs/DEPLOYMENT_EVIDENCE_PLAN.md)
+브라우저에서 **WORLDWEAVER 공개 데모**를 열어 프로젝트를 만들거나 Salt Census 작업용 사본으로 시작하세요. 모델 키 없이 수동 편집, 규칙 기반 소재 정리, 지도 생성, 결정론적 검증을 사용할 수 있습니다. 공개 데모는 AI 생성과 의미 검토 요청을 서버에서 차단합니다. [공개 데모 열기](https://worldweaver-8mbz.onrender.com)
+
+Render는 Docker Hub의 Linux/AMD64 이미지를 다이제스트로 가져옵니다. 다단계 Docker 빌드에서 React·Vite 자산을 컴파일하고, 최종 이미지에서는 FastAPI가 화면·정적 자산·예제·API를 같은 HTTPS 주소로 제공합니다. `/health`에서 실행 중인 이미지의 전체 Git SHA, 준비 상태, 공개 데모 모드를 확인할 수 있습니다. [공개 서비스 상태](https://worldweaver-8mbz.onrender.com/health) · [최초 릴리스 검증 기록](docs/PHASE_6B_REPORT.md)
+
+프로젝트는 사용 중인 브라우저의 IndexedDB에 저장됩니다. 로컬 작업을 공개 주소로 옮기려면 기존 주소에서 JSON을 내보내고 공개 주소의 **프로젝트 JSON 가져오기**에서 엽니다. 실제 AI 생성은 로컬 서버에 공급자 키와 모델을 설정하고 요청을 승인할 때 사용할 수 있습니다. [로컬에서 실행](#로컬에서-실행) · [Docker Hub·Render 설정과 롤백](docs/DEPLOYMENT_GUIDE.md)
 
 ## 지금 사용할 수 있는 기능
 
@@ -55,12 +59,13 @@ Windows에 Python 3.13과 Node.js 24 이상(npm 포함)을 설치한다. 저장�
 
 ```powershell
 .\scripts\setup.ps1
+$env:WORLDWEAVER_PROVIDER = 'mock'
 .\scripts\start-dev.ps1
 ```
 
 설정 스크립트는 로컬 `.venv`를 준비하고 고정된 Python 의존성과 프런트엔드 잠금 파일의 패키지를 설치한다. 실행 스크립트는 FastAPI와 Vite를 루프백에서 시작한다. 준비 안내가 나오면 `http://127.0.0.1:5173`을 연다. `Ctrl+C`로 이 터미널에서 시작한 두 서버를 종료한다. 8000 또는 5173 포트를 이미 쓰고 있으면 해당 서버를 원래 터미널에서 종료한 뒤 다시 실행한다.
 
-계정이나 키 없이 동작을 확인하려면 실행할 터미널에서 `$env:WORLDWEAVER_PROVIDER = 'mock'`을 지정한다. 상태 조회는 생성 요청을 보내지 않는다.
+위 명령은 공급자 계정이나 키 없이 로컬 개발용 모의 응답을 사용한다. 실제 AI 생성이 필요하면 로컬 서버용 공급자를 설정한 뒤 같은 터미널에서 다시 실행한다. 상태 조회에는 모델 호출이 없다. [ChatKHU 설정](#chatkhu-제공자-설정과-시나리오-생성-확인) · [OpenAI 설정](#직접-openai-및-개발용-mock-설정)
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
@@ -161,7 +166,7 @@ React·TypeScript·Vite 프런트엔드와 FastAPI·Pydantic 백엔드를 사용
 
 런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 현재 시나리오 생성의 모델 호출은 한 번이며, 진행 오류 수정에는 설계자의 편집과 명시적 채택이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
 
-main 대상 PR 및 main·기능 브랜치의 push를 위한 테스트 CI를 구성했다. Windows에서 고정 Python 요구사항과 npm 잠금 파일로 설치한 후 정본·전송 스키마, pytest, Vitest, 생성 타입 동기화, 엄격한 TypeScript를 검사한다. 테스트에는 공급자 키를 전달하지 않는다. 테스트가 성공하면 Linux에서 잠금 파일로 다시 설치해 Vite 프로덕션 빌드를 실행한다. 필수 검사 이름은 **WORLDWEAVER required**다. 필수 검사 뒤 Docker 이미지를 빌드·점검한다. main 게시와 배포는 각각 소유자가 활성화한다. 브랜치 보호 설정과 실제 6A 호스팅 결과는 별도 확인한다. [워크플로](.github/workflows/test.yml) · [단계별 작업·커밋 계획](docs/PHASE_5_PLAN.md) · [제품 편집 화면 설계](docs/PRODUCT_POLISH_DESIGN.md)
+`main` 대상 PR과 지정된 브랜치의 push에서 정본·전송 스키마, pytest, Vitest, 생성 타입과 엄격한 TypeScript를 검사한다. 테스트에는 모델 키를 주입하지 않는다. Vite 빌드까지 통과하면 **WORLDWEAVER required**가 성공하고 Docker 이미지 빌드와 스모크 검사가 이어진다. 게시와 배포가 활성화된 `main` 릴리스는 테스트한 이미지를 게시한 뒤 Render에 다이제스트를 전달하고 실제 서비스 SHA를 확인한다. 최초 실행은 이미지 게시까지 성공했다. Render에 수동으로 올린 초기 릴리스의 스모크는 통과했고, 전체 자동 배포는 다음 릴리스에서 확인한다. [워크플로](.github/workflows/test.yml) · [최초 Actions 실행](https://github.com/jllgame00/worldweaver/actions/runs/45969940615) · [차단·복구 검증 계획](docs/DEPLOYMENT_EVIDENCE_PLAN.md)
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests scripts
