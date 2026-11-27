@@ -1,31 +1,50 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { categories, copy, treatments } from './copy';
+import { useCategories, useTreatments, useWorkspaceCopy } from './workspaceLocale';
+import { useIntakeCopy } from './intakeLocale';
+import { intakeStorageKey } from './intakeModel';
+import { useFormatter, useLocalized } from './locale';
 import { editContent, fragmentInUse, newId } from './project';
 import type { CanonicalFact, Project, UserContent } from './project.generated';
 import { buildWorldBible } from './worldBibleIndex';
 import { WorldBibleImpact } from './WorldBibleImpact';
 import { bibleCopy } from './worldBibleCopy';
+import ContentIntake from './ContentIntake';
+import type { GenerationStatus } from './validation';
 
 interface ContentProps {
   project: Project;
   disabled: boolean;
   commit: (project: Project) => Promise<boolean>;
+  commitIntake?: (project: Project, afterSave: () => void) => Promise<boolean>;
+  databaseName?: string;
+  configuration?: GenerationStatus | null;
+  refreshConfiguration?: () => void;
 }
 
 const blankFragment: Pick<UserContent, 'category' | 'treatment' | 'text'> = { category: 'idea', treatment: 'optional', text: '' };
 type Patch = Parameters<typeof editContent>[1];
 type SaveContent = (id:string,patch:Patch,onSaved:()=>void)=>void;
 type EditorProps = Omit<ContentProps,'commit'> & {save:SaveContent};
+const impactFields = ['factStatement', 'sourceFragment', 'fragment', 'category', 'treatment'] as const;
 
-function contentFields(row?:UserContent | CanonicalFact): Record<string,string> {
-  if (!row) return {};
-  return 'statement' in row ? {[copy.factStatement]:row.statement,[copy.sourceFragment]:row.sourceContentId ?? ''}
-    : {[copy.fragment]:row.text,[copy.category]:categories[row.category],[copy.treatment]:treatments[row.treatment]};
-}
+const impactEn = { stale: bibleCopy.stale, applyFact: bibleCopy.applyFact, apply: bibleCopy.apply };
+const impactKo = { stale: '프로젝트가 바뀌었습니다. 현재 기록을 다시 검토하세요.', applyFact: '고정 설정 변경 반영', apply: '변경 반영' };
 
 export default function Content(props: ContentProps) {
+  const copy = useWorkspaceCopy();
+  const categories = useCategories();
+  const treatments = useTreatments();
+  const intakeCopy = useIntakeCopy();
+  const impact = useLocalized(impactEn, impactKo);
+  function contentFields(row?: UserContent | CanonicalFact): Partial<Record<typeof impactFields[number], string>> {
+    if (!row) return {};
+    return 'statement' in row ? { factStatement: row.statement, sourceFragment: row.sourceContentId ?? '' }
+      : { fragment: row.text, category: categories[row.category], treatment: treatments[row.treatment] };
+  }
   const {project,disabled,commit}=props;
+  const [intake, setIntake] = useState(false);
+  const id = useId();
   const [pending,setPending]=useState<{id:string;base:Project;patch:Patch;onSaved:()=>void}>();
   const index=useMemo(()=>pending && buildWorldBible(pending.base),[pending]);
   const save:SaveContent=(id,patch,onSaved)=>{
@@ -51,22 +70,51 @@ export default function Content(props: ContentProps) {
   return (
     <>
       <div className="page-heading"><h1>{copy.contentTitle}</h1><p>{copy.contentIntro}</p></div>
-      <div className="content-grid">
-        <Fragments project={project} save={save} disabled={disabled || !!pending}/>
-        <Facts project={project} save={save} disabled={disabled || !!pending}/>
+      <div className="actions intake-tabs" role="tablist" aria-label={intakeCopy.inputMode}
+        onKeyDown={event => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === 'Home' ? true : event.key === 'End' ? false : !intake;
+          setIntake(next);
+          const tabs = event.currentTarget.querySelectorAll('button');
+          tabs[next ? 0 : 1]?.focus();
+        }}>
+        <button type="button" role="tab" id={id + '-paste'} aria-controls={id + '-paste-panel'}
+          aria-selected={intake} tabIndex={intake ? 0 : -1} onClick={() => setIntake(true)}>{intakeCopy.paste}</button>
+        <button type="button" role="tab" id={id + '-edit'} aria-controls={id + '-edit-panel'}
+          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>{intakeCopy.edit}</button>
       </div>
-      {pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
-        [...new Set([...Object.keys(previous),...Object.keys(proposed)])].filter(key=>previous[key]!==proposed[key])
-          .map(label=>({label,before:previous[label] ?? '',after:proposed[label] ?? ''}))}>
-        {pending.base.revision!==project.revision && <p role="alert">{bibleCopy.stale}</p>}
+      <div role="tabpanel" id={id + '-edit-panel'} aria-labelledby={id + '-edit'} hidden={intake}>
+        <div className="content-grid">
+          <Fragments project={project} save={save} disabled={disabled || !!pending}/>
+          <Facts project={project} save={save} disabled={disabled || !!pending}/>
+        </div>
+      </div>
+      <div role="tabpanel" id={id + '-paste-panel'} aria-labelledby={id + '-paste'} hidden={!intake}>
+        <ContentIntake project={project} disabled={disabled || !!pending} commit={props.commitIntake ?? (async (next, afterSave) => {
+          const saved = await commit(next);
+          if (saved) afterSave();
+          return saved;
+        })}
+          configuration={props.configuration} refreshConfiguration={props.refreshConfiguration}
+          storageKey={intakeStorageKey(props.databaseName ?? 'worldweaver-v1', project.id)} />
+      </div>
+      {!intake && pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
+        impactFields.filter(key => previous[key] !== proposed[key])
+          .map(key => ({ key, label: copy[key], before: previous[key] ?? '', after: proposed[key] ?? '' }))}>
+        {pending.base.revision!==project.revision && <p role="alert">{impact.stale}</p>}
         <div className="actions"><button disabled={disabled || pending.base.revision!==project.revision} onClick={()=>void accept()}>
-          {fact?bibleCopy.applyFact:bibleCopy.apply}</button><button onClick={()=>setPending(undefined)}>{copy.cancel}</button></div>
+          {fact?impact.applyFact:impact.apply}</button><button onClick={()=>setPending(undefined)}>{copy.cancel}</button></div>
       </WorldBibleImpact>}
     </>
   );
 }
 
 function Fragments({ project, disabled, save }: EditorProps) {
+  const copy = useWorkspaceCopy();
+  const categories = useCategories();
+  const treatments = useTreatments();
+  const format = useFormatter();
   const [draft, setDraft] = useState(blankFragment);
   const [editing, setEditing] = useState<string>();
   const [removing, setRemoving] = useState<string>();
@@ -100,7 +148,7 @@ function Fragments({ project, disabled, save }: EditorProps) {
 
   return (
     <section className="panel" aria-labelledby="fragments-heading">
-      <div className="section-heading"><h2 id="fragments-heading">{copy.fragments}</h2><span className="count">{project.userContent.length}</span></div>
+      <div className="section-heading"><h2 id="fragments-heading">{copy.fragments}</h2><span className="count">{format.number(project.userContent.length)}</span></div>
       <form onSubmit={submit} aria-label={editing ? copy.editFragment : copy.addFragment}>
         <fieldset disabled={disabled}>
           <div className="paired-fields">
@@ -156,6 +204,7 @@ function Fragments({ project, disabled, save }: EditorProps) {
 }
 
 function Facts({ project, disabled, save }: EditorProps) {
+  const copy = useWorkspaceCopy();
   const [statement, setStatement] = useState('');
   const [source, setSource] = useState('');
   const [editing, setEditing] = useState<string>();

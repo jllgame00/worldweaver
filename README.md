@@ -8,19 +8,27 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 
 ## 지금 사용할 수 있는 기능
 
+처음 사용한다면 **프로젝트 → Salt Census → 작업용 사본 만들기**로 시작하세요. 두 장, 두 퀘스트, 두 결말과 시드 42의 지도를 담은 공개 합성 예제입니다. 열 때마다 독립된 프로젝트 ID를 받습니다. **시나리오 설계 → 시나리오 검증** 후 결말을 선택하면 검사에서 실제로 찾은 장면 순서를 볼 수 있습니다. **프로젝트 관리 → 프로젝트 백업 다운로드**로 작업용 사본을 보관할 수 있습니다. [무료 둘러보기와 두 탭 복원 확인](docs/PHASE_5E_ACCEPTANCE.md)
+
+**내 프로젝트**에서 최근 저장 시각과 단계별 승인 상태를 확인하세요. **시나리오 장소**는 시나리오에 선언한 장소, **세계관 장소**는 시나리오와 지도에 등록된 고유 장소, **지도 배치 장소**는 저장된 지형 범위에 위치가 있는 장소입니다. **저장된 지도 없음**이 보이면 프로젝트를 열고 **세계 지도**에서 별도 작업본이 있는지 확인하세요. 확인을 위해 대륙을 다시 생성하거나 백업을 복원할 필요는 없습니다.
+
+**운영 및 설정 → 보관된 활동**에서 해당 프로젝트의 실제·모의 요청, 응답, 실패, 거절된 출력과 이 브라우저에서 사용한 로컬 대체 처리를 확인하세요. **서비스 상태 확인**은 로컬 백엔드에 상태 확인 요청 한 번을 보냅니다. [운영 집계 범위와 측정 결과](docs/PHASE_5E_REPORT.md)
+
+첫 실행 화면의 기본 언어는 한국어입니다. 머리글의 **인터페이스 언어**에서 **한국어** 또는 **English**를 선택할 수 있습니다. 변경은 현재 편집을 이어가면서 적용되고 같은 주소의 다른 프로젝트와 새로고침에도 유지됩니다. 브라우저가 설정 저장을 차단하면 현재 세션에 적용됩니다. 원문, 인물·장소 이름, 생성된 이야기, 승인과 검증 기록은 프로젝트의 원래 데이터로 보존됩니다. [언어 전환 확인 절차와 검증 결과](docs/PHASE_5C_REPORT.md)
+
 **World Bible**에서 인물·세력·장소·퀘스트와 고정 사실을 같은 정본 ID로 찾고, 관련 장면과 지도 경로를 따라갈 수 있다. **Verification Agent → Run Quick Check**는 키 없이 참조, 승인 출처, 실제로 가능한 엔딩과 물리적 여정을 검사한다. 수리는 원래 값과 영향 범위를 확인하고 격리 사본에서 검증한 뒤 수락하거나 거절한다. 현재 설계와 과거 보고서를 구별해 프로젝트 JSON과 Markdown으로 내보낼 수 있다.
 
 기존 **잊혀진 달**을 열고 먼저 JSON을 백업한다. 실제 프로젝트 검토와 수리 실험용 합성 복사본 가져오기, 선택형 ChatKHU 1회 검토를 순서대로 안내한다. [소유자 확인 절차](docs/VERIFICATION_AGENT.md) · [Phase 4 결과와 미검증 범위](docs/PHASE_4_REPORT.md)
 
 1. **Projects**에서 제목을 입력해 새 프로젝트를 만든다.
-2. **Content Studio**에서 한국어 또는 영어 소재를 하나 이상 입력한다. 필수, 선택, 제외로 분류하고 보호할 사실을 따로 고정한다.
+2. **Content**에서 **Paste ideas**로 한국어·영어 원문을 붙여 넣거나 **Edit fragments**에서 직접 소재를 만든다. 필수, 선택, 제외로 분류하고 보호할 사실을 따로 고정한다.
 3. 제공자가 제안한 세 방향의 갈등, 결말, 소재 반영 근거를 비교한다. 저장된 후보의 출처는 개발용 mock과 실연동으로 구분해 표시한다. 후보를 골라 이야기 필드를 편집한 뒤 고정 사실과 내용을 검토해 승인한다.
 4. 브라우저의 IndexedDB에 저장된 프로젝트를 같은 브라우저 프로필과 주소에서 다시 연다. 소재 변경 후 기존 후보와 이야기는 재검토가 필요한 상태로 남는다.
 
 5. **Scenario Studio**에서 승인된 이야기의 분량, 장 수, 분기, 퀘스트 비중, 결말과 추가 지시를 정하고 **Generate scenario**를 한 번 누른다. 제안을 확인하고 **Accept proposal**을 누르면 초안이 저장된다.
 6. 그래프에서 사건이나 연결선을 선택해 오른쪽 편집기에서 수정한다. **Outline**으로 전환하면 키보드로 같은 항목을 편집할 수 있다. **Revise selected node / quest / chapter**는 선택한 대상의 전후 비교를 열며, 채택하기 전까지 저장된 내용이 유지된다.
 7. **Validate scenario**에서 결말까지의 경로와 지적 사항을 확인한다. 고정 사실과 선택의 결과를 검토하고 확인란을 선택한 뒤 **Approve scenario**를 누른다. **Saved locally**가 나타나면 같은 주소에서 다시 열 수 있다.
-8. **Export project JSON**은 프로젝트 전체를, **Export scenario Markdown**은 읽기용 설계서를 저장한다. **Projects → Import project JSON**으로 복구한다. 같은 ID가 있으면 별도 사본 생성을 확인한다. 가져온 시나리오는 로컬에서 다시 검증하고 승인한다.
+8. **검증 에이전트 → 저장된 프로젝트 JSON 내보내기**로 전체 설계를 백업한다. **프로젝트 → 프로젝트 JSON 가져오기**에서 같은 ID가 발견되면 현재 저장본과 백업을 비교하고 **기존 프로젝트 복원**, **별도 사본으로 가져오기**, **취소** 중 하나를 선택한다. 비교 후 다른 탭이 저장하면 **최신 저장본과 다시 비교**를 눌러 새 차이를 확인한다. 복원 직전본 한 개는 프로젝트를 다시 열어도 **복원 직전 프로젝트 JSON 다운로드**로 받을 수 있다. 다음 복원 때 직전본이 교체되므로 오래 보관할 버전은 파일로 내려받는다. [폐기용 프로젝트로 두 탭에서 확인하기](docs/PHASE_5D_REPORT.md#소유자-확인)
 
 소유자는 ChatKHU에서 생성한 실제 시나리오 그래프를 확인했다. 기존 프로젝트의 최종 승인과 백업은 아래 절차로 확인한다. 초기 인증·미완성 응답·서버 설정 조사 기록은 Phase 2.1 보고서에 있다. [Phase 2.1 검증 보고서](docs/PHASE_2_1_REPORT.md)
 
@@ -59,10 +67,20 @@ Invoke-RestMethod http://127.0.0.1:5173/api/generation | Select-Object mode, pro
 
 ### 로컬 프로젝트 다시 열기
 
-- 소재와 고정 사실을 입력한 뒤 **Add fragment**, **Pin fact**, 또는 **Save changes**를 누르고 **Saved locally**를 확인한다. 입력란에 남겨 둔 미제출 텍스트는 저장되지 않는다. 새로고침하거나 서버를 재시작한 뒤 **Projects → Open**에서 다시 연다.
+- 직접 편집한 소재와 고정 사실은 **Add fragment**, **Pin fact**, 또는 **Save changes**를 누르고 **Saved locally**를 확인한다. **Paste ideas**의 원문과 추출 초안은 별도의 브라우저 저장소에서 다시 열린다. 새로고침하거나 서버를 재시작한 뒤 **Projects → Open**에서 다시 연다.
 - 목록이 비어 있으면 프로젝트를 입력할 때 사용한 브라우저 프로필에서 `Ctrl+H`로 방문 기록을 열고 당시 주소를 확인한다. `http://localhost:5173`, `http://127.0.0.1:5173`, `http://127.0.0.1:8000`은 각각 다른 저장소를 사용한다. 이전에 다른 Vite 포트를 사용한 기록이 있으면 `npm.cmd --prefix frontend run dev -- --port 5174`처럼 당시 포트를 명시해 그 주소를 연다. 개발 서버는 포트가 이미 사용 중이면 오류를 표시한다.
 - Chrome 또는 Edge에서 해당 주소를 연 채 `F12`를 누른다. **Application → Storage → IndexedDB → worldweaver-v1 → projects**로 이동해 `Value` 셀의 `project`를 펼친다. `userContent`가 12개이고 `canonicalFacts`가 3개인 레코드가 있는지 확인한다. 기존 자료를 보존하려면 **Clear site data**, **Delete database**, 레코드 삭제 기능은 사용하지 않는다.
 - 개발 서버의 **Projects**에서 **잊혀진 달**을 누르면 소재 12개와 고정 사실 3개를 갖춘 새 프로젝트가 저장되고 열린다. 클릭할 때마다 새 ID를 사용하므로 같은 제목으로 저장한 기존 프로젝트도 다시 열 수 있다.
+
+### 자유 입력과 소재 검토
+
+1. 새 테스트용 프로젝트에서 **Content → Paste ideas**를 연다. `인물: 해온`, `Locations` 아래 `- East Sluice`, 그리고 분류 표지 없는 한글 문장을 여러 줄로 입력한다.
+2. **Organize with rules**를 누른다. 키와 네트워크가 필요 없다. 분류 근거가 부족한 줄은 **Needs review**에서 직접 편집하거나 **Review as free-form idea**로 넘긴다. `Exclude: Item: Brass key`처럼 명시하면 **Excluded** 초안이 된다.
+3. **Source evidence**에서 인용을 확인하고 텍스트·분류·취급을 수정한다. **Reject draft**는 원문을 남긴다. **Add selected fragments**는 체크한 항목만 정본에 추가한다.
+4. **Intake history**의 방법과 결과를 확인한다. 프로젝트를 닫았다가 다시 열고 **Paste ideas**에 원문이 남는지 확인한다. 원문·초안·작업 이력은 이 주소의 브라우저 저장소에 남으며 Project JSON에는 들어가지 않는다.
+5. 무료로 AI 경로를 확인하려면 실행 셸에서 `$env:WORLDWEAVER_PROVIDER = 'mock'`으로 시작한다. **Suggest with AI → Authorize one extraction**은 개발 mock을 호출한다. live 모드에서는 확인 시 표시한 모델·상한으로 원문을 한 번 전송한다.
+
+[검증 결과와 저장·비용 범위](docs/PHASE_5B_REPORT.md)
 
 ## 승인된 이야기의 인물·세력과 시나리오 참조 확인
 
@@ -139,7 +157,7 @@ React·TypeScript·Vite 프런트엔드와 FastAPI·Pydantic 백엔드를 사용
 
 런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 현재 시나리오 생성의 모델 호출은 한 번이며, 진행 오류 수정에는 설계자의 편집과 명시적 채택이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
 
-검증에는 pytest와 Vitest를 사용한다. 일반 CI는 mock을 사용하도록 설계했으며, CI 구성과 배포는 후속 단계에서 진행한다. [TDD 계획](docs/TDD_PLAN.md) · [CI/CD 계획](docs/DEVOPS_PLAN.md)
+main 대상 PR 및 main·feature/product-polish의 push를 위한 테스트 CI를 구성했다. Windows에서 고정 Python 요구사항과 npm 잠금 파일로 설치한 후 정본·전송 스키마, pytest, Vitest, 생성 타입 동기화, 엄격한 TypeScript를 검사한다. 테스트에는 공급자 키를 전달하지 않는다. 테스트가 성공하면 Linux에서 잠금 파일로 다시 설치해 Vite 프로덕션 빌드를 실행한다. 필수 검사 이름은 **WORLDWEAVER required**다. 실제 GitHub 실행과 main의 필수 검사 설정은 소유자가 첫 push 후 확인한다. Docker 배포는 Phase 6에서 연결한다. [워크플로](.github/workflows/test.yml) · [단계별 작업·커밋 계획](docs/PHASE_5_PLAN.md) · [제품 편집 화면 설계](docs/PRODUCT_POLISH_DESIGN.md)
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests scripts

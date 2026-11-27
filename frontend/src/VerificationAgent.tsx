@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentRun, Project, ValidationFinding, VerificationEntry } from './project.generated';
 import type { GenerationStatus } from './validation';
-import { verificationIdentity, reserveRepair, updateRepair } from './verificationHistory';
+import { verificationIdentity, reportApplies, reserveRepair, updateRepair } from './verificationHistory';
 import { confirmWorldReview, persistReport, reportedCalls, verificationMarkdown } from './verificationReport';
 import {
   runVerification,
@@ -15,7 +15,16 @@ import { simulateRepairs, incomplete } from './repairSimulation';
 import { VerificationRepairReview, type RepairAction } from './VerificationRepairReview';
 import SemanticReview from './SemanticReview';
 import { reviewSources } from './semanticReviewClient';
-import { verificationCopy as c } from './verificationCopy';
+import {
+  useVerificationCopy,
+  useVerificationDetail,
+  useVerificationStatus,
+  useVerificationTool,
+  verificationCopy as raw,
+} from './verificationCopy';
+import { DiagnosticDetails, useFormatter, useLocale } from './locale';
+import { useBibleKinds } from './worldBibleCopy';
+import './evidenceWorkspace.css';
 
 type Props = {
   project: Project;
@@ -36,10 +45,18 @@ export default function VerificationAgent({
   inspect,
   configuration,
 }: Props) {
+  const c = useVerificationCopy();
+  const kinds = useBibleKinds();
+  const locale = useLocale();
+  const { date, number } = useFormatter();
+  const detail = useVerificationDetail();
+  const status = useVerificationStatus();
+  const tool = useVerificationTool();
   const [mode, setMode] = useState<VerificationMode>(targetId ? 'targeted' : 'quick');
   const [target, setTarget] = useState(targetId ?? '');
   const [picked, setPicked] = useState('');
   const [editing, setEditing] = useState('');
+  const [filter, setFilter] = useState('all');
   const [ownerReview, setOwnerReview] = useState('');
   const [busy, setBusy] = useState(false);
   const [semanticBusy, setSemanticBusy] = useState(false);
@@ -54,7 +71,8 @@ export default function VerificationAgent({
   const history = project.verificationHistory ?? [];
   const entry = history.find((e) => e.runId === picked) ?? history.at(-1);
   const run = project.runs.find((r) => r.id === entry?.runId);
-  const fresh = !!entry && entry.fingerprint === identity;
+  const calls = run && reportedCalls(run);
+  const fresh = !!entry && reportApplies(entry, identity);
   const available =
     !!entry &&
     !!run &&
@@ -63,6 +81,13 @@ export default function VerificationAgent({
     !entry.revalidation &&
     !incomplete({ run, tools: entry.tools as VerificationToolReceipt[] });
   const finding = entry?.findings.find((f) => f.id === editing);
+  useEffect(() => {
+    if (targetId) {
+      setMode('targeted');
+      setTarget(targetId);
+      setEditing('');
+    }
+  }, [targetId]);
   useEffect(
     () => () => {
       task.current?.abort();
@@ -78,7 +103,7 @@ export default function VerificationAgent({
         if (mounted) setIdentity(id);
       })
       .catch(() => {
-        if (mounted) setError(c.failed);
+        if (mounted) setError(raw.failed);
       });
     return () => {
       mounted = false;
@@ -119,10 +144,10 @@ export default function VerificationAgent({
         },
       });
       if (task.current !== ctl) return;
-      if (current() !== project) throw Error(c.expired);
+      if (current() !== project) throw Error(raw.expired);
       if (await commit(persistReport(project, report, fingerprint))) setPicked(report.run.id);
     } catch (e) {
-      if (task.current === ctl) setError(e instanceof Error ? e.message : c.failed);
+      if (task.current === ctl) setError(e instanceof Error ? e.message : raw.failed);
     } finally {
       finish(ctl);
     }
@@ -165,13 +190,13 @@ export default function VerificationAgent({
     if (!ctl) return;
     try {
       const next = await confirmWorldReview(project, entry.runId, ctl.signal);
-      if (current() !== project || ctl.signal.aborted || task.current !== ctl) throw Error(c.expired);
+      if (current() !== project || ctl.signal.aborted || task.current !== ctl) throw Error(raw.expired);
       if (await commit(next)) {
         setPicked(next.approval.runId);
         setOwnerReview('');
       }
     } catch (e) {
-      if (task.current === ctl) setError(e instanceof Error ? e.message : c.failed);
+      if (task.current === ctl) setError(e instanceof Error ? e.message : raw.failed);
     } finally {
       finish(ctl);
     }
@@ -182,7 +207,7 @@ export default function VerificationAgent({
     if (!ctl) return;
     try {
       if ((await verificationIdentity(project)) !== entry.fingerprint || current() !== project)
-        throw Error(c.expired);
+        throw Error(raw.expired);
       const classification = edits.every((e) => ['distanceKm', 'corridor'].includes(e.field))
         ? 'technical'
         : 'creative';
@@ -191,9 +216,9 @@ export default function VerificationAgent({
         base = reserveRepair(project, entry.runId, edits, classification);
         if (!(await commit(base))) return;
       } else if (saved.sourceRevision !== project.revision || !entry.proposals?.some((s) => s === saved))
-        throw Error(c.expired);
+        throw Error(raw.expired);
       const id = edits[0]!.proposalId;
-      if (action === 'accept' && saved?.status !== 'ready') throw Error(c.expired);
+      if (action === 'accept' && saved?.status !== 'ready') throw Error(raw.expired);
       let next = base;
       if (action !== 'reject') {
         let verified: Awaited<ReturnType<typeof simulateRepairs>> | undefined;
@@ -202,10 +227,10 @@ export default function VerificationAgent({
           verified = await simulateRepairs(base, edits, finding, entry.fingerprint, ctl.signal);
           failure = verified.problem;
         } catch (e) {
-          failure = e instanceof Error ? e.message : c.failed;
+          failure = e instanceof Error ? e.message : raw.failed;
         }
-        if (current() !== base || task.current !== ctl) throw Error(c.expired);
-        if (ctl.signal.aborted) failure = c.incomplete;
+        if (current() !== base || task.current !== ctl) throw Error(raw.expired);
+        if (ctl.signal.aborted) failure = raw.incomplete;
         const updated = updateRepair(base, entry.runId, id, {
           status: failure ? 'blocked' : 'ready',
           detail: failure,
@@ -218,7 +243,7 @@ export default function VerificationAgent({
         }
         next = { ...verified.draft, verificationHistory: updated.verificationHistory };
       }
-      if (current() !== base || task.current !== ctl || ctl.signal.aborted) throw Error(c.expired);
+      if (current() !== base || task.current !== ctl || ctl.signal.aborted) throw Error(raw.expired);
       const accepted = action === 'accept';
       const prior = next.verificationHistory
         ?.find((e) => e.runId === entry.runId)
@@ -290,7 +315,7 @@ export default function VerificationAgent({
           setPicked(checked.run.id);
       }
     } catch (e) {
-      if (task.current === ctl) setError(e instanceof Error ? e.message : c.failed);
+      if (task.current === ctl) setError(e instanceof Error ? e.message : raw.failed);
     } finally {
       finish(ctl);
     }
@@ -304,17 +329,28 @@ export default function VerificationAgent({
         </button>
       ));
   function findingsList(report: VerificationEntry) {
+    const category = (f: ValidationFinding) => f.origin === 'editorial' && f.severity === 'info' ? 'editorial' : f.severity;
+    if (filter !== 'all' && !report.findings.some(f => category(f) === filter)) return <p>{c.filterEmpty}</p>;
     return (['error', 'warning', 'editorial', 'info'] as const).map((key) => {
-      const rows = report.findings.filter(
-        (f) => (f.origin === 'editorial' && f.severity === 'info' ? 'editorial' : f.severity) === key,
-      );
-      const domains = [...new Set(rows.map((f) => f.rule.split('.')[0]))];
+      if (filter !== 'all' && filter !== key) return null;
+      const rows = report.findings.filter(f => category(f) === key);
+      const domains = [...new Set(rows.map((f) => f.rule.split('.')[0] ?? f.rule))];
       function card(f: ValidationFinding) {
+        const explanation = f.origin === 'editorial' ? f.explanation : detail(f.explanation, f.rule);
+        const affected = [...new Set(f.entityIds)];
         return (
-          <article key={f.id} className="record-list">
-            <strong>{f.explanation}</strong>
-            <p>{f.suggestedRepair}</p>
-            <div className="actions">{inspectButtons(f.entityIds)}</div>
+          <article key={f.id} className="finding-card" aria-label={explanation}>
+            <h5><strong>{explanation}</strong></h5>
+            <div className="finding-state">{status(f.severity)} · {status(f.status)} · {f.origin === 'editorial' ? c.severity.editorial : c.mode[report.mode]}</div>
+            {f.causeNodeId && <p>{c.cause} · {label(f.causeNodeId)}</p>}
+            {affected.length > 0 && <div className="actions">
+              <span>{locale === 'ko' ? '영향받는 기록' : 'Affected records'} · {number(affected.length)}</span>
+              {inspectButtons(affected)}
+              {affected.filter(id => !index.entities.has(id)).map(id => <code key={id}>{id}</code>)}
+            </div>}
+            {f.suggestedRepair && (
+              <p>{f.origin === 'editorial' ? f.suggestedRepair : detail(f.suggestedRepair, undefined, f.suggestedRepair)}</p>
+            )}
             {!!f.blockedTransitions?.length && (
               <ul aria-label={c.related}>
                 {f.blockedTransitions.map((b, i) => (
@@ -326,9 +362,17 @@ export default function VerificationAgent({
             )}
             <details>
               <summary>
-                {c.details} · {f.status}
+                {c.details} · {status(f.status)}
               </summary>
-              <pre className="verification-evidence">{JSON.stringify(f, null, 2)}</pre>
+              <dl className="operations-details">
+                <dt>{locale === 'ko' ? '검사 규칙' : 'Check rule'}</dt><dd><code>{f.rule}</code></dd>
+                {f.fieldPath && <><dt>{c.fieldPath}</dt><dd><code>{f.fieldPath}</code></dd></>}
+                {f.witnessPath?.length ? <><dt>{c.witness}</dt><dd>{f.witnessPath.map(label).join(' → ')}</dd></> : null}
+                {f.referenceId && <><dt>{c.record}</dt><dd>{label(f.referenceId)} · <code>{f.referenceId}</code></dd></>}
+              </dl>
+              {f.evidence?.map((source, i) => <div key={i}><b>{label(source.id)}</b><blockquote>{source.excerpt}</blockquote></div>)}
+              <details><summary>{locale === 'ko' ? '전체 기술 기록' : 'Full technical record'}</summary>
+                <pre className="verification-evidence">{JSON.stringify(f, null, 2)}</pre></details>
             </details>
             <button type="button" disabled={!available || busy || disabled} onClick={() => setEditing(f.id)}>
               {c.revise}
@@ -350,7 +394,7 @@ export default function VerificationAgent({
         rows.length > 0 && (
           <section key={key}>
             <h3>
-              {c.severity[key]} ({rows.length})
+              {c.severity[key]} ({number(rows.length)})
             </h3>
             {domains.map((domain) => {
               const group = rows.filter((f) => f.rule.split('.')[0] === domain);
@@ -368,12 +412,14 @@ export default function VerificationAgent({
               });
               return (
                 <section key={domain}>
-                  <h4>{domain}</h4>
+                  <h4 title={domain}>
+                    {locale === 'ko' && (domain === 'scenario' || domain === 'world') ? kinds[domain] : tool(domain)}
+                  </h4>
                   {primary.map(card)}
                   {[...repeated].map(([id, linked]) => (
                     <details key={id}>
                       <summary>
-                        {c.downstream} · {label(id)} ({linked.length})
+                        {c.downstream} · {label(id)} ({number(linked.length)})
                       </summary>
                       {linked.map(card)}
                     </details>
@@ -408,6 +454,11 @@ export default function VerificationAgent({
             ))}
           </select>
         </label>
+        <p className="muted">{mode === 'quick'
+          ? (locale === 'ko' ? '저장된 설계의 기본 구조와 참조를 확인합니다.' : 'Inspect the saved design’s structure and references.')
+          : mode === 'targeted'
+            ? (locale === 'ko' ? '선택한 기록과 연결된 의존성을 검사합니다.' : 'Check the selected record and its connected dependencies.')
+            : (locale === 'ko' ? '현재 프로젝트 전체의 적용 가능한 도구를 실행합니다.' : 'Run the applicable tools across the current project.')}</p>
         {mode === 'targeted' && (
           <label>
             {c.target}
@@ -419,7 +470,7 @@ export default function VerificationAgent({
               <option value="">{c.select}</option>
               {[...index.entities.values()].map((r) => (
                 <option value={r.id} key={r.id}>
-                  {r.label} · {r.kind}
+                  {r.label} · {locale === 'ko' ? kinds[r.kind] : r.kind}
                 </option>
               ))}
             </select>
@@ -446,19 +497,19 @@ export default function VerificationAgent({
         <details open={busy || undefined}>
           <summary>{c.plan}</summary>
           <ol aria-live="polite">
-            {plan.map((id) => (
-              <li key={id}>
-                {id} ·{' '}
-                {busy
-                  ? (progress.find((t) => t.tool === id)?.status ??
-                    (activeTool === id ? c.running : c.waiting))
-                  : c.waiting}
-              </li>
-            ))}
+            {plan.map((id) => {
+              const toolStatus = busy && progress.find((t) => t.tool === id)?.status;
+              return (
+                <li key={id} title={id}>
+                  {tool(id)} ·{' '}
+                  {toolStatus ? status(toolStatus) : busy && activeTool === id ? c.running : c.waiting}
+                </li>
+              );
+            })}
           </ol>
         </details>
       </section>
-      {error && <p role="alert">{error}</p>}
+      {error && <><p role="alert">{detail(error)}</p><DiagnosticDetails detail={error} /></>}
       <section className="panel">
         <h2>{c.history}</h2>
         {entry && run ? (
@@ -470,25 +521,30 @@ export default function VerificationAgent({
               onChange={(e) => {
                 setPicked(e.target.value);
                 setEditing('');
+                setFilter('all');
               }}
             >
-              {[...history].reverse().map((h) => (
-                <option value={h.runId} key={h.runId}>
-                  {h.timestamp} · {c.mode[h.mode]} · {h.provider ?? 'deterministic'} ·{' '}
-                  {h.targetId ? label(h.targetId) : c.scopeAll}
-                </option>
-              ))}
+              {[...history].reverse().map((h) => {
+                const time = Date.parse(h.timestamp);
+                return (
+                  <option value={h.runId} key={h.runId} title={h.timestamp}>
+                    {Number.isFinite(time) ? date(time, { dateStyle: 'medium', timeStyle: 'medium' }) : h.timestamp}
+                    {' · '}{c.mode[h.mode]} · {h.provider ?? (locale === 'ko' ? '결정론적 검사' : 'deterministic')} ·{' '}
+                    {h.targetId ? label(h.targetId) : c.scopeAll}
+                  </option>
+                );
+              })}
             </select>
             <p role="status">
-              {identity ? (fresh ? c.current : c.stale) : c.checking} · r{run.baseRevision} · {run.status} ·{' '}
-              {run.durationMs ?? 0} ms
+              {identity ? (fresh ? c.current : c.stale) : c.checking} · r{number(run.baseRevision)} · {status(run.status)}
+              {run.durationMs !== undefined && <> · {number(run.durationMs)} ms</>}
             </p>
             <p>
-              {c.attempts} · {run.repairAttempts}/2 · {c.runUsage} · {reportedCalls(run)}
+              {c.attempts} · {number(run.repairAttempts)}/2 · {c.runUsage} · {typeof calls === 'number' ? number(calls) : c.unknown}
               {run.tokens !== undefined && (
                 <>
                   {' '}
-                  · {c.reportedTokens} · {run.tokens}
+                  · {c.reportedTokens} · {number(run.tokens)}
                 </>
               )}
             </p>
@@ -497,7 +553,7 @@ export default function VerificationAgent({
                 onClick={() =>
                   downloadFile(
                     run.id + '.md',
-                    verificationMarkdown(project, entry, run, fresh),
+                    verificationMarkdown(project, entry, run, fresh, locale),
                     'text/markdown',
                   )
                 }
@@ -532,24 +588,29 @@ export default function VerificationAgent({
             <ul>
               {entry.tools.map((t) => (
                 <li key={t.tool}>
-                  <b>
-                    {t.tool} · {t.status}
+                  <b title={t.tool}>
+                    {tool(t.tool)} · {status(t.status)}
                   </b>{' '}
-                  · {t.detail}
+                  · {detail(t.detail)}
+                  <DiagnosticDetails detail={t.detail} code={t.tool} />
                 </li>
               ))}
               {!entry.tools.length &&
                 run.receipts.map((r, i) => (
-                  <li key={i}>
-                    {r.tool} · {r.outcome} · {r.detail}
+                  <li key={i} title={r.tool}>
+                    {tool(r.tool)} · {status(r.outcome)} · {detail(r.detail, undefined, r.detail)}
                   </li>
                 ))}
             </ul>
+            <p className="finding-state">{entry.provider
+              ? (run.status === 'proposed' ? (locale === 'ko' ? '의미 검토 완료' : 'Editorial review completed')
+                : (locale === 'ko' ? '의미 검토 미완료' : 'Editorial review incomplete'))
+              : (locale === 'ko' ? '의미 검토 안 함' : 'Editorial review not run')}</p>
             <p>{entry.provider ? c.semanticLimit : c.unreviewed}</p>
             {entry.submittedIds && (
               <details>
                 <summary>
-                  {c.submitted} ({entry.submittedIds.length})
+                  {c.submitted} ({number(entry.submittedIds.length)})
                 </summary>
                 {inspectButtons(entry.submittedIds)}
               </details>
@@ -581,7 +642,7 @@ export default function VerificationAgent({
             {entry.paths.length > 0 && (
               <details>
                 <summary>
-                  {c.paths} ({entry.statesExplored} states)
+                  {c.paths} ({number(entry.statesExplored)} {c.states})
                 </summary>
                 {entry.paths.map((p) => (
                   <p key={p.endingId}>{p.nodeIds.map(label).join(' → ')}</p>
@@ -589,10 +650,16 @@ export default function VerificationAgent({
               </details>
             )}
             <h2>{c.findings}</h2>
+            {entry.findings.length > 0 && <label>{c.filterFindings}
+              <select value={filter} onChange={event => setFilter(event.target.value)}>
+                <option value="all">{c.allFindings}</option>
+                {Object.entries(c.severity).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </label>}
             {!available && <p>{entry.revalidation ? c.reviewAgain : c.gate}</p>}
             {entry.omittedFindings && (
               <p>
-                {c.limit} ({entry.omittedFindings})
+                {c.limit} ({number(entry.omittedFindings)})
               </p>
             )}
             {entry.findings.length ? findingsList(entry) : <p>{c.noFindings}</p>}
@@ -601,7 +668,7 @@ export default function VerificationAgent({
                 <h3>{c.actions}</h3>
                 {entry.decisions.map((d) => (
                   <p key={d.proposalId}>
-                    {d.decision} · {label(d.recordId)} · {d.field} · {d.before} → {d.after}
+                    {status(d.decision)} · {label(d.recordId)} · {d.field} · {d.before} → {d.after}
                   </p>
                 ))}
               </section>

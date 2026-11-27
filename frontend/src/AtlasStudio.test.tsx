@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -56,3 +57,5 @@ it('shows a saved atlas with corrupted terrain as needing review and blocks appr
   expect(await screen.findByText('World needs review')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Approve world' })).toBeDisabled();
 });
+
+useEnglishTestLocale();

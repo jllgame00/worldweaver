@@ -27,7 +27,7 @@ const generationModes = {
 export const copy = {
   brand: 'WORLDWEAVER', workspace: 'Narrative studio', projects: 'Projects',
   newProject: 'New project', projectTitle: 'Project title', createProject: 'Create project', cancel: 'Cancel',
-  localProjects: 'Local projects', openProject: 'Open', open: (title: string) => `Open ${title}`,
+  localProjects: 'My projects', openProject: 'Open', open: (title: string) => `Open ${title}`,
   emptyProjects: 'Start with a place, a character, or a single idea.',
   loadingProjects: 'Opening local storage…', unreadableProjects: 'Some local projects could not be read.',
   content: 'Content', directions: 'Story directions', narrative: 'Narrative', revision: (count: number) => `Revision ${count}`,

@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import AtlasStudio from './AtlasStudio';
@@ -312,3 +313,5 @@ it('recovers the previous proposal after failed and cancelled regeneration', asy
   expect(await readAtlasDraft(db, p.id)).toEqual(original);
   expect(a.commit).not.toHaveBeenCalled();
 }, 20000);
+
+useEnglishTestLocale();

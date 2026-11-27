@@ -23,6 +23,16 @@
   max-height: 70vh;
   overflow: auto;
 }
+.bible-records ul { list-style: none; padding: 0; }
+.bible-records h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 1rem 0 .35rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--line);
+  font-size: .86rem;
+}
+.bible-records h3 span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .bible-records button {
   text-align: left;
   width: 100%;

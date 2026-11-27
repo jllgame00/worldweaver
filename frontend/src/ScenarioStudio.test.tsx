@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
@@ -372,3 +373,5 @@ test.each([false, true])('relinks a rejected draft, checks it locally and saves 
   expect(generate).toHaveBeenCalledOnce();
   expect(validate).toHaveBeenCalledTimes(blocked ? 2 : 1);
 });
+
+useEnglishTestLocale();

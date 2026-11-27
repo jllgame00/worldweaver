@@ -4,6 +4,9 @@ import type { ScenarioFinding } from './ScenarioFindings';
 import { downloadFile } from './scenarioWorkflow';
 import { diagnosticMaxBytes, readRecoveryFile, writeRecoveryFile, type RejectedDraft } from './rejectedStorage';
 
+import { DiagnosticDetails } from './locale';
+import { scenarioRecoveryCopy, useRecoveryDiagnostic, useScenarioRecoveryCopy } from './scenarioRecoveryCopy';
+
 export default function RecoveryFile({
   project,
   rejected,
@@ -15,15 +18,15 @@ export default function RecoveryFile({
   onRestore: (value: RejectedDraft) => void;
   disabled?: boolean;
 }) {
+  const { file: c } = useScenarioRecoveryCopy();
+  const translate = useRecoveryDiagnostic();
   const [error, setError] = useState('');
   const original = rejected?.recovery;
+  const feedback = error && translate(error);
   return (
     <details className="panel">
-      <summary>Rejected scenario file</summary>
-      <p>
-        Save a local copy of the original rejected graph and its findings. The file includes creative content.
-        Reopen it with the same project revision to continue reviewing it.
-      </p>
+      <summary>{c.title}</summary>
+      <p>{c.help}</p>
       {original != null && (
         <button
           type="button"
@@ -34,16 +37,16 @@ export default function RecoveryFile({
               downloadFile(project.id + '.rejected-scenario.json', text, 'application/json');
               setError('');
             } catch (e) {
-              setError(e instanceof Error ? e.message : 'Could not export the rejected proposal.');
+              setError(e instanceof Error ? e.message : scenarioRecoveryCopy.file.exportFailed);
             }
           }}
         >
-          Export original rejected graph
+          {c.export}
         </button>
       )}
       {!original && (
         <label>
-          Open rejected scenario file
+          {c.open}
           <input
             type="file"
             accept=".json,application/json"
@@ -53,17 +56,17 @@ export default function RecoveryFile({
               e.target.value = '';
               if (!file) return;
               try {
-                if (file.size > diagnosticMaxBytes) throw Error('Diagnostic file is too large.');
+                if (file.size > diagnosticMaxBytes) throw Error(scenarioRecoveryCopy.file.large);
                 onRestore(readRecoveryFile(project, await file.text()));
                 setError('');
               } catch (e) {
-                setError(e instanceof Error ? e.message : 'Could not open the rejected proposal.');
+                setError(e instanceof Error ? e.message : scenarioRecoveryCopy.file.openFailed);
               }
             }}
           />
         </label>
       )}
-      {error && <p role="alert">{error}</p>}
+      {feedback && <><p role="alert">{feedback.message}</p>{feedback.raw && <DiagnosticDetails detail={feedback.raw} />}</>}
     </details>
   );
 }

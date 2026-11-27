@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import Narrative from './Narrative';
@@ -83,3 +84,5 @@ it('registers a cast identity without changing approved prose or making a provid
   );
   expect(await screen.findByText(added.characters.at(-1)!.id)).toBeTruthy();
 });
+
+useEnglishTestLocale();

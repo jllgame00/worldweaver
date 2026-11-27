@@ -1,9 +1,10 @@
 ﻿import { studioCopy as c } from './scenarioCopy';
 import type { Project, ScenarioEdge } from './project.generated';
+import { fittedLabel, glyphs, textWidth } from './svgText';
 
 export interface Position { nodeId: string; x: number; y: number }
 export const cardWidth = 178;
-export const cardHeight = 60;
+export const cardHeight = 76;
 
 export function arrange(project: Project): Position[] {
   const depths = new Map<string, number>();
@@ -23,13 +24,65 @@ export function arrange(project: Project): Position[] {
       if (!incoming.get(to)) queue.push(to);
     }
   }
-  const rows = new Map<number, number>();
-  return project.nodes.map(({ id }) => {
-    const column = depths.get(id) ?? 0;
-    const row = rows.get(column) ?? 0;
-    rows.set(column, row + 1);
-    return { nodeId: id, x: 30 + column * 240, y: 30 + row * 120 };
-  });
+  const groups = new Map<string | undefined, Project['nodes']>(
+    (project.scenario?.chapters ?? []).map(chapter => [chapter.id, []]));
+  for (const node of project.nodes) {
+    if (!groups.has(node.chapterId)) groups.set(node.chapterId, []);
+    groups.get(node.chapterId)!.push(node);
+  }
+  let offset = 30;
+  const positions: Position[] = [];
+  for (const nodes of groups.values()) {
+    if (!nodes.length) continue;
+    const rows = new Map<number, number>();
+    const first = Math.min(...nodes.map(node => depths.get(node.id) ?? 0));
+    for (const node of nodes) {
+      const column = (depths.get(node.id) ?? 0) - first;
+      const row = rows.get(column) ?? 0;
+      rows.set(column, row + 1);
+      positions.push({ nodeId: node.id, x: offset + column * 318, y: 30 + row * 138 });
+    }
+    offset += (Math.max(...rows.keys()) + 1) * 318;
+  }
+  return positions;
+}
+
+export function titleLines(title: string): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const char of glyphs(title)) {
+    if (textWidth(line + char, 13) > cardWidth - 28) {
+      if (lines.length) return [...lines, fittedLabel(line + char, (cardWidth - 28) / 13)];
+      const space = line.lastIndexOf(' ');
+      if (space > line.length / 2) {
+        lines.push(line.slice(0, space)); line = line.slice(space + 1);
+      } else { lines.push(line); line = ''; }
+    }
+    line += char;
+  }
+  return [...lines, line];
+}
+
+interface Box { x: number; y: number; width: number; height: number }
+
+export function edgeDrawing(a: Position, b: Position, label: string, occupied: Box[]) {
+  const forward = a.x <= b.x;
+  const x1 = a.x + (forward ? cardWidth : 0), y1 = a.y + cardHeight / 2;
+  const x2 = b.x + (forward ? 0 : cardWidth), y2 = b.y + cardHeight / 2;
+  const bend = Math.max(34, Math.abs(x2 - x1) / 2) * (forward ? 1 : -1);
+  const d = `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+  const width = textWidth(label, 11) + 12;
+  for (const t of [.5, .35, .65, .2, .8]) {
+    const u = 1 - t;
+    const x = u ** 3 * x1 + 3 * u * u * t * (x1 + bend) + 3 * u * t * t * (x2 - bend) + t ** 3 * x2;
+    const y = (u ** 3 + 3 * u * u * t) * y1 + (t ** 3 + 3 * u * t * t) * y2 - 8;
+    const box = { x: x - width / 2, y: y - 12, width, height: 16 };
+    if (!occupied.some(o => box.x < o.x + o.width && o.x < box.x + width && box.y < o.y + o.height && o.y < box.y + box.height)) {
+      occupied.push(box);
+      return { d, labelAt: { x, y } };
+    }
+  }
+  return { d, labelAt: undefined };
 }
 
 export function connectionError(project: Project, edge: ScenarioEdge): string | undefined {

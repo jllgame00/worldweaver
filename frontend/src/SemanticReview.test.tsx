@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import { approvedProject } from './atlasFixture.testdata';
@@ -183,3 +184,5 @@ test('preserves a relationship only when explicitly proposed for independently c
     suggestedRelationship,
   });
 });
+
+useEnglishTestLocale();

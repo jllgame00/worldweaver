@@ -7,6 +7,8 @@ import { atlasPlaces, portableWorld } from './atlasPlaces';
 import { terrain, terrainIssues } from './atlasTerrain';
 import { islandPorts } from './atlasPorts';
 import { placeLocations, buildRoutes, spatialIssues } from './atlasSpatial';
+import { atlasLabels } from './atlasLabels';
+import type { Locale, Translation } from './locale';
 export { resolvedWorld } from './atlasPlaces';
 
 export const version = 'atlas-1';
@@ -429,52 +431,76 @@ export function removeSite(p: Project, w: World, id: string): World {
     routes: w.routes.filter((r) => r.from !== id && r.to !== id),
   };
 }
-export function atlasMarkdown(w: World) {
+const markdownEnglish = {
+  world: 'World Atlas',
+  approved: 'Approved',
+  draft: 'Draft',
+  seed: (seed: string) => 'Seed ' + seed,
+  scale: (distance: string) => distance + ' km/cell',
+  sources: (narrative: string, narrativeRevision: string, scenario: string, scenarioRevision: string) =>
+    'Narrative ' + narrative + ' (revision ' + narrativeRevision + ') · Scenario ' + scenario + ' (revision ' + scenarioRevision + ')',
+  terrain: 'Terrain and drainage',
+  journeys: 'Journeys',
+  requirements: 'Requirements',
+  unplaced: 'unplaced',
+};
+const markdownKorean: Translation<typeof markdownEnglish> = {
+  world: '세계 지도',
+  approved: '승인됨',
+  draft: '초안',
+  seed: (seed) => '시드 ' + seed,
+  scale: (distance) => '칸당 ' + distance + ' km',
+  sources: (narrative, narrativeRevision, scenario, scenarioRevision) =>
+    '서사 ' + narrative + ' (리비전 ' + narrativeRevision + ') · 시나리오 ' + scenario + ' (리비전 ' + scenarioRevision + ')',
+  terrain: '지형과 물길',
+  journeys: '여정',
+  requirements: '요구 사항',
+  unplaced: '미배치',
+};
+
+export function atlasMarkdown(w: World, locale: Locale = 'en') {
+  const copy = locale === 'ko' ? markdownKorean : markdownEnglish;
+  const labels = atlasLabels[locale];
+  const number = new Intl.NumberFormat(locale).format;
+  const kilometers = new Intl.NumberFormat(locale, { style: 'unit', unit: 'kilometer' }).format;
+  const format = (value?: number) => value == null ? '—' : number(value);
+  const point = (p: Point) => p.map(number).join(', ');
   const label = (id: string) => w.locations.find((l) => l.id === id)?.name ?? id;
   return [
-    '# ' + (w.name ?? 'World Atlas'),
+    '# ' + (w.name ?? copy.world),
     '',
-    (w.approved ? 'Approved' : 'Draft') + ' · ' + w.generatorVersion + ' · Seed ' + w.seed,
-    w.tiles[0]?.length + ' × ' + w.tiles.length + ' cells · ' + w.settings?.kmPerCell + ' km/cell',
-    'Narrative ' +
-      w.sourceNarrativeId +
-      ' (revision ' +
-      w.narrativeRevision +
-      ') · Scenario ' +
-      w.sourceScenarioId +
-      ' (revision ' +
-      w.scenarioRevision +
-      ')',
+    (w.approved ? copy.approved : copy.draft) + ' · ' + w.generatorVersion + ' · ' + copy.seed(number(w.seed)),
+    labels.cells(format(w.tiles[0]?.length) + ' × ' + number(w.tiles.length)) + ' · ' + copy.scale(format(w.settings?.kmPerCell)),
+    copy.sources(w.sourceNarrativeId ?? '—', format(w.narrativeRevision), w.sourceScenarioId ?? '—', format(w.scenarioRevision)),
     '',
-    '## Terrain and drainage',
+    '## ' + copy.terrain,
     ...w.features.map(
       (f) =>
         '- ' +
         f.name +
         ' · ' +
-        f.kind +
+        labels.feature[f.kind] +
         ' · ' +
-        f.cells.length +
-        ' cells' +
-        (f.kind === 'river' ? ' · ' + f.cells[0].join(', ') + ' → ' + f.cells.at(-1)!.join(', ') : ''),
+        labels.cells(number(f.cells.length)) +
+        (f.kind === 'river' ? ' · ' + point(f.cells[0]) + ' → ' + point(f.cells.at(-1)!) : ''),
     ),
     '',
-    '## Regions',
+    '## ' + labels.regions,
     ...w.regions.map(
       (r) =>
         '- ' +
         r.name +
         ' · ' +
-        r.cells.length +
-        ' cells. ' +
+        labels.cells(number(r.cells.length)) +
+        '. ' +
         (r.description ?? '') +
         (r.climateException ? ' · ' + r.climateException.biome + ' — ' + r.climateException.rule : ''),
     ),
     '',
-    '## Territories',
+    '## ' + labels.territories,
     ...(w.territories ?? []).map((t) => '- ' + t.name + ' · ' + t.regionIds.join(', ')),
     '',
-    '## Locations',
+    '## ' + labels.locations,
     ...w.locations.map(
       (l) =>
         '- ' +
@@ -482,27 +508,28 @@ export function atlasMarkdown(w: World) {
         ' (' +
         l.id +
         ', ' +
-        l.kind +
+        labels.location[l.kind] +
         ') · ' +
-        (l.position?.join(', ') ?? 'unplaced') +
+        (l.position ? point(l.position) : copy.unplaced) +
         ' · ' +
         (l.description ?? ''),
     ),
     '',
-    '## Journeys',
+    '## ' + copy.journeys,
     ...w.routes.map(
-      (r) => '- ' + label(r.from) + ' → ' + label(r.to) + ' · ' + r.mode + ' · ' + r.distanceKm + ' km',
+      (r) => '- ' + label(r.from) + ' → ' + label(r.to) + ' · ' + labels.route[r.mode] +
+        ' · ' + (r.distanceKm == null ? '—' : kilometers(r.distanceKm)),
     ),
     '',
-    '## Requirements',
+    '## ' + copy.requirements,
     ...(w.constraints ?? []).map(
       (c) =>
         '- ' +
-        c.strength +
+        labels.strength[c.strength] +
         ' · ' +
         label(c.from) +
         ' ' +
-        c.relation +
+        labels.relation[c.relation] +
         ' ' +
         label(c.to ?? '') +
         ' · ' +

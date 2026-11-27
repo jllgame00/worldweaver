@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
@@ -377,3 +378,5 @@ test('creates and reopens the development sample without replacing a same-titled
   expect((await listProjects(databaseName)).projects).toEqual(projects);
   expect(post).not.toHaveBeenCalled();
 });
+
+useEnglishTestLocale();

@@ -3,7 +3,7 @@ import type { Project } from './project.generated';
 import {
   additionsFromDraft,
   recoveryProject,
-  relinkCopy as c,
+  relinkCopy,
   repairReferenceProposal,
   replacementOptions,
   type ReferenceFinding,
@@ -12,6 +12,9 @@ import NarrativeRegistry from './NarrativeRegistry';
 import { designOf } from './scenarioWorkflow';
 import ScenarioFindings, { type ScenarioFinding } from './ScenarioFindings';
 import { RelinkRejected } from './referenceRepair';
+import { DiagnosticDetails } from './locale';
+import { useRecoveryDiagnostic, useScenarioRecoveryCopy } from './scenarioRecoveryCopy';
+import { useScenarioKind } from './scenarioCopy';
 
 export default function ScenarioRelink({
   project,
@@ -26,6 +29,9 @@ export default function ScenarioRelink({
   onProposal: (response: unknown, next: Project) => void;
   onBlocked?: (draft: Project, findings: ScenarioFinding[]) => void;
 }) {
+  const { relink: c } = useScenarioRecoveryCopy();
+  const translate = useRecoveryDiagnostic();
+  const kindLabel = useScenarioKind();
   const [replacements, setReplacements] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [issues, setIssues] = useState<ScenarioFinding[]>([]);
@@ -59,7 +65,7 @@ export default function ScenarioRelink({
       if (!ctl.signal.aborted) onProposal(proposal.response, proposal.next);
     } catch (e) {
       if (!ctl.signal.aborted) {
-        setMessage(e instanceof Error ? e.message : c.request);
+        setMessage(e instanceof Error ? e.message : relinkCopy.request);
         if (e instanceof RelinkRejected) {
           setIssues(e.findings);
           onBlocked?.(e.draft, e.findings);
@@ -70,6 +76,7 @@ export default function ScenarioRelink({
       setBusy(false);
     }
   }
+  const feedback = message && translate(message);
   return (
     <details className="panel">
       <summary>{c.title}</summary>
@@ -92,7 +99,7 @@ export default function ScenarioRelink({
           if (!path) return null;
           return (
             <label key={path}>
-              {path} · {f.referenceId} → {f.expectedType}
+              {path} · {f.referenceId} → {f.expectedType && kindLabel(f.expectedType)}
               <select
                 value={replacements[path] ?? ''}
                 onChange={(e) => setReplacements({ ...replacements, [path]: e.target.value })}
@@ -115,7 +122,7 @@ export default function ScenarioRelink({
           {c.validate}
         </button>
       </fieldset>
-      {message && <p role="alert">{message}</p>}
+      {feedback && <><p role="alert">{feedback.message}</p>{feedback.raw && <DiagnosticDetails detail={feedback.raw} />}</>}
       <ScenarioFindings title={c.failed} findings={issues} />
     </details>
   );

@@ -1,6 +1,6 @@
 # Release and operations plan
 
-Phase 6 introduces GitHub Actions and an authorized Render deployment. Start with one web service serving the compiled frontend and Python API. Keep the canonical project in the browser and portable files. Deployment should be replaceable without migrating designer data.
+Phase 5A introduces the [test and production frontend build workflow](../.github/workflows/test.yml). Only its local checks have been exercised. After the owner publishes it, require `WORLDWEAVER required` on main and demonstrate a failed test blocks the build and the gate. Branch protection and hosted run evidence are pending. Phase 6 extends the gate with an authorized Docker build, deployment of the tested image by digest and health/version verification of the same SHA. The diagram below describes that later release target. Keep the canonical project in the browser and portable files.
 
 ~~~mermaid
 flowchart LR

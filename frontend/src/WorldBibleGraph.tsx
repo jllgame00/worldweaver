@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { bibleCopy as t, bibleKinds } from './worldBibleCopy';
+import { useBibleCopy, useBibleKinds, useBibleRelation } from './worldBibleCopy';
+import { useFormatter } from './locale';
+import { fittedLabel } from './svgText';
 import type { BibleEntity, BibleIndex } from './worldBibleIndex';
 import type { GraphLink } from './worldBibleEvidence';
 
@@ -14,6 +16,10 @@ export function WorldBibleGraph({
   select: (id: string) => void;
   suggestions: GraphLink[];
 }) {
+  const t = useBibleCopy();
+  const bibleKinds = useBibleKinds();
+  const relationName = useBibleRelation();
+  const { number } = useFormatter();
   const [kind, setKind] = useState(''),
     [relation, setRelation] = useState(''),
     [page, setPage] = useState(0);
@@ -86,7 +92,9 @@ export function WorldBibleGraph({
           >
             <option value="">{t.relations}</option>
             {[...new Set(related.map((r) => r.link.kind))].sort().map((k) => (
-              <option key={k}>{k}</option>
+              <option key={k} value={k}>
+                {related.some(({ link }) => link.kind === k && !link.suggested) ? relationName(k) : k}
+              </option>
             ))}
           </select>
         </label>
@@ -163,7 +171,8 @@ export function WorldBibleGraph({
                 strokeDasharray={r.link.suggested ? '2 5' : r.link.stored ? undefined : '5 4'}
               >
                 <title>
-                  {r.link.kind} · {r.link.suggested ? t.suggested : r.link.stored ? t.stored : t.derived}
+                  {r.link.suggested ? r.link.kind : relationName(r.link.kind)} ·{' '}
+                  {r.link.suggested ? t.suggested : r.link.stored ? t.stored : t.derived}
                 </title>
               </line>
             ))}
@@ -191,7 +200,7 @@ export function WorldBibleGraph({
                     </title>
                     <rect x="-91" y="-21" width="182" height="42" rx="8" />
                     <text textAnchor="middle" y="-1">
-                      {node.label.length > 21 ? node.label.slice(0, 20) + '…' : node.label}
+                      {fittedLabel(node.label, (182 - 16) / 13)}
                     </text>
                     <text className="bible-svg-kind" textAnchor="middle" y="14">
                       {bibleKinds[node.kind]}
@@ -207,7 +216,7 @@ export function WorldBibleGraph({
                 {t.previous}
               </button>
               <span>
-                {active + 1} / {pages}
+                {number(active + 1)} / {number(pages)}
               </span>
               <button disabled={active === pages - 1} onClick={() => setPage(active + 1)}>
                 {t.next}
@@ -225,7 +234,7 @@ export function WorldBibleGraph({
               {other.label}
             </button>
             <span>
-              {outgoing ? t.uses : t.usedBy} · {link.kind} ·{' '}
+              {outgoing ? t.uses : t.usedBy} · {link.suggested ? link.kind : relationName(link.kind)} ·{' '}
               {link.suggested ? t.suggested : link.stored ? t.stored : t.derived}
             </span>
           </li>

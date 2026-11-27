@@ -1,5 +1,10 @@
 import type { Location, Project, TravelRoute, World } from './project.generated';
 
+export function displayableGrid(rows: string[]): boolean {
+  const width = rows[0]?.length ?? 0;
+  return width > 0 && width <= 128 && rows.length <= 128 && rows.every(row => row.length === width);
+}
+
 /** A scenario owns the identity. The atlas stores only its placement and explicit cartographic edits. */
 export function atlasPlaces(p: Project): Location[] {
   const placements = new Map(p.world?.placements?.map((v) => [v.locationId, v]));

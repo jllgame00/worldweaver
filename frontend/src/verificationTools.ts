@@ -115,7 +115,7 @@ export function sources(p: Project, fingerprint?: string): ToolOutput {
       run.stage !== 'verify' ||
       run.status !== 'verified' ||
       entry?.mode !== 'full' ||
-      entry.fingerprint !== fingerprint ||
+      entry.archived || entry.fingerprint !== fingerprint ||
       !['schema', 'references', 'sources', 'progression', 'atlas', 'coverage'].every((t) =>
         entry.tools.some(
           (r) => r.tool === t && r.status === 'passed' && r.checkedRevision === run.baseRevision,

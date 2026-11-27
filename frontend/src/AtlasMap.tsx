@@ -1,12 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Compass, defaults, Geography, layerNames, Legend } from './AtlasSheet';
+import { Compass, defaults, Geography, layerNames, Legend, useAtlasLegend } from './AtlasSheet';
 import type { Layer } from './AtlasSheet';
 import type { AtlasIssue } from './atlasTypes';
+import { displayableGrid } from './atlasPlaces';
 import { middle, viewBox } from './atlasGeometry';
 import type { View } from './atlasGeometry';
 import type { Point, World } from './project.generated';
 import { downloadFile } from './scenarioWorkflow';
+import { useFormatter, useLocale, useLocalized } from './locale';
 import './atlasMap.css';
 
 interface Props {
@@ -16,10 +18,59 @@ interface Props {
   onSelect: (id: string) => void;
   issues: AtlasIssue[];
   scenarioLocationIds: string[];
+  requiredLocationIds?: string[];
   scenarioRouteIds: string[];
 }
 const mapWidth = 932;
 const layersList = Object.keys(layerNames) as Layer[];
+const groups = {
+  terrain: ['biomes','relief'], hydrology: ['water'], movement: ['routes','infrastructure'],
+  politics: ['regions','territories'], sites: ['places','labels'], review: ['scenario','constraints','findings'],
+} satisfies Record<string, Layer[]>;
+const english = {
+  noTerrain: 'No terrain has been generated for this atlas.',
+  invalidTerrain: 'The map needs a rectangular terrain grid of up to 128 × 128 cells. Review the terrain finding.',
+  exportError: 'The map could not be exported. Try exporting again.',
+  interactive: 'Interactive atlas',
+  zoomOut: 'Zoom out',
+  zoom: 'Map zoom',
+  zoomIn: 'Zoom in',
+  fitMap: 'Fit map',
+  zoomTo: 'Zoom to selection',
+  layers: 'Layers',
+  mapLayers: 'Map layers',
+  groups: { terrain: 'Terrain', hydrology: 'Water system', movement: 'Travel', politics: 'Boundaries', sites: 'Places and names', review: 'Design review' },
+  layerNames,
+  export: 'Export SVG',
+  world: 'World atlas',
+  map: 'Atlas map',
+  description: (seed: string, version: string) => 'Seed ' + seed + '. Generator ' + version + '. North is up.',
+  seed: (seed: string) => 'Seed ' + seed,
+};
+const korean = {
+  noTerrain: '이 지도의 지형이 아직 생성되지 않았습니다.',
+  invalidTerrain: '지도에 최대 128 × 128칸의 직사각형 지형 격자가 필요합니다. 지형 검증 결과를 확인하세요.',
+  exportError: '지도를 내보내지 못했습니다. 다시 시도하세요.',
+  interactive: '대화형 세계 지도',
+  zoomOut: '축소',
+  zoom: '지도 확대율',
+  zoomIn: '확대',
+  fitMap: '지도 전체 보기',
+  zoomTo: '선택 항목 확대',
+  layers: '레이어',
+  mapLayers: '지도 레이어',
+  groups: { terrain: '지형', hydrology: '수계', movement: '이동', politics: '정치 경계', sites: '장소와 이름', review: '설계 검토' },
+  layerNames: {
+    biomes: '생물군계', relief: '지형 기복', water: '물길', regions: '지역', territories: '영토',
+    places: '정착지와 장소', routes: '경로', infrastructure: '기반 시설', scenario: '시나리오 연결 지점',
+    constraints: '공간 제약', findings: '검증 결과', labels: '이름표',
+  },
+  export: 'SVG 내보내기',
+  world: '세계 지도',
+  map: '지도',
+  description: (seed: string, version: string) => '시드 ' + seed + '. 생성기 ' + version + '. 위쪽이 북쪽입니다.',
+  seed: (seed: string) => '시드 ' + seed,
+};
 
 // Some print engines ignore nested SVG viewports. Flatten the map onto its sheet for export.
 export function standaloneSheet(sheet: SVGSVGElement, full: View) {
@@ -95,22 +146,25 @@ function zoomed(v: View, full: View, factor: number, ax = 0.5, ay = 0.5): View {
   return bounded({ x: v.x + (v.width - width) * ax, y: v.y + (v.height - height) * ay, width, height }, full);
 }
 export default function AtlasMap(props: Props) {
+  const copy = useLocalized(english, korean);
   const { world, projectId } = props;
-  if (!world.tiles.length) return <p>No terrain has been generated for this atlas.</p>;
-  const width = world.tiles[0]?.length ?? 0;
-  if (!width || width > 128 || world.tiles.length > 128 || world.tiles.some(row => row.length !== width))
-    return <p role="alert">The map needs a rectangular terrain grid of up to 128 × 128 cells. Review the terrain finding.</p>;
+  if (!world.tiles.length) return <p>{copy.noTerrain}</p>;
+  if (!displayableGrid(world.tiles))
+    return <p role="alert">{copy.invalidTerrain}</p>;
   const storageKey =
     'worldweaver:atlas-view:' +
     JSON.stringify([projectId ?? world.id, world.id, world.tiles[0]?.length ?? 0, world.tiles.length]);
   return <AtlasViewport key={storageKey} {...props} storageKey={storageKey} />;
 }
 function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: string }) {
+  const copy = useLocalized(english, korean);
+  const locale = useLocale();
+  const { number } = useFormatter();
   const full = { x: -1, y: -1, width: (world.tiles[0]?.length || 1) + 2, height: world.tiles.length + 2 };
   const [prefs, setPrefs] = useState(() => loadPrefs(storageKey, full));
   const [printing, setPrinting] = useState(false);
   const [sheetPixels, setSheetPixels] = useState(960);
-  const [error, setError] = useState('');
+  const [exportFailed, setExportFailed] = useState(false);
   const chart = useRef<SVGSVGElement>(null),
     sheet = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; y: number; start: View; moved: boolean } | null>(null);
@@ -121,9 +175,10 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
   const chartHeight = (mapWidth * full.height) / full.width;
   const legendY = chartHeight + 104;
   const typeScale = printing ? 1 : Math.max(1, Math.min(3, 960 / sheetPixels));
-  const columns = Math.max(1, Math.floor(860 / (94 * typeScale)));
-  const routeRows = Math.ceil(new Set(world.routes.map(route => route.mode)).size / columns);
-  const sheetHeight = legendY + (typeScale > 1.5 ? 56 + 26 * routeRows : 45 + 26 * Math.max(0, routeRows - 1)) * typeScale;
+  const columns = Math.max(1, Math.floor((typeScale > 1.5 ? 910 : 735) / (113 * typeScale)));
+  const entries = useAtlasLegend(world, prefs.layers, !!(props.scenarioLocationIds.length || props.scenarioRouteIds.length), !!props.issues.length);
+  const rows = Math.ceil(entries.length / columns);
+  const sheetHeight = legendY + (typeScale > 1.5 ? 45 + 23 * rows : Math.max(40, 23 * rows)) * typeScale;
   useEffect(() => {
     if (!sheet.current || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(entries => {
@@ -182,42 +237,45 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
     try {
       flushSync(() => setPrinting(true));
       downloadFile(world.id + '.svg', standaloneSheet(sheet.current, full), 'image/svg+xml;charset=utf-8');
-      setError('');
+      setExportFailed(false);
     } catch {
-      setError('The map could not be exported. Try exporting again.');
+      setExportFailed(true);
     } finally {
       setPrinting(false);
     }
   }
   return (
-    <section className="atlas-map" aria-label="Interactive atlas">
+    <section className="atlas-map" aria-label={copy.interactive}>
       <div className="atlas-map-tools">
         <div className="atlas-zoom">
           <button
-            aria-label="Zoom out"
+            aria-label={copy.zoomOut}
             disabled={view.width >= full.width}
             onClick={() => updateView(zoomed(view, full, 1.35))}
           >
             −
           </button>
-          <output aria-label="Map zoom">{Math.round((full.width / view.width) * 100)}%</output>
+          <output aria-label={copy.zoom}>{number(full.width / view.width, { style: 'percent' })}</output>
           <button
-            aria-label="Zoom in"
+            aria-label={copy.zoomIn}
             disabled={view.width <= full.width / 12}
             onClick={() => updateView(zoomed(view, full, 1 / 1.35))}
           >
             +
           </button>
         </div>
-        <button onClick={() => updateView(full)}>Fit map</button>
+        <button onClick={() => updateView(full)}>{copy.fitMap}</button>
         <button onClick={zoomTo} disabled={!selectedPoint}>
-          Zoom to selection
+          {copy.zoomTo}
         </button>
-        <details className="atlas-layer-menu">
-          <summary>Layers</summary>
-          <fieldset>
-            <legend>Map layers</legend>
-            {layersList.map((name) => (
+        <details className="atlas-layer-menu" onKeyDown={e => {
+          if (e.key === 'Escape') { e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus(); }
+        }}>
+          <summary>{copy.layers}</summary>
+          <div className="atlas-layer-groups" role="group" aria-label={copy.mapLayers}>
+            {Object.entries(groups).map(([key, names]) => <fieldset key={key}>
+              <legend>{copy.groups[key as keyof typeof groups]}</legend>
+            {names.map((name) => (
               <label key={name}>
                 <input
                   type="checkbox"
@@ -229,28 +287,27 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
                     }))
                   }
                 />
-                {layerNames[name]}
+                {copy.layerNames[name]}
               </label>
             ))}
-          </fieldset>
+          </fieldset>)}</div>
         </details>
         <button className="atlas-export" onClick={exportSvg}>
-          Export SVG
+          {copy.export}
         </button>
       </div>
-      {error && <p role="alert">{error}</p>}
+      {exportFailed && <p role="alert">{copy.exportError}</p>}
       <svg
         className="atlas-sheet"
         ref={sheet}
         width="960"
         height={sheetHeight}
         viewBox={'0 0 960 ' + sheetHeight}
-        aria-label={world.name ?? 'World atlas'}
+        aria-label={world.name ?? copy.world}
+        xmlLang={locale}
       >
-        <title>{world.name ?? 'World atlas'}</title>
-        <desc>
-          Seed {world.seed}. Generator {world.generatorVersion}. North is up.
-        </desc>
+        <title>{world.name ?? copy.world}</title>
+        <desc>{copy.description(number(world.seed), world.generatorVersion)}</desc>
         <defs>
           <linearGradient id={prefix + 'parchment'} x2="1" y2="1">
             <stop stopColor="#f7efd8" />
@@ -260,11 +317,11 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
         </defs>
         <rect width="960" height={sheetHeight} fill={'url(#' + prefix + 'parchment)'} />
         <rect x="5" y="5" width="950" height={sheetHeight - 10} fill="none" stroke="#968c71" strokeWidth=".8" />
-        <text x="24" y="43" fill="#49493c" fontFamily="Georgia,serif" fontSize="29">
-          {(world.name ?? 'World atlas').slice(0, 42)}
+        <text x="24" y="43" fill="#49493c" fontFamily="Georgia, Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" fontSize="29">
+          {(world.name ?? copy.world).slice(0, 42)}
         </text>
         <text x="866" y="40" textAnchor="end" fill="#64634e" fontSize="13" fontFamily="system-ui,sans-serif">
-          Seed {world.seed}
+          {copy.seed(number(world.seed))}
         </text>
         <Compass />
         <svg
@@ -276,7 +333,7 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
           viewBox={viewBox(view)}
           role="group"
           tabIndex={0}
-          aria-label="Atlas map"
+          aria-label={copy.map}
           style={{ touchAction: 'none', cursor: 'grab', userSelect: 'none' }}
           overflow="hidden"
           onKeyDown={(e) => {
@@ -362,10 +419,10 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
           mapWidth={mapWidth}
           viewWidth={view.width}
           scale={world.settings?.kmPerCell}
-          world={world}
+          entries={entries}
           typeScale={typeScale}
           columns={columns}
-          routeRows={routeRows}
+          rows={rows}
         />
       </svg>
     </section>

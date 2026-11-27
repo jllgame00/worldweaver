@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -106,3 +107,5 @@ it('keeps a rejected distance correction and its source, then accepts a fresh si
   ).toBe(true);
   vi.restoreAllMocks();
 });
+
+useEnglishTestLocale();

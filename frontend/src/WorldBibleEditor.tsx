@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { BibleProps } from './WorldBible';
 import { WorldBibleImpact } from './WorldBibleImpact';
-import { bibleCopy as t } from './worldBibleCopy';
+import { bibleCopy, useBibleCopy } from './worldBibleCopy';
+import { DiagnosticDetails, useDiagnostic } from './locale';
 import { changeBibleRecord, deleteProtected, editFields, type BibleValues } from './worldBibleEdits';
 import type { BibleIndex, BibleEntity } from './worldBibleIndex';
 
@@ -10,7 +11,12 @@ type Props = Pick<BibleProps, 'project' | 'disabled' | 'current' | 'commit'> & {
   index: BibleIndex;
 };
 
+const fieldLabels = ['name', 'description', 'statement', 'text', 'objective', 'role', 'aim', 'faction', 'controller'] as const;
+const errors = ['invalid', 'stale', 'protected', 'duplicate', 'directOnly', 'noChange', 'legacy'] as const;
+
 export function WorldBibleEditor({ project, entity: e, index, disabled, current, commit }: Props) {
+  const t = useBibleCopy();
+  const diagnostic = useDiagnostic();
   const [mode, setMode] = useState<'idle' | 'edit' | 'preview' | 'delete'>('idle');
   const fields = editFields(project, e);
   const blank = (): BibleValues =>
@@ -25,6 +31,11 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
   if (!fields.length) return null;
   const fact = e.kind === 'fact',
     protectedRecord = deleteProtected(project, index, e.id);
+  const knownError = errors.find((key) => bibleCopy[key] === error);
+  function fieldLabel(label: string) {
+    const key = fieldLabels.find((field) => bibleCopy[field] === label);
+    return key ? t[key] : label;
+  }
   function begin(next: 'edit' | 'delete') {
     base.current = project.revision;
     setValues(blank());
@@ -37,14 +48,14 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
       setMode('preview');
       setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.invalid);
+      setError(err instanceof Error ? err.message : bibleCopy.invalid);
     }
   }
   async function save() {
     const latest = current();
     if (disabled || writing.current) return;
     if (!latest || latest.id !== project.id || latest.revision !== base.current) {
-      setError(t.stale);
+      setError(bibleCopy.stale);
       return;
     }
     writing.current = true;
@@ -55,7 +66,7 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
         setError('');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.invalid);
+      setError(err instanceof Error ? err.message : bibleCopy.invalid);
     } finally {
       writing.current = false;
     }
@@ -90,7 +101,7 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
           <fieldset disabled={disabled}>
             {fields.map((f) => (
               <label key={f.key}>
-                {f.label}
+                {fieldLabel(f.label)}
                 {f.key === 'factionId' ? (
                   <select
                     value={values[f.key]}
@@ -136,7 +147,8 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
           changes={fields
             .filter((f) => mode === 'delete' || f.value !== values[f.key].trim())
             .map((f) => ({
-              label: f.label,
+              key: f.key,
+              label: fieldLabel(f.label),
               before: f.value,
               after: mode === 'delete' ? t.deleted : values[f.key].trim(),
             }))}
@@ -158,9 +170,10 @@ export function WorldBibleEditor({ project, entity: e, index, disabled, current,
         </WorldBibleImpact>
       )}
       {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
+        <>
+          <p role="alert" className="error">{knownError ? t[knownError] : diagnostic(error)}</p>
+          {!knownError && <DiagnosticDetails detail={error} />}
+        </>
       )}
     </div>
   );

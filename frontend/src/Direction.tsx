@@ -1,5 +1,6 @@
-import { Fragment } from 'react';
-import { categories, copy, dispositions, storyLabels, treatments } from './copy';
+import { Fragment, useState } from 'react';
+import { useWorkbenchCopy } from './workbenchCopy';
+import { useCategories, useDispositions, useStoryLabels, useTreatments, useWorkspaceCopy } from './workspaceLocale';
 import { candidateBatchMode } from './project';
 import type { Project, Story, StoryCandidate } from './project.generated';
 
@@ -14,12 +15,19 @@ interface DirectionsProps {
 const fields = ['genre', 'tone', 'premise', 'conflict', 'motivation', 'opposition', 'background', 'progression', 'possibleEndings'] satisfies (keyof Story)[];
 
 export function Directions({ project, fresh, disabled, inspect, choose }: DirectionsProps) {
+  const copy = useWorkspaceCopy();
+  const ui = useWorkbenchCopy(), labels = useStoryLabels();
+  const [lens, setLens] = useState<keyof Story | 'overview'>('overview');
   return (
     <>
       <div className="page-heading"><h1>{copy.currentDirections}</h1><p>{copy.directionsIntro}</p></div>
       {project.storyCandidates.length === 0 ? <p className="empty panel">{copy.noDirections}</p> : (
         <>
-          <p className="direction-source">{copy.directionSource(candidateBatchMode(project))}</p>
+          <div className="comparison-tools"><p className="direction-source">{copy.directionSource(candidateBatchMode(project))}</p>
+            <label>{ui.lens}<select value={lens} onChange={e=>setLens(e.target.value as typeof lens)}>
+              <option value="overview">{ui.overview}</option>
+              {fields.map(f=><option key={f} value={f}>{labels[f]}</option>)}
+            </select></label></div>
           {!fresh && <p role="status" className="notice">{copy.staleDirections}</p>}
           <div className="comparison-grid">
             {project.storyCandidates.map((candidate) => (
@@ -27,8 +35,9 @@ export function Directions({ project, fresh, disabled, inspect, choose }: Direct
                 <div className="direction-title"><h2 id={`title-${candidate.id}`} className="creative">{candidate.story.title}</h2>
                   {project.narrative?.sourceCandidateId === candidate.id && <span className="pill">{copy.selected}</span>}
                 </div>
-                <StoryFields story={candidate.story} fields={fields} />
-                <Coverage candidate={candidate} project={project} fresh={fresh} />
+                <p className="direction-tone">{candidate.story.genre} · {candidate.story.tone}</p>
+                <StoryFields story={candidate.story} fields={lens==='overview'?['premise','conflict']: [lens]} />
+                <details className="coverage-disclosure"><summary>{ui.coverage}</summary><Coverage candidate={candidate} project={project} fresh={fresh} /></details>
                 <div className="actions direction-actions">
                   <button type="button" className="quiet" onClick={() => inspect(candidate.id)}>{copy.inspect}</button>
                   <button type="button" disabled={disabled || (!fresh && project.narrative?.sourceCandidateId !== candidate.id)}
@@ -54,6 +63,7 @@ interface DetailProps {
 }
 
 export function DirectionDetail({ project, candidate, fresh, disabled, fromNarrative, back, choose }: DetailProps) {
+  const copy = useWorkspaceCopy();
   return (
     <>
       <div className="page-heading">
@@ -73,6 +83,7 @@ export function DirectionDetail({ project, candidate, fresh, disabled, fromNarra
 }
 
 export function StoryFields({ story, fields }: { story: Story; fields: (keyof Story)[] }) {
+  const storyLabels = useStoryLabels();
   return <dl className="story-fields">{fields.map((field) => {
     const value = story[field];
     return <Fragment key={field}>
@@ -83,6 +94,10 @@ export function StoryFields({ story, fields }: { story: Story; fields: (keyof St
 }
 
 export function Coverage({ candidate, project, fresh }: { candidate: StoryCandidate; project: Project; fresh: boolean }) {
+  const copy = useWorkspaceCopy();
+  const categories = useCategories();
+  const treatments = useTreatments();
+  const dispositions = useDispositions();
   return (
     <section className="coverage">
       <h3>{copy.coverage}</h3>
@@ -106,6 +121,7 @@ export function Coverage({ candidate, project, fresh }: { candidate: StoryCandid
 }
 
 export function FactList({ project }: { project: Project }) {
+  const copy = useWorkspaceCopy();
   return <section className="fact-list">
     <h3>{copy.pinnedFacts}</h3>
     {project.canonicalFacts.length ? <ul>{project.canonicalFacts.map(({ id, statement }) => <li key={id} className="creative">{statement}</li>)}</ul>

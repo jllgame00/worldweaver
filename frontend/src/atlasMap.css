@@ -48,24 +48,28 @@
   color: var(--text);
   background: var(--raised);
 }
-.atlas-layer-menu fieldset {
+.atlas-layer-groups {
   position: absolute;
   z-index: 2;
   top: 100%;
   right: 0;
-  min-width: 12rem;
+  width: min(23rem, 84vw);
+  display: grid;
+  gap: .65rem;
+  grid-template-columns: 1fr 1fr;
+  max-height: 60vh;
+  overflow: auto;
   border: 1px solid #756147;
   background: #25201a;
   border-radius: 6px;
   box-shadow: 0 0.4rem 1.5rem #16141088;
   padding: 0.55rem 0.7rem;
 }
-.atlas-layer-menu legend {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+.atlas-layer-groups fieldset {
+  margin: 0; padding: .25rem 0; min-width: 0; border: none; border-top: 1px solid var(--line);
+}
+.atlas-layer-groups legend {
+  color: var(--accent-strong); font-size: .8rem; font-weight: 650;
 }
 .atlas-layer-menu label {
   display: flex;
@@ -100,8 +104,8 @@
   .atlas-map-tools {
     gap: 0.3rem;
   }
-  .atlas-layer-menu fieldset {
-    right: auto;
-    left: 0;
+  .atlas-layer-menu { position: static; }
+  .atlas-layer-groups {
+    right: 0; left: 0; top: 100%; width: auto;
   }
 }

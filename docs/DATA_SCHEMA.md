@@ -101,6 +101,8 @@ Draft 4 and schemaVersion 1.0.0 remain in use. Scenario metadata is optional on 
 | Layout | scenario.layout stores nodeId and signed canvas x/y. These numbers carry no geographical or narrative meaning. |
 | Exchange | Drafts and approved snapshots export as UTF-8 JSON. The importer validates an isolated candidate. An explicit same-ID copy gets a new project ID and retains child IDs. Imported scenario approval needs local review. Markdown includes chapter order, events, choices, quests, endings, locations, revision and open findings. |
 
+For imported reports, optional `VerificationEntry.archived` records historical provenance. Readers require an unarchived report and a matching semantic fingerprint for current applicability. New imports explicitly archive every imported report, including those from older files without the flag. The original fingerprint, evidence and repair decisions are retained. A report must reference an existing verification run, including a cited source run. History compaction keeps referenced runs while the citing report is retained. Recovery downloads contain the exact prior canonical Project. Save tokens, the trusted local scenario receipt and recovery availability belong to the IndexedDB envelope, outside the export.
+
 An upstream source change retains the old source ID and revision markers as history. Regenerate and compare a replacement, or review the changed source and explicitly reconcile the existing graph as a draft. Reconciliation advances its basis and preserves all graph identities.
 
 ## Entity references in v1 (Phase 2.2)

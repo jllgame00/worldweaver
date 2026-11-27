@@ -16,6 +16,7 @@ from starlette.requests import ClientDisconnect
 
 from .chatkhu_config import CHATKHU_BASE_URL
 from .chatkhu_provider import ChatKHUProvider
+from .content_extraction import MAX_OUTPUT as CONTENT_MAX_OUTPUT, ExtractionInput, ExtractionOperation, ExtractionRejected, extract
 from .contracts import Candidate, ProjectSnapshot, Run, load_unique_json
 from .mock_provider import MockProvider
 from .narrative import GenerationRejected, generate
@@ -30,6 +31,7 @@ from .settings import Settings
 DIST = Path(__file__).resolve().parents[2] / "frontend/dist"
 MAX_PROJECT_BYTES = 1024 * 1024
 GENERATION_ERRORS = {
+    "invalid_extraction_input": (422, "Enter nonblank original text and a valid project revision before extracting."),
     "invalid_review_scope": (422, "Select one reviewable source for a targeted review or use the full scope."),
     "invalid_review_evidence": (502, "Semantic review returned invalid or unsupported evidence. Its findings were discarded."),
     "scenario_source": (422, "Approve a current narrative before generating or revising its scenario."),
@@ -85,7 +87,8 @@ class ProposalResponse(BaseModel):
 
 
 def error_response(status: int, code: str, message: str, run: Run | None = None, field: str | None = None,
-                   findings: list[Finding] | None = None, recovery: dict | None = None) -> JSONResponse:
+                   findings: list[Finding] | None = None, recovery: dict | None = None,
+                   operation: ExtractionOperation | None = None) -> JSONResponse:
     if field is not None:
         message = f"{message} Field {field}."
     error: dict[str, object] = {"code": code, "message": message}
@@ -93,6 +96,8 @@ def error_response(status: int, code: str, message: str, run: Run | None = None,
         error["findings"] = findings
     if recovery is not None:
         error["recovery"] = recovery
+    if operation is not None:
+        error["operation"] = operation
     return JSONResponse(
         status_code=status, headers={"Cache-Control": "no-store"},
         content={"error": {**error, **({"run": run} if run is not None else {})}},
@@ -131,6 +136,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
     active_live = False
     scenario_output_limit = config.scenario_max_output_tokens or config.max_output_tokens
     review_output_limit = min(config.max_output_tokens, REVIEW_MAX_OUTPUT)
+    content_output_limit = min(config.max_output_tokens, CONTENT_MAX_OUTPUT)
     recent_live: dict[tuple[str, int], float] = {}
     if (DIST / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
@@ -159,6 +165,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         status: dict[str, object] = {
             "mode": config.mode, "provider": config.provider, "model": config.model, "available": failure is None,
             "semanticMaxOutputTokens": review_output_limit,
+            "contentExtractionMaxOutputTokens": content_output_limit,
         }
         if gateway:
             status["api"] = config.chatkhu_api
@@ -192,6 +199,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             return data
         return validate_graph(data, verification=verification)
 
+    @app.post("/api/content/extract", response_model=None)
     @app.post("/api/verify/semantic", response_model=None)
     @app.post("/api/scenario", response_model=None)
     @app.post("/api/scenario/revise", response_model=None)
@@ -204,8 +212,11 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         assert adapter is not None
         route = request.url.path
         semantic = route == "/api/verify/semantic"
+        extraction = route == "/api/content/extract"
         if semantic and request.headers.get("x-worldweaver-semantic-budget") != f"1:{review_output_limit}":
             return error_response(409, "generation_configuration_changed", "Review the current semantic request budget before authorizing.")
+        if extraction and live and request.headers.get("x-worldweaver-content-budget") != f"1:{content_output_limit}":
+            return error_response(409, "generation_configuration_changed", "Review the current extraction request budget before authorizing.")
         expected_cap = request.headers.get("x-worldweaver-scenario-output-limit")
         if live and route == "/api/scenario" and expected_cap is not None and expected_cap != str(scenario_output_limit):
             return error_response(409, "generation_configuration_changed", "Review the updated scenario output limit before generating.")
@@ -219,9 +230,12 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             return data
         scenario_input = None
         semantic_input = None
+        extraction_input = None
         try:
             if semantic:
                 semantic_input = SemanticInput.model_validate(data)
+            elif extraction:
+                extraction_input = ExtractionInput.model_validate(data)
             elif route == "/api/candidates":
                 project = ProjectSnapshot.model_validate(data)
             else:
@@ -231,6 +245,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         except ValidationError as exc:
             if semantic:
                 return error_response(422, "invalid_review_scope", "Supply bounded typed source excerpts for a full or targeted semantic review.")
+            if extraction:
+                return error_response(422, "invalid_extraction_input", "Enter nonblank original text and a valid project revision before extracting.")
             issue = exc.errors(include_input=False, include_url=False)[0]
             field = issue.get("ctx", {}).get("field")
             return error_response(422, "invalid_project", "The project does not match the v1 structure or references.", field=field)
@@ -240,7 +256,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             if active_live:
                 return error_response(409, "generation_in_progress", "Another live generation request is already in progress.")
             now = monotonic()
-            live_key = (semantic_input.projectId, semantic_input.baseRevision) if semantic_input else (
+            detached_input = semantic_input or extraction_input
+            live_key = (detached_input.projectId, detached_input.baseRevision) if detached_input is not None else (
                 str(project.root["id"]), project.narrative_data["revision"])
             for key in [key for key, until in recent_live.items() if until <= now]:
                 del recent_live[key]
@@ -249,6 +266,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             active_live = True
         if semantic_input is not None:
             operation = review(semantic_input, adapter, config)
+        elif extraction_input is not None:
+            operation = extract(extraction_input, adapter, config)
         elif scenario_input is not None:
             operation = propose(scenario_input, adapter, config)
         else:
@@ -262,6 +281,14 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
                 if not task.done() and await request.is_disconnected():
                     return error_response(499, "cancelled", "Generation was cancelled.")
             result = task.result()
+        except ExtractionRejected as exc:
+            code = exc.code if exc.code in GENERATION_ERRORS else "provider_error"
+            status, message = GENERATION_ERRORS[code]
+            if code == "provider_output_limit":
+                message = message.format(limit=content_output_limit)
+            if code == "invalid_provider_response":
+                message = "The extraction contained invalid fragments or source citations. Organize the original with rules or edit fragments directly."
+            return error_response(status, code, message, operation=exc.operation)
         except GenerationRejected as exc:
             code = exc.code if exc.code in GENERATION_ERRORS else "provider_error"
             status, message = GENERATION_ERRORS[code]
@@ -287,6 +314,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
                         del recent_live[next(iter(recent_live))]
                     recent_live[live_key] = monotonic() + 3
                     active_live = False
+        if extraction_input is not None:
+            return JSONResponse(content=result, headers={"Cache-Control": "no-store"})
         if semantic_input is not None or scenario_input is not None:
             return result
         return ProposalResponse(baseRevision=result.base_revision, candidates=result.candidates, run=result.run)

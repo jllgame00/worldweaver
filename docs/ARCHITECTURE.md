@@ -1,5 +1,11 @@
 # System architecture
 
+## Local project recovery
+
+The dashboard validates the uploaded canonical JSON (16 MiB limit), then reads the target row from IndexedDB for the comparison. A restore carries that row's token into a read-write transaction over `projects` and `previousProjects`. The transaction re-reads the target, compares its token, stores the exact former Project by ID, and replaces the current row at its previous revision + 1 with a new token. The UI adopts the row only on transaction completion. A conflict requires another review. An abort rolls back both stores, including replacement of an older recovery copy. Ordinary saves retain the recovery-download indicator.
+
+The existing database name stays the same. Its version 2 upgrade creates the recovery store alongside the original project store. One recovery snapshot per project bounds disk use. Downloads read it on demand. A separate-copy import uses a create-only write with a new root ID. Both operations clear local trust and retain historical reports. Atlas working copies, rejected proposals and intake drafts keep their existing storage and revision rules. [Recovery checks and owner walkthrough](PHASE_5D_REPORT.md)
+
 Proposed MVP deployment unit: one stateless FastAPI web service. It serves the built React/TypeScript/Vite assets, the API and a health route. A project belongs to the designer's browser. A request carries a snapshot and a base design revision. Approved changes return as validated data.
 
 ~~~mermaid
@@ -97,3 +103,17 @@ VerificationAgent invokes verificationEngine on an isolated project snapshot. A 
 The semantic endpoint uses the existing server-owned provider, allowlisted structured result, explicit model/budget consent, bounded source excerpts and no automatic paid retries. Deterministic tools have no model dispatch path. Only the review UI can submit a model request. Imported report data cannot grant permission to invoke tools. The normal generation payload excludes verification history.
 
 A repair request reserves one of two persisted attempts, records the field-level proposal and validates it on a detached canonical copy. Acceptance validates the exact candidate again, saves once through the IndexedDB compare-and-swap and checks the saved design. Database conflicts and stale snapshots preserve the previous winner. Final project approval requires an explicit owner action and a fresh full recheck. [Runtime, limits and recovery](VERIFICATION_AGENT.md)
+
+## Phase 5B content intake API
+
+`POST /api/content/extract` accepts JSON with `projectId`, a safe nonnegative `baseRevision` and `sourceText`. Only the original text goes to the configured provider. Use the shared generation fingerprint in `X-Worldweaver-Generation`. Live requests also need `X-Worldweaver-Content-Budget: 1:<cap>`, where the cap is advertised as `contentExtractionMaxOutputTokens` by `GET /api/generation`. The cap is the smaller of 1,600 and the configured maximum. The shared loopback, origin, JSON, coalescing and disconnect checks apply. One adapter call uses the configured deadline. The UTF-8 model payload is bounded by the smaller of 24,576 bytes and the configured input limit. The source is creative data and cannot change provider configuration or tool access.
+
+Success returns `projectId`, `baseRevision`, `fragments` and `operation` with `Cache-Control: no-store`. Up to 24 fragments use the canonical category/treatment enums and nonblank text of at most 4,096 characters. Each has `evidence: {quote, occurrence}`. The quote is exact, and occurrence is counted from 1 over nonoverlapping matches left to right. The backend and browser independently check the citation. The provider format is closed and requires treatment. A valid injected provider result with an omitted treatment normalizes to `optional`. Unrecognized fields, duplicate JSON members, nonexistent quotes or occurrences and malformed output reject the batch. Errors retain the existing `error.code` and `error.message` envelope. Dispatched operations and model-stage rejections include `error.operation` with an ID, mode and observed dispatch/response counts.
+
+The browser keeps original text, pending proposal and at most 50 recent receipt events in a project-scoped localStorage entry. They are outside portable Project JSON and IndexedDB's canonical record. A separate tab's newer local draft triggers a storage notice and keeps the current view in memory. Only accepting selected valid rows calls the canonical `editContent` and IndexedDB compare-and-swap. The revision advances once and downstream source approval continues to use existing version rules. Documented operating counts describe retained receipts, including the limits of observing a lost response. [Phase 5B evidence](PHASE_5B_REPORT.md)
+
+## Interface locale boundary
+
+`LocaleProvider` supplies `ko` or `en` to the mounted workspace. Its only persisted value is the independent browser preference `worldweaver.interfaceLocale`. Missing or invalid values resolve to Korean. A failed write leaves the current selection active in memory and shows the session-only status. The provider updates `document.documentElement.lang`. Studio and editor keys use their existing project/entity identities.
+
+Each presentation dictionary uses shared English keys with a Korean counterpart constrained by `Translation<T>`. Functions retain the same interpolation arguments and stable enum keys. Date and number display use `Intl`, including stored timestamps rendered without rewriting the values. Specialized dictionaries cover workspace fields, graph and atlas labels, tool states and structured diagnostic codes. Pure domain operations keep their canonical enums, existing result data and approval receipts. For a known diagnostic the UI can show a Korean explanation by code. Unknown provider or domain detail remains available in original form. [Coverage and test evidence](PHASE_5C_REPORT.md)

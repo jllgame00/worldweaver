@@ -56,3 +56,52 @@ ChatKHU 인증, 모델·크레딧 예산 승인, 실제 성공 응답 및 창작
 | Evidence and cost | 44 classified cases, real local HTTP, privacy-preserving owner diagnostics, mocked semantic transport, zero paid development requests | Final course rubric and Phase 5 review remain separate |
 
 [Regression and limitations](PHASE_4_REPORT.md) · [TDD ledger](TDD_EVIDENCE.md) · [Case-by-case measurements](VERIFICATION_CAMPAIGN.md)
+
+## Phase 5A · 소유자가 전달한 HW6 튜토리얼 기준
+
+위 표는 각 단계 당시의 기록이다. 소유자가 전달한 제출 기준을 현재 작업에 적용하면 다음 증거가 필요하다.
+
+| 항목 | 현재 근거 | 제출 전에 확보할 근거 |
+|---|---|---|
+| 타인이 실행할 수 있는 제품·계획 | 한국어 README의 설치·시작·mock 절차, AGENTS.md, Phase 5A 설계와 게이트 | 깨끗한 환경에서 README대로 실행한 독립 시연, 실제 브라우저 사용성 점검 |
+| test-first 핵심 규칙 세 가지 | 과거 실행 원장과 별도로 5B 원문/대안, 5C 로캘/편집 상태, 5D 복원/CAS를 사전 정의 | 소유자의 테스트→구현 커밋 세 쌍, 각 SHA·부모·실패 단언 및 이후 전체 성공 기록 |
+| LLM·mock·출력 검증·fallback | ChatKHU/OpenAI 서버 어댑터, 구조/참조 검증, 자동 검사용 mock. 소유자가 실제 ChatKHU로 서사·시나리오 생성을 관찰했다고 보고했다. | 공개 가능한 승인된 실제 실행 증빙과 사용량, 5B 실패 시 원문 보존·규칙 정리의 별도 검증. 로컬 개발·CI의 유료 호출은 0회로 유지 |
+| CI와 자동 Docker 배포 | PR/push 테스트, 성공 뒤 프런트 빌드, 읽기 전용 권한의 결과 게이트 구성 | 실제 Actions RED(빌드 차단)/GREEN 링크, main 보호 설정. Phase 6에서 같은 커밋의 Docker 빌드·자동 배포·health/버전·롤백 또는 재배포 증거 |
+| 비밀 관리 | 실제 키를 받지 않는 테스트, 기존 서버 측 설정·루프백·가짜 전송 테스트, 체크아웃 자격 증명 비영속화 | 배포 시 서버 측 주입과 비노출 확인, 제출 자료의 비밀·프로젝트 본문 제거 |
+| 서브에이전트 리뷰와 수정 | 5A 독립 감사로 기존 CAS 테스트 중복을 제외하고, 복원 시 미리보기 토큰·역사적 승인·운영 집계 의미를 명세에 반영했다. | 5F 실제 코드 리뷰의 대상 SHA·지적과 대응 diff, 소유자 수정 커밋 및 재검증. 5A 설계 리뷰는 최종 수정 커밋의 증거와 구분한다. |
+| feature 브랜치와 PR | `feature/product-polish` 작업, 소유자 커밋 정지점과 일반 merge 정책 | 실제 브랜치 게시·PR·필수 검사·일반 merge commit 링크. 로컬 추적 참조로 원격 보호 설정을 판정하지 않는다. |
+
+[커밋 메시지와 정지점](PHASE_5_PLAN.md) · [화면별 제품 설계](PRODUCT_POLISH_DESIGN.md)
+
+## Phase 5B · 원문 보존과 검토 후 적용
+
+| 과제 규칙 | 실제 검증 | 제출에 남은 근거 |
+|---|---|---|
+| 테스트를 먼저 커밋 | `81bef2ff5a867cfb1ce09962bec74e54da624ee1`에는 테스트만 포함. 프런트 6개·백엔드 4개 RED 재현 후 같은 단언에서 GREEN | 소유자 구현 커밋 SHA와 Actions 실행 링크 |
+| 응답 검증과 실패 대안 | ChatKHU/OpenAI는 가짜 HTTP 경계에서 구조·예산·인용 검증. 키 없는 로컬 정리, 잘못된 출력 거절, 원문 보존과 소재 선별 적용 통과 | 실제 제공자 응답의 편집 품질은 별도 승인 후 확인 |
+| 저장과 이력 | 승인 전 정본 쓰기 0회, 수락 시 한 변경, 다른 탭의 최신 저장 보존. mock·live 시도·결정적 fallback·선택 수락/거절을 브라우저 영수증으로 구별 | 실제 네이티브 브라우저 확인, 5F 최종 리뷰·PR 및 6단계 배포 증거 |
+
+[실제 RED/GREEN 결과](PHASE_5B_REPORT.md) · [증거 원장](TDD_EVIDENCE.md)
+
+## Phase 5C · 언어 전환과 정본 상태
+
+| 규칙 | 실제 검증 | 제출 증거 |
+|---|---|---|
+| UI 언어 변경은 편집과 검증 기록을 보존한다 | `interfaceLocale.test.tsx` C1–C5 여섯 사례. 한영 전환, 원문·선택 범위, 정본 바이트, 저장 토큰, 승인·검증 지문, 재실행 복원과 저장 제한 검사. | 소유자 RED `16f8ae67550cd342627c12cb7615b31a319dabb8`과 정상 실행 기록 확보. 별도 GREEN 커밋과 원격 Actions 실행은 소유자 작업 뒤 기록한다. |
+| 창작 데이터와 진단을 원래 형태로 보존한다 | `localeEdges.test.tsx`에서 열린 소재 제안의 선택·원문 근거·편집 내용 보존, 잘못된 언어 설정, 미등록 공급자 오류의 원본 보존을 확인했다. | 실제 브라우저의 자판·글꼴·레이아웃 확인은 별도다. |
+
+[Phase 5C 상세](PHASE_5C_REPORT.md)
+
+## Phase 5D · HW6 세 번째 핵심 규칙
+
+| 제품 규칙 | 선행 테스트 | 구현 후 관찰 | 남은 제출 근거 |
+|---|---|---|---|
+| 복원 미리보기 뒤 새 저장이 있으면 최신 프로젝트를 보존한다 | `34aad6d7552dc033e8fb945a6dcaa7e9736998ce`에 테스트 한 파일만 추가. D2는 내용·리비전·저장 시각을 동일하게 유지하고 토큰만 바꾼다. | UI와 저장 경계 모두 낡은 토큰을 거부했다. 두 쓰기 위치의 중단과 재열기에서 저장본·복구본 보존을 확인했다. GREEN `0dda171c636a4291f7efabd01863d4499248754f`. | 호스팅 CI 및 PR 이력 |
+
+5B와 5C의 별도 RED/GREEN 커밋 쌍을 로컬 이력에서 확인했다. 5C GREEN은 `ae5979a362ce5e46b9a9192b07f1ba7c9eaaa422`다. [세 번째 규칙의 실행 근거](PHASE_5D_REPORT.md)
+
+| 5E 제출 항목 | 확보한 근거 | 소유자 확인 |
+|---|---|---|
+| README부터 독립 사본으로 체험 | 공개 합성 JSON 및 동일 지형의 SVG, 사본 두 개 열기·편집·내보내기 테스트 | 실제 브라우저 검수와 캡처 |
+| LLM 요청·실패·출력 거절·대체 처리 | 운영 화면, 고유 실행 ID·접수 영수증 집계, 출처별 실제·모의·미확인 구분 | 소유자 프로젝트에 보관된 기간과 출처를 명시해 제출 |
+| 검토와 협업 | 그래프·지도·증거 화면 회귀 수정과 로컬 검사 | 5F 최종 독립 리뷰·수정 커밋, 원격 CI 및 일반 병합 PR |

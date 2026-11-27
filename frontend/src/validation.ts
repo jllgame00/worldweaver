@@ -21,6 +21,7 @@ export type GenerationStatus = {
   available: boolean;
   model: string;
   semanticMaxOutputTokens?: number;
+  contentExtractionMaxOutputTokens?: number;
   message?: string;
   limits?: { scenarioMaxOutputTokens?: number; timeoutSeconds?: number };
 } & (
@@ -36,6 +37,7 @@ const validGenerationStatus = ajv.compile<GenerationStatus>({
     api: { enum: ['responses', 'chat_completions'] },
     model: { type: 'string', pattern: '^[A-Za-z0-9_.:/-]{1,128}$' },
     semanticMaxOutputTokens: { type: 'integer', minimum: 128, maximum: 1600 },
+    contentExtractionMaxOutputTokens: { type: 'integer', minimum: 128, maximum: 1600 },
     message: { type: 'string', minLength: 1, maxLength: 400 },
     limits: {
       type: 'object', properties: {

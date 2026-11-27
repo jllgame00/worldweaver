@@ -9,7 +9,7 @@ class GenerationRequest:
     model: str
     content: tuple[Content, ...]
     canonical_facts: tuple[Fact, ...]
-    task: Literal["candidates", "scenario", "revision", "semantic"] = "candidates"
+    task: Literal["candidates", "scenario", "revision", "semantic", "content"] = "candidates"
     context: dict[str, Any] | None = None
 
 

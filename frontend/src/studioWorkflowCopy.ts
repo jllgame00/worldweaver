@@ -1,4 +1,8 @@
-﻿export const scenarioCopy = {
+import { useLocale, useLocalized, type Translation } from './locale';
+import type { ScenarioSettings } from './project.generated';
+import type { scenarioMarkdownCopy } from './scenarioWorkflow';
+
+export const scenarioCopy = {
   title: 'Scenario Studio',
   generate: 'Generate scenario',
   configure: 'Generation settings',
@@ -81,3 +85,126 @@
   after: 'After',
   counts: (n: number, e: number, q: number) => `${n} nodes · ${e} connections · ${q} quests`,
 } as const;
+
+const formatNumber = new Intl.NumberFormat('ko');
+
+export const scenarioCopyKo = {
+  title: '시나리오 설계',
+  generate: '시나리오 생성',
+  configure: '생성 설정',
+  source: '시나리오를 생성하려면 현재 스토리를 승인하세요.',
+  paths: '도달 가능한 결말',
+  reconcile: '변경된 원본 검토',
+  keepGraph: '그래프를 유지하고 이 원본 사용',
+  confirmReconcile: '현재 스토리, 소재, 고정 설정과 그래프를 비교했습니다. 기존 그래프를 이 원본에 초안으로 연결할까요?',
+  reviewCanon: '원본과 고정 설정 검토',
+  checking: '시나리오 검증 중…',
+  rejected: '설계자가 제안을 거절했습니다.',
+  empty: '게임 범위를 선택한 뒤 첫 초안을 생성하세요.',
+  legacyEntities: '승인된 스토리로 시나리오를 생성하면 같은 요청에서 인물, 세력, 장소, 상태 키도 제안합니다. 승인 전 ID와 시나리오 연결을 확인하세요.',
+  proposalFindings: '제안 검증 결과',
+  dismiss: '검증 결과 닫기',
+  draft: '초안',
+  approved: '승인됨',
+  stale: (n, c) => `원본이 변경되었습니다. 이 시나리오는 스토리 리비전 ${n === undefined ? '?' : formatNumber.format(n)}과 소재 리비전 ${formatNumber.format(c)}를 사용합니다. 현재 원본을 검토하고 새 제안을 생성하세요.`,
+  sourceLabel: '원본 스토리',
+  current: '현재 설계',
+  proposed: '제안 설계',
+  accept: '제안 반영',
+  reject: '제안 거절',
+  generating: '제안 생성 중…',
+  cancel: '취소',
+  undo: '실행 취소',
+  redo: '다시 실행',
+  validate: '시나리오 검증',
+  approve: '시나리오 승인',
+  validationMissing: (revision) => `시나리오 리비전 ${formatNumber.format(revision)}의 유효한 로컬 검증 기록이 없습니다. 시나리오 검증을 실행하세요.`,
+  approveSource: '이 시나리오를 승인하려면 현재 원본 스토리를 먼저 승인하세요.',
+  reconcileForApproval: '원본 리비전이 변경되었습니다. 변경된 원본을 검토해 연결한 뒤 검증하세요.',
+  pendingApproval: '저장된 시나리오를 승인하려면 대기 중인 제안을 반영하거나 거절하세요.',
+  reviewRequired: '시나리오를 승인하려면 서사 검토 항목에 체크하세요.',
+  startingVisits: (start, scenes) => `프롤로그 ‘${start}’는 이전에 방문한 장면 없이 시작합니다. 이전에 방문한 노드 조건을 확인하세요. ${scenes.join(' · ')}`,
+  alreadyApproved: '이미 승인된 시나리오입니다.',
+  blocking: (count, rules) => `승인을 막는 문제 ${formatNumber.format(count)}건이 있습니다 (${rules.join(', ')}). 검증 결과를 확인하세요.`,
+  incompleteCheck: '검증이 완료되지 않았습니다. 결과를 확인하고 시나리오 검증을 다시 실행하세요.',
+  invalidCheckResponse: '검증 응답이 불완전하거나 형식이 올바르지 않습니다. 시나리오 검증을 다시 실행하세요.',
+  invalidCheckRecord: '검증 결과를 이 프로젝트에 기록할 수 없습니다. 서버와 화면의 버전을 확인하세요.',
+  checkSaveFailed: '검증 결과를 저장하지 못했습니다. 프로젝트 저장 문제를 해결한 뒤 다시 시도하세요.',
+  staleCheck: '작업 중 저장된 프로젝트가 변경되었습니다. 프로젝트를 다시 열어 현재 시나리오를 검증하세요.',
+  valid: '검증을 통과했습니다. 승인 전에 인물의 동기, 고정 설정, 서사의 결과를 검토하세요.',
+  invalid: '승인 전에 검증에서 발견한 문제를 해결하세요.',
+  requestFailed: '요청이 실패했습니다. 저장된 설계를 계속 사용할 수 있습니다.',
+  changed: '프로젝트가 변경되었습니다. 새 제안을 요청하세요.',
+  revision: '특정 항목 수정',
+  revise: '수정 요청',
+  instructions: '창작 지시',
+  labels: {
+    scale: '시나리오 규모',
+    chapterCount: '장 수',
+    branching: '분기',
+    mainQuests: '주요 퀘스트 비중',
+    sideQuests: '보조 퀘스트',
+    endings: '결말 구조',
+  },
+  json: '프로젝트 JSON 내보내기',
+  markdown: '시나리오 Markdown 내보내기',
+  import: '프로젝트 JSON 가져오기',
+  importError: '프로젝트를 가져올 수 없습니다. 형식과 참조를 확인하세요.',
+  duplicate: '이 프로젝트가 이미 있습니다. 새 프로젝트 ID로 별도 사본을 가져올까요?',
+  importReview: '시나리오를 가져왔습니다. 이 사본을 검증하고 검토한 뒤 승인하세요.',
+  large: '프로젝트 파일이 가져오기 한도인 16 MiB를 초과합니다.',
+  reviewed: '분기, 고정 설정, 서사의 결과를 검토했습니다.',
+  findings: '검증 결과',
+  compare: '제안 검토',
+  approval: '승인',
+  sourceChanged: '현재 스토리',
+  limit: '1~4장. 설정된 공급자와 서버의 출력 한도가 적용됩니다.',
+  liveBudget: (tokens, seconds) => `공급자 요청 1회 · 출력 토큰 최대 ${formatNumber.format(tokens)}개 · ${formatNumber.format(seconds)}초`,
+  reportedUsage: (output, reasoning) => reasoning === undefined
+    ? `공급자가 보고한 출력 토큰은 ${output}개입니다.`
+    : `공급자가 보고한 출력 토큰 ${output}개에는 추론 토큰 ${reasoning}개가 포함됩니다.`,
+  checked: '검증한 리비전',
+  noChanges: '제안된 변경 사항이 없습니다.',
+  before: '변경 전',
+  after: '변경 후',
+  counts: (n, e, q) => `노드 ${formatNumber.format(n)}개 · 연결 ${formatNumber.format(e)}개 · 퀘스트 ${formatNumber.format(q)}개`,
+} satisfies Translation<typeof scenarioCopy>;
+
+type SettingOptions = Omit<ScenarioSettings, 'chapterCount' | 'instructions'>;
+const settingLabels = {
+  scale: { short: '짧게', standard: '보통' },
+  branching: { linear: '선형', branching: '분기형' },
+  mainQuests: { light: '낮음', strong: '높음' },
+  sideQuests: { none: '없음', some: '일부' },
+  endings: { single: '단일 결말', multiple: '여러 결말' },
+} satisfies { [K in keyof SettingOptions]: Record<SettingOptions[K], string> };
+
+export function useScenarioSettingsLabel() {
+  const locale = useLocale();
+  return <K extends keyof SettingOptions>(name: K, value: SettingOptions[K]) =>
+    locale === 'ko' ? (settingLabels[name] as Record<SettingOptions[K], string>)[value] : value;
+}
+
+export function useScenarioCopy() {
+  return useLocalized(scenarioCopy, scenarioCopyKo);
+}
+
+
+export const scenarioMarkdownCopyKo = {
+  approved: '승인됨',
+  draft: '초안',
+  stale: '원본 검토 필요',
+  revision: (project, scenario, narrative) =>
+    '리비전 ' + formatNumber.format(project) + ' · 시나리오 ' + formatNumber.format(scenario) +
+    ' · 원본 스토리 ' + (narrative === undefined ? '—' : formatNumber.format(narrative)),
+  events: '스토리 사건',
+  location: '장소',
+  requires: '요구 조건',
+  sets: '설정 효과',
+  quest: '퀘스트',
+  ending: '결말',
+  locations: '장소 목록',
+  via: (name) => ' 경유 ' + name,
+  findings: '미해결 검증 결과',
+  severity: (value) => ({ error: '오류', warning: '경고', info: '정보' })[value],
+} satisfies Omit<Translation<typeof scenarioMarkdownCopy>, 'kind'>;

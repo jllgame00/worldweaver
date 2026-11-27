@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import ScenarioFindings, { findingsOf } from './ScenarioFindings';
@@ -63,3 +64,5 @@ it('places a demonstrated cause before its downstream findings and distinguishes
   expect(screen.getByText('Disconnected elsewhere.')).toBeInTheDocument();
   expect(() => findingsOf([{ ...rows[2], blockedTransitions: [{ kind: 'quest', key: 'unsafe' }] }])).toThrow();
 });
+
+useEnglishTestLocale();

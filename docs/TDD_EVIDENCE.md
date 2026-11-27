@@ -2,6 +2,58 @@
 
 Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했다.
 
+## Phase 5E.1 · truthful library summaries and Korean labels
+
+The changes started on the uncommitted Phase 5E workspace at `0dda171c636a4291f7efabd01863d4499248754f`. The three committed HW6 test/implementation pairs remain independently visible. The following are working-tree observations.
+
+| Focused command | Observed RED | Observed GREEN |
+|---|---|---|
+| `npm.cmd --prefix frontend test -- dashboardSummary.test` | The four initial cases failed on missing separate location counts, the empty-atlas library entry, map stage status and the long Korean map label. | The dashboard uses the saved canonical project. Synthetic scenario, world and in-bounds placement counts can differ. Stored terrain remains visible when its source changes. A label fits the bounded view and its original name survives. |
+| Same file, second-line grapheme case | A title ending in a moon emoji produced a lone UTF-16 high surrogate before the ellipsis. | Abbreviation respects grapheme boundaries with a code-point fallback. |
+| Same file, missing terrain and upstream approval cases | A saved atlas with empty terrain read “No saved atlas”. A withdrawn approval with identical revisions read “Source changed” on the atlas and scenario. | The panels distinguish unavailable terrain and a prerequisite requiring review from a revision change. |
+| First-time example test | The before/after example decision already worked at the time this regression test was added. | An empty library has the example image. In a returning library only the user's real saved terrain is pictured. |
+
+A separate focused rerun of the committed 5B stale-save test surfaced an accessibility race. The existing provider-configuration alert could be announced during an IndexedDB write before the save conflict arrived. The passive notice now uses status while saving and while resolving a conflict. No saved data or existing assertion changed. The 23 original frontend 5B–5D cases and 8 new dashboard/label cases then passed together. The 4 original backend 5B cases also passed.
+
+The tests use the public Salt Census project and synthetic variants. No owner database or provider is required. Final full `python -m pytest -q` passed 313. Final `npm.cmd --prefix frontend test -- --reporter=dot` passed 235 in 47 files (149.56s). A four-worker run had a 5s timeout in the repair workflow. Two workers passed the complete suite with the original timeouts and assertions. Build, strict TypeScript, generated types, canonical and five transport schemas, actionlint and diff checks passed. Native screenshot evidence is pending. [5E.1 results and acceptance](PHASE_5E_REPORT.md)
+
+## Phase 5D · restore after a competing save
+
+Clean start on `feature/product-polish` at `34aad6d7552dc033e8fb945a6dcaa7e9736998ce`. Its parent is the separate 5C GREEN commit `ae5979a362ce5e46b9a9192b07f1ba7c9eaaa422`. The RED commit added only `frontend/src/projectRestore.test.tsx`. Its assertions stayed unchanged.
+
+| Command | Observation |
+|---|---|
+| `npm.cmd --prefix frontend test -- projectRestore.test.tsx --reporter=verbose` before changes | Exit 1. Six UI cases could not find the restore review dialog. The second D2 case reached its token-only competing save, then found an undefined storage restore function. Four invalid-file cases already passed. |
+| Same command after implementation | Exit 0. All original 11 passed, including stale denial at both boundaries, explicit confirmation, rollback, previous JSON after reopening, duplicate and cancellation. |
+| Full pytest / Vitest / typecheck / build | 313 Python tests, 204 frontend tests in 43 files, generated types, strict TypeScript and Vite passed. Eight implementation-stage regressions are in `projectRestoreEdges.test.tsx`. |
+
+The tests used production persistence functions on isolated fake IndexedDB connections and jsdom. Live provider calls and cost were zero. Verified 5D GREEN `0dda171c636a4291f7efabd01863d4499248754f` is the direct child of the test commit. [Case results, limits and reproduction](PHASE_5D_REPORT.md)
+
+## Phase 5E · UI regression evidence
+
+The original B/C/D assertions are intact. The two new workbench tests first failed on a missing field comparison control and a lost unsaved fragment after visiting the library. Scenario and Atlas tests separately exposed missing minimap, layout preview, path evidence, legend, label and navigation behavior. Evidence tests exposed ambiguous entity names, a stale targeted-review selection and unavailable storage being shown as zero. An additional focused run failed on missing recent operation history, then passed when it displayed only retained records. The public-example tests are post-implementation regression checks. [Commands, measured outcomes and visual evidence boundary](PHASE_5E_REPORT.md)
+
+## Phase 5B owner test commit
+
+`feature/product-polish` started clean at `81bef2ff5a867cfb1ce09962bec74e54da624ee1`, parent `2bd184b6fc18438c3a15366e8fe92ce0375f07d4`. `git diff HEAD^ HEAD --name-status` showed only two added test files. Both files and their assertions remained unchanged through GREEN.
+
+| Focused command | Observed before implementation | Observed after implementation |
+|---|---|---|
+| `npm.cmd --prefix frontend test -- contentIntake.test.tsx --reporter=verbose` | Exit 1, six collected B1–B4 cases reach Content Studio and fail to find the Paste ideas tab | Exit 0, six pass. Timeout, no credentials, invalid response, rejection, selective acceptance and a newer saved revision |
+| `.\.venv\Scripts\python -m pytest -q backend/tests/test_content_extraction.py --tb=short` | Exit 1, four 405 responses. A valid quote expected 200. Malformed JSON, invalid category and nonexistent citation occurrence expected 502 | Exit 0, four pass with a provider mock. Detachment and invalid-output rejection |
+
+Post-GREEN coverage added 13 backend and two frontend cases. Full regression passed 313 pytest and 175 Vitest. Type synchronization, strict TypeScript, Vite build, canonical and five transport schemas, actionlint and Git whitespace checks passed. The compiled integration used jsdom, fake IndexedDB and one real loopback request to the development mock. Native Chrome access was declined. Live provider requests and credit use stayed at zero. [Exact test names and limitations](PHASE_5B_REPORT.md)
+
+The owner's separate 5B GREEN commit is `0a9cc291a1a8df71b6a52542d3a8505db92e2272`, directly after the verified 5B RED commit.
+
+## Phase 5C owner test commit
+
+The clean `feature/product-polish` branch started at `16f8ae67550cd342627c12cb7615b31a319dabb8`. Its parent is the 5B GREEN commit. `git diff HEAD^ HEAD --name-status` showed only the new `frontend/src/interfaceLocale.test.tsx`.
+
+`npm.cmd --prefix frontend test -- interfaceLocale.test.tsx --reporter=verbose` collected six cases and exited 1 before implementation. C1 expected `프로젝트` and received `Projects`. C2, C3, C4 and both C5 cases stopped at the absent language combobox. With the committed tests intact, the six passed and executed their project, draft, approval, receipt and persistence assertions. The owner has yet to create the 5C GREEN commit. [Exact test names and results](PHASE_5C_REPORT.md)
+
+Post-GREEN tests covered an invalid stored locale, an open reviewed intake proposal, an unknown API diagnostic, and Atlas viewport and export persistence. Full runs passed 313 pytest and 185 Vitest tests. Strict TypeScript, generated types, Vite build, schema checks and actionlint passed. The compiled jsdom check used an isolated fake IndexedDB and a real loopback FastAPI mock server. Provider requests stayed at zero.
+
 ## Phase 2.2 · Canonical entity references
 
 All generation below used deterministic or mocked providers. RED results were observed before their corresponding behavior was implemented. Commands used the repository venv and the frontend npm workspace.

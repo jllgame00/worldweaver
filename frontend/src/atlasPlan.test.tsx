@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { AtlasPlan } from './AtlasPlan';
@@ -26,3 +27,5 @@ it('changes only the chosen owner constraint without replacing the approved scen
   fireEvent.click(screen.getByRole('button', { name: 'Save requirement' }));
   expect(changed).toHaveBeenCalledWith([scenario, { ...custom, strength: 'soft' }]);
 });
+
+useEnglishTestLocale();

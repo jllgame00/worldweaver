@@ -270,6 +270,8 @@ export async function requestReview(
     throw new GenerationError(
       failure && prose(failure.message) ? failure.message : c.failure,
       checkedRun(failure?.run, project, config, false) ? (failure!.run as AgentRun) : undefined,
+      false,
+      typeof failure?.code === 'string' && /^[a-z_]{1,80}$/.test(failure.code) ? failure.code : undefined,
     );
   }
   if (

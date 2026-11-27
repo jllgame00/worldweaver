@@ -1,9 +1,9 @@
-﻿import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {atlasPlaces} from './atlasPlaces';
 import type { Ending, Project, Quest, ScenarioNode } from './project.generated';
 import { newId } from './project';
 import { removeQuests } from './scenarioGraph';
-import { studioCopy as c } from './scenarioCopy';
+import { nodeKinds, questKinds, useScenarioKind, useStudioCopy } from './scenarioCopy';
 import { MultiField, options, SelectField, StateFields, TextField } from './ScenarioFields';
 import type { ScenarioEditorProps } from './ScenarioEditor';
 
@@ -12,9 +12,12 @@ export function freshNode(kind: ScenarioNode['kind'], chapterId?: string): Scena
     mandatory: kind !== 'quest', characterIds: [], requiresVisited: [] };
 }
 
-export function NodeInspector({ project, original, edit, select, isNew }: {
+export function NodeInspector({ project, original, edit, select, isNew, checkSaved }: {
   project: Project; original: ScenarioNode; edit: ScenarioEditorProps['edit']; select: (id: string) => void; isNew: boolean;
+  checkSaved?: () => void;
 }) {
+  const c = useStudioCopy();
+  const kindLabel = useScenarioKind();
   const [node, setNode] = useState(original);
   const priorQuest = project.quests.find((q) => q.nodeId === original.id);
   const priorEnding = project.endings.find((e) => e.nodeId === original.id);
@@ -23,6 +26,7 @@ export function NodeInspector({ project, original, edit, select, isNew }: {
   const [ending, setEnding] = useState<Ending>(() => priorEnding ??
     { id: newId('ending'), nodeId: original.id, consequence: '' });
   const [confirm, setConfirm] = useState(false);
+  const visitFields = useRef<HTMLDivElement>(null);
   const places = atlasPlaces(project);
   const nodeOptions = project.nodes.filter((n) => n.id !== original.id).map((n) => ({ id: n.id, name: n.title }));
   function changeNode(patch: Partial<ScenarioNode>) { setNode({ ...node, ...patch }); }
@@ -60,7 +64,7 @@ export function NodeInspector({ project, original, edit, select, isNew }: {
     if (!confirm && ((priorQuest && node.kind !== 'quest') || (priorEnding && node.kind !== 'ending'))) setConfirm(true);
     else save();
   }}>
-    <SelectField label={c.nodeType} value={node.kind} options={options(c.nodeKinds)}
+    <SelectField label={c.nodeType} value={node.kind} options={options(nodeKinds, kindLabel)}
       onChange={(kind) => { setConfirm(false); changeNode({ kind: kind as ScenarioNode['kind'] }); }} />
     <TextField label={c.title} value={node.title} onChange={(title) => changeNode({ title })} required />
     <TextField label={c.description} value={node.description} onChange={(description) => changeNode({ description })} required area />
@@ -71,13 +75,23 @@ export function NodeInspector({ project, original, edit, select, isNew }: {
     <TextField label={c.outcome} value={node.outcome} onChange={(outcome) => changeNode({ outcome })} />
     <SelectField label={c.place} value={node.locationId} options={places} optional={node.kind !== 'quest'} onChange={(locationId) => changeNode({ locationId })} />
     <label className="checkbox-label"><input type="checkbox" checked={node.mandatory} onChange={(e) => changeNode({ mandatory: e.target.checked })} />{c.mandatory}</label>
+    <h3>{c.participants}</h3>
     <MultiField label={c.characters} options={project.characters} values={node.characterIds} onChange={(characterIds) => changeNode({ characterIds })} />
     <MultiField label={c.factions} options={project.factions} values={node.factionIds} onChange={(factionIds) => changeNode({ factionIds })} />
-    <MultiField label={c.visited} options={nodeOptions} values={node.requiresVisited} onChange={(requiresVisited) => changeNode({ requiresVisited })} />
+    <div className="scenario-visits" ref={visitFields}>
+      {node.kind === 'prologue' && node.requiresVisited.length > 0 && <div role="alert" className="notice">
+        <p>{c.prologueVisits(node.title, node.requiresVisited.map(id => project.nodes.find(other => other.id === id)?.title ?? id).join(', '))}</p>
+        <button type="button" onClick={() => visitFields.current?.querySelector<HTMLInputElement>('input:checked')?.focus()}>{c.reviewVisits}</button>
+      </div>}
+      <p>{c.visitHint}</p>
+      <MultiField label={c.visited} options={nodeOptions} values={node.requiresVisited} onChange={(requiresVisited) => changeNode({ requiresVisited })} />
+      {node.kind === 'prologue' && checkSaved && (node === original && !isNew ?
+        <button type="button" onClick={checkSaved}>{c.checkSaved}</button> : <small>{c.saveBeforeCheck}</small>)}
+    </div>
     <StateFields project={project} label={c.conditions} terms={node.conditions} change={(conditions) => changeNode({ conditions })} />
     <StateFields project={project} label={c.effects} terms={node.consequences} change={(consequences) => changeNode({ consequences })} effect />
     {node.kind === 'quest' && <fieldset><legend>{c.quest}</legend>
-      <SelectField label={c.questType} value={quest.kind ?? 'main'} options={options(c.questKinds)} onChange={(kind) => changeQuest({ kind: kind as Quest['kind'] })} />
+      <SelectField label={c.questType} value={quest.kind ?? 'main'} options={options(questKinds, kindLabel)} onChange={(kind) => changeQuest({ kind: kind as Quest['kind'] })} />
       <TextField label={c.questTitle} value={quest.title} onChange={(title) => changeQuest({ title })} />
       <TextField label={c.questDescription} value={quest.description} onChange={(description) => changeQuest({ description })} area />
       <TextField label={c.questObjective} value={quest.objective} required onChange={(objective) => changeQuest({ objective })} area />
@@ -97,5 +111,3 @@ export function NodeInspector({ project, original, edit, select, isNew }: {
     <button className="primary" type="submit">{confirm ? c.confirmChange : c.saveNode}</button>
   </form>;
 }
-
-
