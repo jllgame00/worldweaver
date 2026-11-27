@@ -1,5 +1,9 @@
 # System architecture
 
+## Public deployment
+
+A multi-stage Docker build bundles Vite assets, the shared schema and FastAPI. An image-owned revision marker selects public-demo mode before provider settings are loaded. This image rejects all generation POSTs, even from loopback. The source checkout retains the local development policy. Static assets and examples are separate mounts, navigation uses the HTML shell, and missing files and API routes return 404. The public health payload describes the built commit, backend and required frontend assets with no model request. IndexedDB v2 remains scoped to the browser origin. [Release and persistence](DEPLOYMENT_GUIDE.md)
+
 ## Local project recovery
 
 The dashboard validates the uploaded canonical JSON (16 MiB limit), then reads the target row from IndexedDB for the comparison. A restore carries that row's token into a read-write transaction over `projects` and `previousProjects`. The transaction re-reads the target, compares its token, stores the exact former Project by ID, and replaces the current row at its previous revision + 1 with a new token. The UI adopts the row only on transaction completion. A conflict requires another review. An abort rolls back both stores, including replacement of an older recovery copy. Ordinary saves retain the recovery-download indicator.

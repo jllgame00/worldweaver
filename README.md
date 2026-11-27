@@ -6,6 +6,10 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 
 예를 들어 플레이어가 수문에서 증언을 모은 뒤 명부를 공개할지 봉인할지 고른다고 하자. 설계자는 각 결말이 벌어지는 장소를 지도에서 확인하고, 공개 장소로 가는 유일한 도로를 지웠을 때 어느 분기가 막히는지 확인할 수 있어야 한다. 이 동작이 제품의 핵심 목표다. [합성 예시 프로젝트](docs/examples/salt-census.json)
 
+## 공개 데모와 Docker 배포
+
+공개 이미지에서 홈페이지·예제·API는 같은 주소를 사용합니다. 설치한 모델 키 없이 수동 편집·규칙 정리·지도 생성·결정론적 검증을 사용할 수 있습니다. 공개 이미지에서는 AI 요청을 서버에서 차단합니다. 로컬 프로젝트를 배포 주소로 옮길 때는 기존 주소에서 JSON을 내보낸 뒤 새 주소에서 가져오세요. [Docker Hub·Render 설정, 첫 배포와 롤백](docs/DEPLOYMENT_GUIDE.md) · [재배포 검수](docs/DEPLOYMENT_EVIDENCE_PLAN.md)
+
 ## 지금 사용할 수 있는 기능
 
 처음 사용한다면 **프로젝트 → Salt Census → 작업용 사본 만들기**로 시작하세요. 두 장, 두 퀘스트, 두 결말과 시드 42의 지도를 담은 공개 합성 예제입니다. 열 때마다 독립된 프로젝트 ID를 받습니다. **시나리오 설계 → 시나리오 검증** 후 결말을 선택하면 검사에서 실제로 찾은 장면 순서를 볼 수 있습니다. **프로젝트 관리 → 프로젝트 백업 다운로드**로 작업용 사본을 보관할 수 있습니다. [무료 둘러보기와 두 탭 복원 확인](docs/PHASE_5E_ACCEPTANCE.md)
@@ -157,7 +161,7 @@ React·TypeScript·Vite 프런트엔드와 FastAPI·Pydantic 백엔드를 사용
 
 런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 현재 시나리오 생성의 모델 호출은 한 번이며, 진행 오류 수정에는 설계자의 편집과 명시적 채택이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
 
-main 대상 PR 및 main·feature/product-polish의 push를 위한 테스트 CI를 구성했다. Windows에서 고정 Python 요구사항과 npm 잠금 파일로 설치한 후 정본·전송 스키마, pytest, Vitest, 생성 타입 동기화, 엄격한 TypeScript를 검사한다. 테스트에는 공급자 키를 전달하지 않는다. 테스트가 성공하면 Linux에서 잠금 파일로 다시 설치해 Vite 프로덕션 빌드를 실행한다. 필수 검사 이름은 **WORLDWEAVER required**다. 실제 GitHub 실행과 main의 필수 검사 설정은 소유자가 첫 push 후 확인한다. Docker 배포는 Phase 6에서 연결한다. [워크플로](.github/workflows/test.yml) · [단계별 작업·커밋 계획](docs/PHASE_5_PLAN.md) · [제품 편집 화면 설계](docs/PRODUCT_POLISH_DESIGN.md)
+main 대상 PR 및 main·기능 브랜치의 push를 위한 테스트 CI를 구성했다. Windows에서 고정 Python 요구사항과 npm 잠금 파일로 설치한 후 정본·전송 스키마, pytest, Vitest, 생성 타입 동기화, 엄격한 TypeScript를 검사한다. 테스트에는 공급자 키를 전달하지 않는다. 테스트가 성공하면 Linux에서 잠금 파일로 다시 설치해 Vite 프로덕션 빌드를 실행한다. 필수 검사 이름은 **WORLDWEAVER required**다. 필수 검사 뒤 Docker 이미지를 빌드·점검한다. main 게시와 배포는 각각 소유자가 활성화한다. 브랜치 보호 설정과 실제 6A 호스팅 결과는 별도 확인한다. [워크플로](.github/workflows/test.yml) · [단계별 작업·커밋 계획](docs/PHASE_5_PLAN.md) · [제품 편집 화면 설계](docs/PRODUCT_POLISH_DESIGN.md)
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests scripts

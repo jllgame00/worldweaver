@@ -1,30 +1,27 @@
 # Release and operations plan
 
-Phase 5A introduces the [test and production frontend build workflow](../.github/workflows/test.yml). Only its local checks have been exercised. After the owner publishes it, require `WORLDWEAVER required` on main and demonstrate a failed test blocks the build and the gate. Branch protection and hosted run evidence are pending. Phase 6 extends the gate with an authorized Docker build, deployment of the tested image by digest and health/version verification of the same SHA. The diagram below describes that later release target. Keep the canonical project in the browser and portable files.
+The production unit is an image-backed Render web service. React and FastAPI share one origin. The Docker Hub digest identifies the executable artifact; its packaged full Git SHA identifies the tested sources.
 
-~~~mermaid
+```mermaid
 flowchart LR
-  PR[Pull request or main update] --> B[Locked dependency install]
-  B --> P[pytest with mock provider]
-  B --> F[Vitest and Vite production build]
-  P --> E[Playwright plus release smoke]
-  F --> E
-  E --> Q[Required aggregate check]
-  Q -->|Success on authorized main SHA| R[Render builds same revision]
-  Q -->|Failure or missing job| X[Stop deployment]
-  R --> H[Health and frontend smoke]
-  H --> D[Record SHA and redeploy evidence]
-~~~
+  T[Mock tests and contracts] --> B[Vite build]
+  T --> G[WORLDWEAVER required]
+  B --> G
+  G --> C[AMD64 image and container smoke]
+  C -->|enabled main release| P[Publish tested image]
+  P -->|deployment enabled| D[Render deploy by digest]
+  D --> H[Poll deploy ID and verify SHA and assets]
+  H -->|failure| R[Verify previous release or record recovery failure]
+```
 
-1. In the implementation phases pin runtime versions and lock dependencies. Document tested local install and start commands once manifests exist. Use minimal Actions permissions, no provider secret in PRs, and cache dependency downloads keyed by lockfile. Cancel obsolete runs where safe.
-2. Run pytest, Vitest, the production build and a critical Playwright journey against the packaged server and mock responses on pull requests and every deployment-branch revision. Capture real collection counts, fail on zero tests and upload sanitized failure diagnostics with short retention.
-3. Require an aggregate check that always evaluates all required job outcomes and fails unless each actually succeeded. Trigger required checks without path exclusions on the deploy branch. Use branch protection and Render's **After CI Checks Pass** mode. Render can treat neutral/skipped jobs as passing, so verify the aggregate job on a deliberate failure before enabling auto-deploy. If the gate cannot be demonstrated, leave deployment off. [Render deployment behavior](https://render.com/docs/deploys)
-4. Build the same revision with locked dependencies, serve static assets from FastAPI and bind to the host-assigned port. Keep provider configuration and quotas server-side. Verify GET /health without a provider call, load a deep-linked frontend route, check API 404 behavior and confirm the service revision. Compare live SHA with the successful CI SHA.
-5. For an authorized re-deploy, record old/new service event IDs or timestamps, source SHA, gate result, health and UI smoke. Exercise a failed release on a controlled branch or staging service. If smoke fails, suspend automatic promotion, restore the last verified revision under release authorization and repeat smoke checks. Browser storage survives an ordinary redeploy at the same origin. JSON backups cover profile or origin changes.
-6. Run the isolated, opt-in live provider test with synthetic inputs and an explicit budget. Record provider/model/date, sanitized result summary, tool receipts and measured usage. Exclude prompts, credentials and user project data from artifacts. Scan the built JS, server errors and logs using a fake sentinel before the live test.
+The existing Windows job covers PowerShell startup, pytest, frontend tests, schema checks and generated types with transport isolation. The aggregate job evaluates both prerequisites even after failures. Container, publication and deployment use ordinary success dependencies. PRs can build and smoke the image without registry or Render secrets. Hosted Stage 6 execution and branch protection must be verified separately.
 
-## Sustainability and evidence
+Release jobs serialize publication and deployment and check the current main SHA. Use a single deployment controller and restrict the GitHub production environment to main. Record the previous healthy release and refuse an overlapping deploy. A single POST starts the new deployment. The controller checks the Render-resolved image digest and the running application's exact SHA. On failure, recovery is attempted only while the controller's deploy remains latest. A recovered release still fails its original job. An ambiguous write or an external concurrent operation requires inspection of Render events before another release.
+
+Protected paid generation is deferred pending hosting permission, durable spending controls and owner authorization. Keep provider credentials in the local server environment. Browser IndexedDB and portable exports remain the only creative project persistence. Native visual acceptance, actual registry publication, service setup and the deliberate failure campaign are separate evidence gates.
+
+[Owner setup](DEPLOYMENT_GUIDE.md) · [Evidence campaign](DEPLOYMENT_EVIDENCE_PLAN.md) · [Phase 6A results](PHASE_6A_REPORT.md)
+
+## Sustainability
 
 Compare calls, retries, reported tokens, geometry time, build time and artifact sizes for the same fixture across revisions. Reuse accepted intermediate stages until their inputs change. Use local deterministic geography and validators, mock ordinary CI, and recheck affected domains on edit. Keep a full check at approval/release. These are measurable engineering choices. Energy or carbon impact requires separate measurement.
-
-Release checklist and test IDs are in the [test plan](TDD_PLAN.md). The [matrix](HW6_REQUIREMENTS_MATRIX.md) tracks course-facing proof. Service plan, exposure controls, budgets and exact versions need confirmation before release.

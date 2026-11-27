@@ -17,6 +17,31 @@ A separate focused rerun of the committed 5B stale-save test surfaced an accessi
 
 The tests use the public Salt Census project and synthetic variants. No owner database or provider is required. Final full `python -m pytest -q` passed 313. Final `npm.cmd --prefix frontend test -- --reporter=dot` passed 235 in 47 files (149.56s). A four-worker run had a 5s timeout in the repair workflow. Two workers passed the complete suite with the original timeouts and assertions. Build, strict TypeScript, generated types, canonical and five transport schemas, actionlint and diff checks passed. Native screenshot evidence is pending. [5E.1 results and acceptance](PHASE_5E_REPORT.md)
 
+## Phase 6A · release isolation and verification
+
+### Awaiting workspace navigation in frontend CI
+
+PR #2 reported two `ScenarioStudio.test.tsx` failures at the synchronous query for `Generation settings`. Both DOM snapshots still showed Projects. In an isolated test using the same fixture, holding the second storage read showed that awaiting the Open click leaves the dashboard mounted until the read resolves. The old query threw while the read was pending. The async query found and opened the settings after the read completed. [Hosted failure](https://github.com/jllgame00/worldweaver/actions/runs/45966464093/job/140396196829)
+
+The affected scenarios and similar Atlas, Verification and example-project entry points now await the destination controls. All original assertions remain in place. Five focused runs passed with 13 tests each. The complete Vitest suite passed 236 tests in 48 files and pytest passed 329. Generated types, strict TypeScript, the Vite build and `git diff --check` passed locally.
+
+### Docker build hotfix
+
+The hosted run of `3b6c749` passed tests, the standalone frontend build and the required check. The container job loaded the stdin tar as a remote context. Test files named in the old exclusions reached the web stage, where strict TypeScript failed with TS2307 because the Dockerfile copied only the canonical schema from `docs`. Publication and deployment were skipped. [Hosted build log](https://github.com/jllgame00/worldweaver/actions/runs/45960487654/job/140378145152)
+
+Recreating the old web-stage inputs from `git archive HEAD` reproduced TS2307 and exit 2 with `npm run build`. With the explicitly allowed and copied synthetic fixture, the same command exited 0. The frontend output contains the distinct public example, and the runtime copies only the compiled frontend. CI extracts the same tested SHA into a local directory so Docker applies the allowlist. The runtime smoke now also checks for absent test source and documentation fixtures. Local HTTP smoke, pytest (329), Vitest (236 across 48 files), actionlint and `git diff --check` passed. Docker Engine was unavailable for a container run.
+
+The candidate was prepared against merged PR #1 (a8648b9) in an isolated source tree. No new commit is claimed. Initial pytest temporary-directory permission errors are excluded from RED evidence.
+
+| Focused command | Observed RED | Observed GREEN |
+|---|---|---|
+| `python -m pytest -q backend/tests/test_public_release.py` | Four failures: missing health commit, public client initialized, local override accepted, example GET returned HTML. | Four pass. Public mode rejects every generation POST, accepts deterministic scenario validation, reads its packaged revision and separates static/API/SPA responses. |
+| `npm --prefix frontend test -- publicDeployment.test` | Operations could not display the SHA supplied by health. | One passes with a mocked health response. |
+| `python -m pytest -q scripts/test_render_release.py` | Against the empty rollout boundary four failed and one failure-only test initially passed. Another RED exposed an unchecked service origin. | Nine pass using simulated Render/HTTP responses, including incorrect SHA, concurrent deployment and rollback verification failure. |
+| `python -m pytest -q scripts/test_release_gate.py` | Both initial tests identified missing downstream jobs. | Three pass. The aggregate job script also runs with failure, cancellation and skipped outcomes. |
+
+Full regression: pytest 329 passed; Vitest 236 in 48 files. The original 5B/5C/5D assertions are intact. Docker Engine was unavailable. A real loopback HTTP run used Uvicorn and compiled Vite output. [Evidence boundaries](PHASE_6A_REPORT.md)
+
 ## Phase 5D · restore after a competing save
 
 Clean start on `feature/product-polish` at `34aad6d7552dc033e8fb945a6dcaa7e9736998ce`. Its parent is the separate 5C GREEN commit `ae5979a362ce5e46b9a9192b07f1ba7c9eaaa422`. The RED commit added only `frontend/src/projectRestore.test.tsx`. Its assertions stayed unchanged.

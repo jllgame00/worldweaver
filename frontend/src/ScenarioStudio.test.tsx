@@ -141,8 +141,8 @@ test('shows the live scenario budget and keeps a saved design after output exhau
   const user=userEvent.setup();
   render(<App databaseName={db}/>);
   await user.click(await screen.findByRole('button',{name:'Open '+project.title}));
-  await user.click(screen.getByText('Generation settings'));
-  expect(screen.getByText(/1 provider request.*6000 output tokens.*120 seconds/i)).toBeVisible();
+  await user.click(await screen.findByText('Generation settings'));
+  expect(await screen.findByText(/1 provider request.*6000 output tokens.*120 seconds/i)).toBeVisible();
   await user.click(screen.getByRole('button',{name:'Generate scenario'}));
   const alert=await screen.findByRole('alert');
   expect(alert).toHaveTextContent(/6000 output tokens, including 1800 reasoning tokens/i);
@@ -172,7 +172,7 @@ test('groups failed proposal references by rule and shows fields, types and repa
   render(<App databaseName={db} />);
   await user.click(await screen.findByRole('button', { name: 'Open ' + project.title }));
   await user.click(await screen.findByRole('button', { name: 'Scenario Studio' }));
-  await user.click(screen.getByRole('button', { name: 'Generate scenario' }));
+  await user.click(await screen.findByRole('button', { name: 'Generate scenario' }));
   const report = await screen.findByRole('region', { name: 'Proposal findings' });
   const group = within(report).getByText(/reference.*\(2\)/i).closest('details')!;
   await user.click(group.querySelector('summary')!);
@@ -346,7 +346,7 @@ test.each([false, true])('relinks a rejected draft, checks it locally and saves 
   render(<App databaseName={db} />);
   const click = async (name: string) => user.click(await screen.findByRole('button', { name }));
   await click('Open ' + p.title);
-  await user.click(screen.getByText('Generation settings'));
+  await user.click(await screen.findByText('Generation settings'));
   await click('Generate scenario');
   await user.click(await screen.findByText('Relink rejected references'));
   const key = screen.getByRole('combobox', { name: /wrong-person.*character/i });

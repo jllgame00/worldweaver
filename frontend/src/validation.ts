@@ -18,6 +18,7 @@ export interface CandidateResult {
 }
 
 export type GenerationStatus = {
+  deploymentMode?: 'public-demo';
   available: boolean;
   model: string;
   semanticMaxOutputTokens?: number;
@@ -34,6 +35,7 @@ const validGenerationStatus = ajv.compile<GenerationStatus>({
   type: 'object', required: ['mode', 'available', 'provider', 'model'],
   properties: {
     mode: { enum: ['mock', 'live'] }, available: { type: 'boolean' }, provider: { enum: ['mock', 'openai', 'chatkhu'] },
+    deploymentMode: { enum: ['public-demo'] },
     api: { enum: ['responses', 'chat_completions'] },
     model: { type: 'string', pattern: '^[A-Za-z0-9_.:/-]{1,128}$' },
     semanticMaxOutputTokens: { type: 'integer', minimum: 128, maximum: 1600 },

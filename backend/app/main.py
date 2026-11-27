@@ -26,6 +26,9 @@ from .scenario import RevisionInput, ScenarioInput, ScenarioRejected, propose
 from .scenario_validation import Finding, validate_graph
 from .semantic_review import MAX_OUTPUT as REVIEW_MAX_OUTPUT, SemanticInput, review
 from .settings import Settings
+from .release import BuiltAssets, image_revision, required_files
+
+BUILD_REVISION = Path(__file__).with_name('release-sha')
 
 
 DIST = Path(__file__).resolve().parents[2] / "frontend/dist"
@@ -105,12 +108,13 @@ def error_response(status: int, code: str, message: str, run: Run | None = None,
 
 
 def create_app(settings: Settings | None = None, provider: StructuredProvider | None = None) -> FastAPI:
-    config = settings if settings is not None else Settings.from_environment()
+    revision = image_revision(BUILD_REVISION)
+    config = Settings() if revision else (settings or Settings.from_environment())
     client = None
     adapter = provider
     live = config.mode == "live"
     gateway = config.provider == "chatkhu"
-    if adapter is None and not live:
+    if not revision and adapter is None and not live:
         adapter = MockProvider()
     if adapter is None and config.api_key and not config.configuration_error:
         logging.getLogger("openai").setLevel(logging.WARNING)
@@ -139,7 +143,9 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
     content_output_limit = min(config.max_output_tokens, CONTENT_MAX_OUTPUT)
     recent_live: dict[tuple[str, int], float] = {}
     if (DIST / "assets").is_dir():
-        app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+        app.mount("/assets", BuiltAssets(directory=DIST / "assets"), name="assets")
+    if (DIST / "examples").is_dir():
+        app.mount("/examples", StaticFiles(directory=DIST / "examples"), name="examples")
 
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, exc: HTTPException) -> JSONResponse:
@@ -147,10 +153,20 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         return error_response(exc.status_code, code, "The requested route is unavailable.")
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
+    async def health():
+        if revision is None:
+            return {"status": "ok"}
+        files = required_files(DIST)
+        ready = bool(files) and all(item.is_file() for item in files)
+        return JSONResponse({"status": "ok" if ready else "unavailable", "version": app.version,
+                             "commit": revision, "backendReady": True, "frontendReady": ready,
+                             "executionMode": "public-demo", "providerMode": "disabled", "liveEnabled": False,
+                             "persistence": "browser-indexeddb"}, status_code=200 if ready else 503,
+                            headers={"Cache-Control": "no-store"})
 
     def unavailable(request: Request) -> tuple[int, str, str] | None:
+        if revision:
+            return 403, "public_demo", "AI generation is disabled in the public demo. Use local organization or edit manually."
         if live and not local_live_request(request):
             return 403, "live_local_only", "Live AI generation is available only to local users of this development server."
         if config.configuration_error:
@@ -175,6 +191,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
                 "maxAttempts": config.live_max_attempts, "timeoutSeconds": config.timeout_seconds,
                 "scenarioMaxOutputTokens": scenario_output_limit,
             }
+        if revision:
+            status["deploymentMode"] = "public-demo"
         if failure is not None:
             status["message"] = failure[2]
         return status
@@ -324,10 +342,12 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
     async def frontend(path: str) -> FileResponse | JSONResponse:
         if path == "api" or path.startswith("api/"):
             return error_response(404, "not_found", "The requested API route does not exist.")
+        if path.split("/")[0] in {"assets", "examples"} or any(part.startswith(".") for part in path.split("/")) or Path(path).suffix:
+            return error_response(404, "not_found", "The requested file does not exist.")
         index = DIST / "index.html"
         if not index.is_file():
             return error_response(404, "frontend_unbuilt", "Run the Vite dev server or build the frontend.")
-        return FileResponse(index)
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
     return app
 

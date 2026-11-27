@@ -20,7 +20,7 @@ it('opens an atlas without a live key, validates, adopts and reopens its linked 
   const app = render(<App databaseName={db} />);
   await user.click(await screen.findByRole('button', { name: 'Open ' + p.title }));
   await user.click(await screen.findByRole('button', { name: 'World Atlas' }));
-  await user.click(screen.getByRole('button', { name: 'Generate continent' }));
+  await user.click(await screen.findByRole('button', { name: 'Generate continent' }));
   await screen.findByRole('button', { name: 'Approve world' }, { timeout: 10000 });
   expect((await listProjects(db)).projects[0]!.project.world?.generatorVersion).toBe('grid-1');
   await user.click(screen.getByRole('button', { name: 'Approve world' }));
