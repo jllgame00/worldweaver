@@ -242,10 +242,11 @@ function Workspace({ databaseName }: { databaseName: string }) {
   const label = (s: Studio) => s === 'content' || s === 'directions' || s === 'narrative' ? copy[s] : shell[s];
   const loading = <p role="status" className="panel loading-studio">{ui.loading}</p>;
   const detail = typeof view === 'object' ? project?.storyCandidates.find(({ id }) => id === view.detail) : undefined;
-  const providerLabel = generation?.provider === 'chatkhu' ? copy.chatkhuProvider(generation.model)
+  const publicDemo = generation?.deploymentMode === 'public-demo';
+  const providerLabel = publicDemo ? (locale === 'ko' ? '공개 데모' : 'Public demo') : generation?.provider === 'chatkhu' ? copy.chatkhuProvider(generation.model)
     : generation?.mode === 'live' ? copy.liveProvider(generation.model)
     : generation?.mode === 'mock' ? copy.mockProvider : generation === undefined ? copy.checkingGeneration : '';
-  const generationIssue = generation === null ? copy.providerStatusFailed
+  const generationIssue = publicDemo ? (locale === 'ko' ? '공개 데모에서는 소재를 직접 편집하거나 무료 규칙 정리를 사용할 수 있습니다. AI 생성은 꺼져 있습니다.' : 'AI generation is off in this public demo. Edit manually or organize ideas with local rules.') : generation === null ? copy.providerStatusFailed
     : generation && !generation.available
       ? locale === 'ko' && generation.message ? shell.unknownProvider : generation.message ?? copy.providerUnavailable
       : undefined;
@@ -325,9 +326,9 @@ function Workspace({ databaseName }: { databaseName: string }) {
             onClick={()=>openView(project.narrative ? 'narrative' : project.storyCandidates.length ? 'directions' : 'content')}>{ui.approveStory} →</button>}
           {studio==='atlas' && !project.scenario?.approved && <button className="prerequisite" onClick={()=>openView('scenario')}>{ui.approveScenario} →</button>}
           {generationIssue && <div className="notice">
-            <p role={store.saving || store.pending ? 'status' : 'alert'} className="error">{generationIssue}</p>
+            <p role={publicDemo || store.saving || store.pending ? 'status' : 'alert'} className={publicDemo ? 'muted' : 'error'}>{generationIssue}</p>
             {!generation?.available && generation?.message && <DiagnosticDetails detail={generation.message} />}
-            <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
+            {!publicDemo && <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>}
           </div>}
           {noticeText && <><p role={noticeError ? 'alert' : 'status'} className={`notice ${noticeError ? 'error' : ''}`}>{noticeText}</p>{noticeDetails}</>}
           {store.record?.hasRecovery && <RecoveryDownload databaseName={databaseName} id={project.id}/>}

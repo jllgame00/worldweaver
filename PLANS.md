@@ -1,5 +1,9 @@
 # Phase gates
 
+## Phase 6A execution plan
+
+Use the merged Phase 5 release as the input. Reproduce public generation, static routing and immutable health failures first. Package the validated project schema and compiled frontend in a non-root single-origin image. Gate a single amd64 build and container smoke behind WORLDWEAVER required. Publish that image only on enabled main releases, deploy its registry digest through Render, verify its SHA and assets, and verify any rollback to the previous healthy release. Test orchestration offline. Account provisioning, external release evidence and native browser acceptance remain owner gates.
+
 This roadmap is the phase scope authority. A gate records permission to stop and review. Starting the next phase requires a new request. Keep implementation evidence in the [TDD ledger](docs/TDD_EVIDENCE.md) and reconcile the [assignment matrix](docs/HW6_REQUIREMENTS_MATRIX.md) when the official brief arrives.
 
 | Phase / goal | Dependencies | Scope and deliverables | First failing behavior to capture | Acceptance and exit gate | Principal risk |

@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, feature/product-polish]
+    branches: [main, feature/product-polish, feature/production-deployment]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: 'backend/requirements*.txt'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
@@ -103,3 +104,112 @@ jobs:
           test, build = os.environ["TEST_RESULT"], os.environ["BUILD_RESULT"]
           print(f"Tests: {test}. Build: {build}.")
           raise SystemExit(0 if test == build == "success" else 1)
+
+  container:
+    name: Build and smoke-test release image
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Build the tested revision once
+        run: |
+          set -eo pipefail
+          git archive "$GITHUB_SHA" | docker build --platform linux/amd64 --build-arg REVISION="$GITHUB_SHA" -t "worldweaver:$GITHUB_SHA" -
+      - name: Inspect and probe the running image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="worldweaver:$GITHUB_SHA"
+          test "$(docker inspect -f '{{.Os}}/{{.Architecture}}' "$image")" = linux/amd64
+          test "$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$GITHUB_SHA"
+          docker image inspect -f 'Image bytes: {{.Size}}' "$image"
+          docker run --rm --entrypoint sh "$image" -ec 'test "$(id -u)" != 0 && test -r docs/project-v1.schema.json && test -z "$(find /app \( -name ".env*" -o -name .git -o -name .scratch -o -name node_modules -o -name tests \) -print -quit)"'
+          name="worldweaver-ci-$GITHUB_RUN_ID"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          docker run -d --name "$name" -e PORT=10001 -p 127.0.0.1:18080:10001 "$image"
+          python3 scripts/render_release.py smoke --origin http://127.0.0.1:18080 --commit "$GITHUB_SHA"
+          docker stop -t 25 "$name"
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$name")
+          test "$code" = 0 || test "$code" = 143
+      - name: Preserve the smoke-tested image
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PUBLICATION_ENABLED == 'true'
+        shell: bash
+        run: docker save "worldweaver:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/image.tar.gz"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PUBLICATION_ENABLED == 'true'
+        with:
+          name: tested-image-${{ github.run_id }}
+          overwrite: true
+          path: ${{ runner.temp }}/image.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish verified image
+    needs: container
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PUBLICATION_ENABLED == 'true'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    concurrency:
+      group: registry-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tested-image-${{ github.run_id }}
+          path: ${{ runner.temp }}
+      - id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ vars.DOCKERHUB_REPOSITORY }}
+          USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')" = "$GITHUB_SHA" || { echo 'Release superseded'; exit 1; }
+          [[ "$REPO" =~ ^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$ && -n "$USERNAME" && -n "$TOKEN" ]] || { echo 'Configure Docker Hub repository, username and token'; exit 1; }
+          export DOCKER_CONFIG="$RUNNER_TEMP/registry-auth"
+          printf '%s' "$TOKEN" | docker login docker.io --username "$USERNAME" --password-stdin
+          trap 'docker logout docker.io >/dev/null' EXIT
+          docker load -i "$RUNNER_TEMP/image.tar.gz"
+          image="docker.io/$REPO:sha-$GITHUB_SHA"
+          docker tag "worldweaver:$GITHUB_SHA" "$image"
+          docker push "$image"
+          ref=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          digest=${ref##*@}
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "image=docker.io/$REPO@$digest" >> "$GITHUB_OUTPUT"
+          echo "Published docker.io/$REPO@$digest for $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy digest and verify release
+    needs: publish
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOYMENT_ENABLED == 'true'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    concurrency:
+      group: production-rollout-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check release eligibility and deploy the verified digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ needs.publish.outputs.image }}
+          ORIGIN: ${{ vars.RENDER_ORIGIN }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -eu
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')" = "$GITHUB_SHA" || { echo 'Release superseded'; exit 1; }
+          python3 scripts/render_release.py deploy --origin "$ORIGIN" --commit "$GITHUB_SHA" --image "$IMAGE"

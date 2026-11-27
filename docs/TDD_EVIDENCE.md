@@ -17,6 +17,19 @@ A separate focused rerun of the committed 5B stale-save test surfaced an accessi
 
 The tests use the public Salt Census project and synthetic variants. No owner database or provider is required. Final full `python -m pytest -q` passed 313. Final `npm.cmd --prefix frontend test -- --reporter=dot` passed 235 in 47 files (149.56s). A four-worker run had a 5s timeout in the repair workflow. Two workers passed the complete suite with the original timeouts and assertions. Build, strict TypeScript, generated types, canonical and five transport schemas, actionlint and diff checks passed. Native screenshot evidence is pending. [5E.1 results and acceptance](PHASE_5E_REPORT.md)
 
+## Phase 6A · release isolation and verification
+
+The candidate was prepared against merged PR #1 (a8648b9) in an isolated source tree. No new commit is claimed. Initial pytest temporary-directory permission errors are excluded from RED evidence.
+
+| Focused command | Observed RED | Observed GREEN |
+|---|---|---|
+| `python -m pytest -q backend/tests/test_public_release.py` | Four failures: missing health commit, public client initialized, local override accepted, example GET returned HTML. | Four pass. Public mode rejects every generation POST, accepts deterministic scenario validation, reads its packaged revision and separates static/API/SPA responses. |
+| `npm --prefix frontend test -- publicDeployment.test` | Operations could not display the SHA supplied by health. | One passes with a mocked health response. |
+| `python -m pytest -q scripts/test_render_release.py` | Against the empty rollout boundary four failed and one failure-only test initially passed. Another RED exposed an unchecked service origin. | Nine pass using simulated Render/HTTP responses, including incorrect SHA, concurrent deployment and rollback verification failure. |
+| `python -m pytest -q scripts/test_release_gate.py` | Both initial tests identified missing downstream jobs. | Three pass. The aggregate job script also runs with failure, cancellation and skipped outcomes. |
+
+Full regression: pytest 329 passed; Vitest 236 in 48 files. The original 5B/5C/5D assertions are intact. Docker Engine was unavailable. A real loopback HTTP run used Uvicorn and compiled Vite output. [Evidence boundaries](PHASE_6A_REPORT.md)
+
 ## Phase 5D · restore after a competing save
 
 Clean start on `feature/product-polish` at `34aad6d7552dc033e8fb945a6dcaa7e9736998ce`. Its parent is the separate 5C GREEN commit `ae5979a362ce5e46b9a9192b07f1ba7c9eaaa422`. The RED commit added only `frontend/src/projectRestore.test.tsx`. Its assertions stayed unchanged.

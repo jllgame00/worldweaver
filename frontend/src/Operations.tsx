@@ -19,7 +19,7 @@ export default function Operations({ databaseName, project, configuration }: {
     const receipts = project ? readIntakeReceipts(databaseName, project.id) : undefined;
     return { receipts, activity: project && retainedActivity(project, receipts ?? []), observed: Date.now() };
   }, [databaseName, project]);
-  const [health, setHealth] = useState<{ state: 'pending' | 'ok' | 'failed'; at?: number }>();
+  const [health, setHealth] = useState<{ state: 'pending' | 'ok' | 'failed'; at?: number; commit?: string }>();
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   async function check() {
@@ -31,7 +31,8 @@ export default function Operations({ databaseName, project, configuration }: {
       const response = await fetch('/health', { signal: controller.signal, cache: 'no-store' });
       const data: unknown = response.ok && await response.json();
       if (!controller.signal.aborted) setHealth({ state: data && typeof data === 'object' && 'status' in data && data.status === 'ok'
-        ? 'ok' : 'failed', at: Date.now() });
+        ? 'ok' : 'failed', at: Date.now(), commit: data && typeof data === 'object' && 'commit' in data &&
+          typeof data.commit === 'string' && /^[0-9a-f]{40}$/.test(data.commit) ? data.commit : undefined });
     } catch {
       if (!controller.signal.aborted) setHealth({ state: 'failed', at: Date.now() });
     } finally { request.current = null; }
@@ -112,13 +113,13 @@ export default function Operations({ databaseName, project, configuration }: {
       <section className="panel"><h2>{t('Service status', '서비스 상태')}</h2>
         <dl className="operations-details">
           <dt>{t('Generation configuration', '생성 설정')}</dt>
-          <dd>{configuration ? [configuration.mode === 'live' ? t('Live', '실제') : t('Mock', '모의'),
+          <dd>{configuration?.deploymentMode === 'public-demo' ? t('Public demo · AI disabled', '공개 데모 · AI 생성 꺼짐') : configuration ? [configuration.mode === 'live' ? t('Live', '실제') : t('Mock', '모의'),
             configuration.provider, configuration.model, configuration.available ? t('Available', '사용 가능') : t('Unavailable', '사용 불가')].join(' · ')
             : t('Unknown', '미확인')}</dd>
           <dt>{t('Backend health', '백엔드 상태')}</dt>
           <dd role="status">{!health ? t('Not checked', '미확인') : health.state === 'pending' ? t('Checking…', '확인 중…')
             : [health.state === 'ok' ? t('Service reachable', '서비스 응답 정상') : t('Health check failed', '상태 확인 실패'), health.at && stamp(health.at)].join(' · ')}</dd>
-          <dt>{t('Deployed version', '배포 버전')}</dt><dd>{t('Not reported by the service', '서비스에서 제공하지 않음')}</dd>
+          <dt>{t('Deployed version', '배포 버전')}</dt><dd>{health?.commit ? <code>{health.commit}</code> : t('Not reported by the service', '서비스에서 제공하지 않음')}</dd>
         </dl>
         <button disabled={health?.state === 'pending'} onClick={() => void check()}>{t('Check service health', '서비스 상태 확인')}</button>
       </section>
