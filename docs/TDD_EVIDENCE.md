@@ -19,6 +19,12 @@ The tests use the public Salt Census project and synthetic variants. No owner da
 
 ## Phase 6A · release isolation and verification
 
+### Awaiting workspace navigation in frontend CI
+
+PR #2 reported two `ScenarioStudio.test.tsx` failures at the synchronous query for `Generation settings`. Both DOM snapshots still showed Projects. In an isolated test using the same fixture, holding the second storage read showed that awaiting the Open click leaves the dashboard mounted until the read resolves. The old query threw while the read was pending. The async query found and opened the settings after the read completed. [Hosted failure](https://github.com/jllgame00/worldweaver/actions/runs/45966464093/job/140396196829)
+
+The affected scenarios and similar Atlas, Verification and example-project entry points now await the destination controls. All original assertions remain in place. Five focused runs passed with 13 tests each. The complete Vitest suite passed 236 tests in 48 files and pytest passed 329. Generated types, strict TypeScript, the Vite build and `git diff --check` passed locally.
+
 ### Docker build hotfix
 
 The hosted run of `3b6c749` passed tests, the standalone frontend build and the required check. The container job loaded the stdin tar as a remote context. Test files named in the old exclusions reached the web stage, where strict TypeScript failed with TS2307 because the Dockerfile copied only the canonical schema from `docs`. Publication and deployment were skipped. [Hosted build log](https://github.com/jllgame00/worldweaver/actions/runs/45960487654/job/140378145152)

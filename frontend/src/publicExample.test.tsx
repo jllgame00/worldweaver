@@ -50,7 +50,7 @@ it('opens two independent Salt Census copies, keeps evidence historical, edits a
     expect(first.project.runs).toEqual(source.runs);
     expect(first.project.canonicalFacts).toEqual(source.canonicalFacts);
 
-    await user.click(screen.getByRole('button', { name: 'Content' }));
+    await user.click(await screen.findByRole('button', { name: 'Content' }));
     const marker = 'Only the first working copy records this new witness.';
     fireEvent.change(await screen.findByLabelText('Fragment'), { target: { value: marker } });
     await user.click(screen.getByRole('button', { name: 'Add fragment' }));

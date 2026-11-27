@@ -18,7 +18,7 @@ it('runs a credential-free Quick Check from workspace navigation and reopens its
   render(<App databaseName="verify-workspace" />);
   await user.click(await screen.findByRole('button', { name: /open/i }));
   await user.click(await screen.findByRole('button', { name: 'Verification Agent' }));
-  await user.click(screen.getByRole('button', { name: 'Run Quick Check' }));
+  await user.click(await screen.findByRole('button', { name: 'Run Quick Check' }));
   await waitFor(async () =>
     expect((await listProjects('verify-workspace')).projects[0]?.project.runs.at(-1)?.stage).toBe('verify'),
   );
@@ -75,7 +75,7 @@ it('keeps a rejected distance correction and its source, then accepts a fresh si
   render(<App databaseName={db} />);
   await user.click(await screen.findByRole('button', { name: /^open /i }));
   await user.click(await screen.findByRole('button', { name: 'Verification Agent' }));
-  await user.click(screen.getByRole('button', { name: 'Run Quick Check' }));
+  await user.click(await screen.findByRole('button', { name: 'Run Quick Check' }));
   const finding = () =>
     screen.getByText(/route distance differs/i, { selector: 'strong' }).closest('article')!;
   await screen.findByText(/route distance differs/i, { selector: 'strong' });
