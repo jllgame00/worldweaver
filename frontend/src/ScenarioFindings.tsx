@@ -1,4 +1,5 @@
 import type { Project, ValidationFinding } from './project.generated';
+import {atlasPlaces} from './atlasPlaces';
 import { studioCopy as c } from './scenarioCopy';
 import { scenarioCopy } from './studioWorkflowCopy';
 
@@ -73,8 +74,7 @@ export default function ScenarioFindings({
       ...project.characters,
       ...project.factions,
       ...(project.stateEntities ?? []),
-      ...(project.world?.locations ?? []),
-      ...(project.scenario?.locations ?? []),
+      ...atlasPlaces(project),
     ])
       names.set(row.id, row.name);
   }

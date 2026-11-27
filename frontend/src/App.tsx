@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fetchGenerationStatus, generateDirections, GenerationError } from './api';
 import Content from './Content';
 import ScenarioStudio from './ScenarioStudio';
+import AtlasStudio from './AtlasStudio';
 import { scenarioCopy } from './studioWorkflowCopy';
 import { importProject, InvalidProjectReference } from './scenarioWorkflow';
 import { copy } from './copy';
@@ -14,10 +15,11 @@ import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
 import type { CandidateResult, GenerationStatus } from './validation';
 
-type Studio = 'content' | 'directions' | 'narrative' | 'scenario';
+type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
 
 function startingStudio(project: Project): Studio {
+  if (project.world?.settings) return 'atlas';
   if (project.scenario) return 'scenario';
   if (project.narrative) return 'narrative';
   return project.storyCandidates.length ? 'directions' : 'content';
@@ -28,6 +30,8 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   const project = store.record?.project;
   const [view, setView] = useState<View>('content');
   const [editorEpoch, setEditorEpoch] = useState(0);
+  const [linked,setLinked]=useState<{projectId:string;id:string}>();
+  function navigate(to:'atlas'|'scenario',id:string){if(project){setLinked({projectId:project.id,id});setView(to);}}
   const [proposal, setProposal] = useState<CandidateResult>();
   const [switching, setSwitching] = useState<{ candidate: StoryCandidate; revision: number }>();
   const [generation, setGeneration] = useState<GenerationStatus | null>();
@@ -187,10 +191,10 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           </>}
         </div>
         {project && <nav className="studio-nav" aria-label={copy.studioNav}>
-          {(['content', 'directions', 'narrative', 'scenario'] as const).map((name) => (
+          {(['content', 'directions', 'narrative', 'scenario', 'atlas'] as const).map((name) => (
             <button key={name} type="button" aria-current={studio === name ? 'page' : undefined}
               disabled={name === 'directions' ? !project.storyCandidates.length : name === 'narrative' && !project.narrative}
-              onClick={() => setView(name)}>{name==='scenario'?scenarioCopy.title:copy[name]}</button>
+              onClick={() => {setLinked(undefined);setView(name);}}>{name==='atlas'?'World Atlas':name==='scenario'?scenarioCopy.title:copy[name]}</button>
           ))}
         </nav>}
       </header>
@@ -201,7 +205,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           <div className="actions"><button type="button" className="quiet" onClick={downloadDraft}>{copy.downloadDraft}</button>
             {store.pending.conflict && project ? <button type="button" onClick={() => void reopen(project.id)}>{copy.reopenSaved}</button>
               : <button type="button" disabled={store.saving} onClick={() => {
-                if (store.pending) void store.commit(store.pending.project);
+                if (store.pending) void store.commit(store.pending.project, store.pending.checkedRunId);
               }}>{copy.retrySave}</button>}</div>
         </div>}
         {project ? <>
@@ -243,7 +247,17 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             : studio === 'directions' ? <Directions project={project} fresh={fresh} disabled={disabled || !!proposal || !!switching} choose={choose}
               inspect={(id) => setView({ detail: id, from: 'directions' })} />
               : studio === 'narrative' && !project.narrative && <p className="empty panel">{copy.noNarrative}</p>}
-          {view==='scenario' && <ScenarioStudio key={project.id+'-'+editorEpoch} project={project} disabled={disabled || generating} generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
+          {view==='scenario' && <ScenarioStudio key={project.id+'-'+editorEpoch} selectedId={linked?.projectId===project.id?linked.id:undefined} openAtlas={id=>navigate('atlas',id)} project={project}
+            checkedRunId={store.record?.scenarioCheckRunId} disabled={disabled || generating}
+            disabledReasons={[
+              ...(store.pending ? [store.pending.conflict ? copy.saveConflict : copy.saveFailure] : []),
+              ...(store.saving ? [copy.saving] : []),
+              ...(generating ? [scenarioCopy.generating] : []),
+            ]}
+            generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
+          {view==='atlas' && <AtlasStudio key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
+            openScenario={id=>navigate('scenario',id)} disabled={disabled || generating} commit={store.commit}
+            current={()=>store.writing.current?undefined:store.current.current?.project} databaseName={databaseName}/>}
           <div hidden={view !== 'content'}>
             <Content key={`${project.id}-${editorEpoch}`} project={project} disabled={disabled} commit={store.commit} />
           </div>
@@ -268,6 +282,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
                 }
                 delete imported.approval;
                 if(imported.scenario) imported.scenario.approved=false;
+                if(imported.world?.approved) imported.world.approved=false;
                 setNotice(imported.scenario?{message:scenarioCopy.importReview}:undefined);
                 if(await store.commit(imported)) setView(startingStudio(imported));
               } catch (err) {

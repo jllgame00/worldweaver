@@ -1,4 +1,5 @@
 ﻿import { useId, useRef, useState } from 'react';
+import {atlasPlaces} from './atlasPlaces';
 import type { Chapter, Project, ScenarioEdge, ScenarioNode } from './project.generated';
 import { newId } from './project';
 import { studioCopy as c } from './scenarioCopy';
@@ -10,6 +11,8 @@ import { ChapterInspector, EdgeInspector } from './ScenarioInspectors';
 import './scenario.css';
 
 export interface ScenarioEditorProps {
+  selectedId?:string;
+  openAtlas?:(id:string)=>void;
   project: Project;
   edit: (mutate: (project: Project) => void, layoutOnly?: boolean) => void | Promise<boolean>;
   revise?: (id: string) => void;
@@ -18,10 +21,10 @@ export interface ScenarioEditorProps {
 
 type Draft = { node: ScenarioNode } | { edge: ScenarioEdge } | { chapter: Chapter };
 
-export default function ScenarioEditor({ project, edit, revise, findings }: ScenarioEditorProps) {
+export default function ScenarioEditor({ project, edit, revise, findings,selectedId,openAtlas }: ScenarioEditorProps) {
   const entityIdPrefix = useId() + '-entity-';
   const [view, setView] = useState<'graph'|'outline'>('graph');
-  const [selection, setSelection] = useState(project.nodes[0]?.id);
+  const [selection, setSelection] = useState(selectedId ? target(selectedId) : project.nodes[0]?.id);
   const [draft, setDraft] = useState<Draft>();
   const [confirm, setConfirm] = useState(false);
   const [returnId, setReturnId] = useState<string>();
@@ -35,7 +38,7 @@ export default function ScenarioEditor({ project, edit, revise, findings }: Scen
   const edge = draft ? ('edge' in draft ? draft.edge : undefined) : project.edges.find((e) => e.id === selection);
   const chapter = draft ? ('chapter' in draft ? draft.chapter : undefined) : chapters.find((ch) => ch.id === selection);
   const quest = node && project.quests.find((q) => q.nodeId === node.id);
-  const place = project.scenario?.locations.find((l) => l.id === selection) ?? project.world?.locations.find((l) => l.id === selection);
+  const place = atlasPlaces(project).find(l=>l.id===selection);
   const chosen = node ?? edge ?? chapter ?? place;
   const title = node?.title || edge?.label || chapter?.title || place?.name;
   const chapterIndex = chapters.findIndex((ch) => ch.id === chapter?.id);
@@ -140,6 +143,8 @@ export default function ScenarioEditor({ project, edit, revise, findings }: Scen
           inspect={id => { setReturnId(selection); select(id); inspector.current?.focus(); }} />
       </div>
       <aside ref={inspector} tabIndex={-1} className="scenario-inspector panel" aria-label={c.inspector}>
+        {openAtlas && node?.locationId && <button onClick={()=>openAtlas(node.locationId!)}>Show location on atlas</button>}
+        {openAtlas && edge?.travel==='required' && edge.kind!=='reference' && <button onClick={()=>openAtlas(edge.id)}>Show journey on atlas</button>}
         <header><span className="outline-kind">{c.inspector}</span><h2>{title ?? (node ? c.addNode : chapter ? c.addChapter : edge ? c.addEdge : c.inspector)}</h2>
           {chosen && !draft && <small className="muted">{chosen.id}</small>}
         </header>
@@ -157,7 +162,7 @@ export default function ScenarioEditor({ project, edit, revise, findings }: Scen
           project={project} original={node} edit={edit} select={select} isNew={!!draft} />}
         {chapter && <ChapterInspector key={JSON.stringify(chapter)} original={chapter} edit={edit} select={select} isNew={!!draft} />}
         {edge && <EdgeInspector key={JSON.stringify(edge)} original={edge} project={project} edit={edit} select={select} isNew={!!draft} />}
-        {place && !draft && <div><p>{place.kind}</p>{'purpose' in place && <p>{place.purpose}</p>}
+        {place && !draft && <div><p>{place.kind}</p><p>{place.description}</p>{openAtlas && <button onClick={()=>openAtlas(place.id)}>Show location on atlas</button>}
           <div className="actions">{project.nodes.filter((n) => n.locationId === place.id).map((n) => nav(n.id, n.title))}</div></div>}
         {!chosen && <p>{c.noSelection}</p>}
         <div className="actions">

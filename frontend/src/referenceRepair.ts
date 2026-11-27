@@ -1,4 +1,5 @@
 import { newId } from './project';
+import {atlasPlaces} from './atlasPlaces';
 import { findingsOf, type ScenarioFinding } from './ScenarioFindings';
 import type { Project } from './project.generated';
 import { applyProposal, designOf, proposalProject } from './scenarioWorkflow';
@@ -42,7 +43,7 @@ export function replacementOptions(p: Project, type?: string): { id: string; nam
     case 'faction':
       return p.factions;
     case 'location':
-      return [...(p.world?.locations ?? []), ...(p.scenario?.locations ?? [])];
+      return atlasPlaces(p);
     case 'quest':
       return p.quests.map((q) => ({ id: q.id, name: q.title ?? q.objective }));
     case 'chapter':

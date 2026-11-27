@@ -6,6 +6,8 @@ import type { CandidateBatch } from './project';
 
 const ajv = new Ajv({ ownProperties: true });
 export const structurallyValidProject = ajv.compile<Project>(schema);
+export const structurallyValidWorld = ajv.compile<NonNullable<Project['world']>>({$ref:'#/definitions/World',definitions:schema.definitions});
+export const validAtlasSettings = ajv.compile({$ref:'#/definitions/AtlasSettings',definitions:schema.definitions});
 const runSchema = { $ref: '#/definitions/AgentRun' };
 const validRun = ajv.compile<AgentRun>({ ...runSchema, definitions: schema.definitions });
 
@@ -81,7 +83,7 @@ export function entities(project: Project): { id: string }[] {
     ...project.factions, ...(project.stateEntities ?? []), ...project.nodes, ...project.edges, ...project.quests, ...project.endings, ...project.findings, ...project.runs,
     ...(narrative ? [narrative] : []),
     ...(project.scenario ? [project.scenario, ...project.scenario.chapters, ...project.scenario.locations] : []),
-    ...(world ? [world, ...world.regions, ...world.features, ...world.locations, ...world.routes] : []),
+    ...(world ? [world, ...world.regions, ...world.features, ...world.locations, ...world.routes, ...(world.territories ?? [])] : []),
   ];
 }
 
@@ -208,6 +210,20 @@ export function scenarioReferencePath(project: Project): string | undefined {
 function allReferencesExist(project: Project): boolean {
   const { factions, world, runs, scenario } = project;
   const contains = (list: { id: string }[], id: string) => list.some((entry) => entry.id === id);
+  if (world?.approved) {
+    const spatial = new Map<string, Pick<(typeof world.locations)[number], 'position' | 'regionId'>>(
+      world.locations.map(site => [site.id, site])
+    );
+    for (const site of world.placements ?? []) spatial.set(site.locationId, site);
+    for (const route of world.routes) {
+      const endpoints = [[route.from, route.path[0]], [route.to, route.path.at(-1)]] as const;
+      for (const [id, point] of endpoints) {
+        const site = spatial.get(id);
+        if (!site?.regionId || !site.position || !point ||
+            site.position[0] !== point[0] || site.position[1] !== point[1]) return false;
+      }
+    }
+  }
   if (scenario) {
     const basis = project.basis.scenario;
     if (!basis || basis.narrative > project.versions.narrative || basis.content > project.versions.content ||
@@ -218,7 +234,11 @@ function allReferencesExist(project: Project): boolean {
     && (!project.narrative || contains(project.storyCandidates, project.narrative.sourceCandidateId))
     && (!world || (world.regions.every(({ controllerId }) => !controllerId || contains(factions, controllerId))
       && world.locations.every(({ regionId }) => !regionId || contains(world.regions, regionId))
-      && world.routes.every(({ from, to }) => contains(world.locations, from) && contains(world.locations, to))))
+      && (world.placements ?? []).every(v=>contains(scenario?.locations ?? [],v.locationId) && (!v.regionId || contains(world.regions,v.regionId)))
+      && new Set(world.placements?.map(v=>v.locationId)).size === (world.placements?.length ?? 0)
+      && [...world.locations,...world.placements ?? []].every(v=>(v.factionIds ?? []).every(id=>contains(factions,id)))
+      && (world.territories ?? []).every(t=>t.regionIds.every(id=>contains(world.regions,id)) && t.factionIds.every(id=>contains(factions,id)))
+      && world.routes.every(({ from, to }) => [from,to].every(id=>contains(world.locations,id) || world.placements?.some(v=>v.locationId===id)))))
     && (!project.approval || contains(runs, project.approval.runId))
     && project.findings.every(({ runId, entityIds, status }) => contains(runs, runId)
       && (status === 'superseded' || entityIds.every((id) => contains(entities(project), id))));

@@ -32,3 +32,7 @@ The Phase 2.1 reliability update preserves the one-request scenario workflow. Lo
 Scenario Studio now implements the approved narrative → editable graph → reviewed scenario workflow, interchange, and local startup scripts. The owner review uses one separately authorized ChatKHU request. Automated mock, rendered browser and live evidence are recorded separately in the [Phase 2 report](docs/PHASE_2_REPORT.md). Phase 3 requires a new request.
 
 Phase 2.3 keeps one generation request and compiles the typed design against per-route quest and state semantics. The owner gate is a three-chapter branching run from an existing approved narrative, followed by either reviewed acceptance or local repair and revalidation. The integration gate for Phase 3 also requires a current approved scenario with reviewed location and travel requirements. [Progression reliability evidence](docs/PHASE_2_3_REPORT.md)
+
+## Phase 3 owner review
+
+The procedural atlas now runs locally from current approved sources. The UI, scoped proposal store, geometry validators, project round trip, 60-input campaign and integrated scenario journeys are implemented. The owner reported seeing a real generated scenario graph. Final scenario approval, the owner's backup and a rendered walkthrough on their saved project still require owner confirmation. Phase 4 can consume stable location IDs, route paths, source versions and deterministic findings after this review. [Phase 3 gate and measurements](docs/PHASE_3_REPORT.md)

@@ -228,15 +228,40 @@
         "consequence": {"type":"string", "minLength":1}
       }
     },
+    "AtlasSettings": {"type":"object","additionalProperties":false,"required":["size","kmPerCell","land","ruggedness","climate","settlements","roads","politics"],"properties":{"size":{"enum":["small","standard"]},"kmPerCell":{"type":"number","minimum":0.1,"maximum":100},"land":{"type":"integer","minimum":35,"maximum":75},"ruggedness":{"type":"integer","minimum":0,"maximum":3},"climate":{"enum":["temperate","arid","cold"]},"settlements":{"type":"integer","minimum":0,"maximum":3},"roads":{"type":"integer","minimum":0,"maximum":3},"politics":{"type":"integer","minimum":0,"maximum":3},"landform":{"enum":["continent","islands"]}}},
+    "AtlasConstraint": {"type":"object","additionalProperties":false,"required":["from","relation","strength","origin","description"],"properties":{"from":{"$ref":"#/definitions/Id"},"to":{"$ref":"#/definitions/Id"},"via":{"$ref":"#/definitions/Id"},"relation":{"enum":["near","beneath","separates","travel","river","inside","outside","canal","aqueduct"]},"strength":{"enum":["hard","soft"]},"origin":{"enum":["owner","scenario","proposal"]},"description":{"type":"string"}}},
+    "AtlasPlacement": {"type":"object","additionalProperties":false,"required":["locationId"],"properties":{"locationId":{"$ref":"#/definitions/Id"},"label":{"type":"string","minLength":1},"kind":{"enum":["city","village","dungeon","landmark","port","town","capital","ruin","fortress","forest","underground","reservoir"]},"preference":{"enum":["any-land","plain","forest","mountain","desert"]},"regionId":{"$ref":"#/definitions/Id"},"position":{"$ref":"#/definitions/Point"},"description":{"type":"string"},"level":{"type":"integer","minimum":-32,"maximum":0},"area":{"type":"array","items":{"$ref":"#/definitions/Point"}},"locked":{"type":"boolean"},"factionIds":{"type":"array","items":{"$ref":"#/definitions/Id"}}}},
+    "Territory": {"type":"object","additionalProperties":false,"required":["id","name","regionIds","factionIds"],"properties":{"id":{"$ref":"#/definitions/Id"},"name":{"type":"string","minLength":1},"regionIds":{"type":"array","items":{"$ref":"#/definitions/Id"}},"factionIds":{"type":"array","items":{"$ref":"#/definitions/Id"}}}},
     "World": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "seed", "generatorVersion", "tiles", "regions", "features", "locations", "routes"],
+      "dependencies": {
+        "settings": {
+          "required":["name","sourceNarrativeId","sourceScenarioId","narrativeRevision","scenarioRevision","approved","elevation","constraints"],
+          "properties":{
+            "tiles":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"string","minLength":1,"maxLength":128}},
+            "elevation":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":1,"maxItems":128}},
+            "locations":{"type":"array","maxItems":128},"placements":{"type":"array","maxItems":128},"routes":{"type":"array","maxItems":512},"constraints":{"type":"array","maxItems":256}
+          }
+        }
+      },
       "properties": {
         "id": {"$ref":"#/definitions/Id"},
         "seed": {"type":"integer", "minimum":0, "maximum":4294967295},
         "generatorVersion": {"type":"string", "minLength":1},
-        "tiles": {"type":"array", "items":{"type":"string", "pattern":"^[~pmfd]+$"}},
+        "name": {"type":"string","minLength":1},
+        "sourceNarrativeId": {"$ref":"#/definitions/Id"},
+        "sourceScenarioId": {"$ref":"#/definitions/Id"},
+        "narrativeRevision": {"type":"integer","minimum":0},
+        "scenarioRevision": {"type":"integer","minimum":0},
+        "approved": {"type":"boolean"},
+        "settings": {"$ref":"#/definitions/AtlasSettings"},
+        "constraints": {"type":"array","items":{"$ref":"#/definitions/AtlasConstraint"}},
+        "placements": {"type":"array","items":{"$ref":"#/definitions/AtlasPlacement"}},
+        "territories": {"type":"array","items":{"$ref":"#/definitions/Territory"}},
+        "elevation": {"type":"array","items":{"type":"array","items":{"type":"integer","minimum":0}}},
+        "tiles": {"type":"array", "items":{"type":"string", "pattern":"^[~pmfdhlvs]+$"}},
         "regions": {"type":"array", "items":{"$ref":"#/definitions/Region"}},
         "features": {"type":"array", "items":{"$ref":"#/definitions/TerrainFeature"}},
         "locations": {"type":"array", "items":{"$ref":"#/definitions/Location"}},
@@ -251,6 +276,8 @@
         "id": {"$ref":"#/definitions/Id"},
         "name": {"type":"string", "minLength":1},
         "cells": {"type":"array", "items":{"$ref":"#/definitions/Point"}, "minItems":1},
+        "description": {"type":"string"},
+        "climateException": {"type":"object","additionalProperties":false,"required":["biome","rule"],"properties":{"biome":{"type":"string","minLength":1},"rule":{"type":"string","minLength":1}}},
         "controllerId": {"$ref":"#/definitions/Id"}
       }
     },
@@ -261,7 +288,7 @@
       "properties": {
         "id": {"$ref":"#/definitions/Id"},
         "name": {"type":"string", "minLength":1},
-        "kind": {"enum":["river", "ridge", "grove", "dunes"]},
+        "kind": {"enum":["river", "ridge", "grove", "dunes", "lake", "basin"]},
         "cells": {"type":"array", "items":{"$ref":"#/definitions/Point"}, "minItems":1}
       }
     },
@@ -272,7 +299,13 @@
       "properties": {
         "id": {"$ref":"#/definitions/Id"},
         "name": {"type":"string", "minLength":1},
-        "kind": {"enum":["city", "village", "dungeon", "landmark", "port"]},
+        "kind": {"enum":["city","village","dungeon","landmark","port","town","capital","ruin","fortress","forest","underground","reservoir"]},
+        "description": {"type":"string"},
+        "level": {"type":"integer","minimum":-32,"maximum":0},
+        "area": {"type":"array","items":{"$ref":"#/definitions/Point"}},
+        "locked": {"type":"boolean"},
+        "factionIds": {"type":"array","items":{"$ref":"#/definitions/Id"}},
+        "generatedRole": {"enum":["settlement","harbor"]},
         "preference": {"enum":["any-land", "plain", "forest", "mountain", "desert"]},
         "position": {"$ref":"#/definitions/Point"},
         "regionId": {"$ref":"#/definitions/Id"}
@@ -286,7 +319,9 @@
         "id": {"$ref":"#/definitions/Id"},
         "from": {"$ref":"#/definitions/Id"},
         "to": {"$ref":"#/definitions/Id"},
-        "mode": {"enum":["road", "sea"]},
+        "mode": {"enum":["road", "sea", "trail", "pass", "bridge", "tunnel", "canal", "aqueduct"]},
+        "distanceKm": {"type":"number","minimum":0},
+        "crossings": {"type":"array","items":{"$ref":"#/definitions/Point"}},
         "path": {"type":"array", "items":{"$ref":"#/definitions/Point"}, "minItems":2}
       }
     },
@@ -314,6 +349,7 @@
         "suggestedRepair": {"type":"string", "minLength":1},
         "fieldPath": {"type":"string","maxLength":256},
         "causeNodeId":{"$ref":"#/definitions/Id"},
+        "spatialCell":{"$ref":"#/definitions/Point"},
         "blockedTransitions":{"type":"array","items":{"$ref":"#/definitions/BlockedTransition"}},
         "referenceId": {"$ref":"#/definitions/Id"},
         "expectedType": {"type":"string","maxLength":64},

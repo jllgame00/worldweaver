@@ -2,7 +2,7 @@
 
 **From scattered ideas to a living world.**
 
-WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위에서 함께 편집하는 내러티브 설계 도구다. 인디 개발자, 게임·내러티브 디자이너, 소규모 팀과 학생이 주요 사용자다. 장기 목표는 창작자가 이야기와 세계 설정을 연결해 편집할 수 있는 공개 서비스다. 「오픈소스 SW 개발방법 및 도구」 HW6의 요구사항은 최소 검증 기준으로 삼는다. 현재 승인된 이야기에서 플레이 가능한 분기와 퀘스트를 설계하고, 시나리오 초안과 승인본을 브라우저에 저장할 수 있다.
+WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위에서 함께 편집하는 내러티브 설계 도구다. 인디 개발자, 게임·내러티브 디자이너, 소규모 팀과 학생이 주요 사용자다. 장기 목표는 창작자가 이야기와 세계 설정을 연결해 편집할 수 있는 공개 서비스다. 「오픈소스 SW 개발방법 및 도구」 HW6의 요구사항은 최소 검증 기준으로 삼는다. 승인된 이야기에서 분기와 퀘스트를 설계하고, 시나리오 장소를 연결하는 대륙과 이동로를 생성·편집해 같은 프로젝트에 저장할 수 있다.
 
 예를 들어 플레이어가 수문에서 증언을 모은 뒤 명부를 공개할지 봉인할지 고른다고 하자. 설계자는 각 결말이 벌어지는 장소를 지도에서 확인하고, 공개 장소로 가는 유일한 도로를 지웠을 때 어느 분기가 막히는지 확인할 수 있어야 한다. 이 동작이 제품의 핵심 목표다. [합성 예시 프로젝트](docs/examples/salt-census.json)
 
@@ -18,7 +18,20 @@ WORLDWEAVER(가칭)는 흩어진 게임 아이디어를 이야기와 지도 위�
 7. **Validate scenario**에서 결말까지의 경로와 지적 사항을 확인한다. 고정 사실과 선택의 결과를 검토하고 확인란을 선택한 뒤 **Approve scenario**를 누른다. **Saved locally**가 나타나면 같은 주소에서 다시 열 수 있다.
 8. **Export project JSON**은 프로젝트 전체를, **Export scenario Markdown**은 읽기용 설계서를 저장한다. **Projects → Import project JSON**으로 복구한다. 같은 ID가 있으면 별도 사본 생성을 확인한다. 가져온 시나리오는 로컬에서 다시 검증하고 승인한다.
 
-소유자의 실제 생성 시도에서 인증, 미완성 응답, 서버 설정 오류가 보고됐다. 수정 후 실제 시나리오 완성 여부는 아래 ChatKHU 절차로 확인할 수 있다. [Phase 2.1 검증 보고서](docs/PHASE_2_1_REPORT.md)
+소유자는 ChatKHU에서 생성한 실제 시나리오 그래프를 확인했다. 기존 프로젝트의 최종 승인과 백업은 아래 절차로 확인한다. 초기 인증·미완성 응답·서버 설정 조사 기록은 Phase 2.1 보고서에 있다. [Phase 2.1 검증 보고서](docs/PHASE_2_1_REPORT.md)
+
+## World Atlas에서 기존 프로젝트 확인하기
+
+**이미 채택한 시나리오의 승인 버튼이 잠겨 있을 때** 기존 프로필과 주소에서 페이지를 새로고침한다. **Scenario Studio → Validate scenario**를 한 번 누르고 승인 영역에서 **Validation passed**를 확인한다. 검토 확인란을 선택한 뒤 **Approve scenario**를 누른다. 이전 버전에서 저장한 미승인 프로젝트나 가져온 JSON은 이 로컬 검사가 한 번 필요하다. 이 검사는 무료이며 기존 내러티브와 시나리오를 사용한다. 차단 항목이 있으면 표시된 규칙과 장면을 확인하고 수정 후 같은 버튼으로 다시 검증한다. **Retry save**는 저장만 재시도한다. 승인 후 **World Atlas → Generate continent**를 사용할 수 있다.
+
+1. 평소 쓰던 브라우저 프로필에서 `http://127.0.0.1:5173`을 열고 **Projects → Open**으로 기존 프로젝트를 선택한다. 먼저 **Export project JSON**으로 백업한다.
+2. **Scenario Studio**에서 실제 승인 상태를 확인한다. 아직 제안이면 검토·채택하고 **Validate scenario → Approve scenario**를 마친다. 이미 승인한 내러티브나 시나리오는 그대로 사용한다.
+3. **World Atlas → Geography requirements**에서 장소, 지상·지하 관계, 필수 여정을 읽는다. 이름과 시드(예: `42`)를 확인하고 **Generate continent**를 누른다. 이 과정에는 API 키가 필요 없으며 유료 요청은 0회다.
+4. **Layers**에서 수계, 지형, 영토, 이동로, 시나리오 여정을 켜고 끈다. 지도나 **Atlas index**에서 장소를 선택하고 검사기의 장면 이름을 눌러 시나리오로 이동한다. 장면의 **Show location on atlas**로 돌아온다.
+5. 잠기지 않은 장소의 **Column / Row**를 인접한 육지로 바꾸고 **Save location → Revalidate world**를 누른다. 문제가 생기면 표시된 장소 또는 경로를 확인해 수정하거나 **Undo atlas edit**로 복구한다. 강제 조건이 남으면 작업본으로 보존된다.
+6. **Approve world**로 승인한 뒤 **Export saved project JSON**, **Export SVG**, **Export atlas Markdown**을 저장한다. 같은 주소에서 새로고침하고 프로젝트를 다시 열어 **Approved world**, 변경한 장소와 경로를 확인한다.
+
+[지도 생성·편집 안내](docs/WORLD_GENERATION.md) · [지도 출력 예시](docs/examples/atlas-preview.png) · [Phase 3 검증 결과](docs/PHASE_3_REPORT.md)
 
 ## 로컬에서 실행
 

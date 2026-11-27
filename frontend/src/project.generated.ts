@@ -327,11 +327,89 @@ export interface World {
   id: Id;
   seed: number;
   generatorVersion: string;
+  name?: string;
+  sourceNarrativeId?: Id;
+  sourceScenarioId?: Id;
+  narrativeRevision?: number;
+  scenarioRevision?: number;
+  approved?: boolean;
+  settings?: AtlasSettings;
+  constraints?: AtlasConstraint[];
+  placements?: AtlasPlacement[];
+  territories?: Territory[];
+  elevation?: number[][];
   tiles: string[];
   regions: Region[];
   features: TerrainFeature[];
   locations: Location[];
   routes: TravelRoute[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "AtlasSettings".
+ */
+export interface AtlasSettings {
+  size: "small" | "standard";
+  kmPerCell: number;
+  land: number;
+  ruggedness: number;
+  climate: "temperate" | "arid" | "cold";
+  settlements: number;
+  roads: number;
+  politics: number;
+  landform?: "continent" | "islands";
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "AtlasConstraint".
+ */
+export interface AtlasConstraint {
+  from: Id;
+  to?: Id;
+  via?: Id;
+  relation: "near" | "beneath" | "separates" | "travel" | "river" | "inside" | "outside" | "canal" | "aqueduct";
+  strength: "hard" | "soft";
+  origin: "owner" | "scenario" | "proposal";
+  description: string;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "AtlasPlacement".
+ */
+export interface AtlasPlacement {
+  locationId: Id;
+  label?: string;
+  kind?:
+    | "city"
+    | "village"
+    | "dungeon"
+    | "landmark"
+    | "port"
+    | "town"
+    | "capital"
+    | "ruin"
+    | "fortress"
+    | "forest"
+    | "underground"
+    | "reservoir";
+  preference?: "any-land" | "plain" | "forest" | "mountain" | "desert";
+  regionId?: Id;
+  position?: Point;
+  description?: string;
+  level?: number;
+  area?: Point[];
+  locked?: boolean;
+  factionIds?: Id[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "Territory".
+ */
+export interface Territory {
+  id: Id;
+  name: string;
+  regionIds: Id[];
+  factionIds: Id[];
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema
@@ -344,6 +422,11 @@ export interface Region {
    * @minItems 1
    */
   cells: [Point, ...Point[]];
+  description?: string;
+  climateException?: {
+    biome: string;
+    rule: string;
+  };
   controllerId?: Id;
 }
 /**
@@ -353,7 +436,7 @@ export interface Region {
 export interface TerrainFeature {
   id: Id;
   name: string;
-  kind: "river" | "ridge" | "grove" | "dunes";
+  kind: "river" | "ridge" | "grove" | "dunes" | "lake" | "basin";
   /**
    * @minItems 1
    */
@@ -366,7 +449,25 @@ export interface TerrainFeature {
 export interface Location {
   id: Id;
   name: string;
-  kind: "city" | "village" | "dungeon" | "landmark" | "port";
+  kind:
+    | "city"
+    | "village"
+    | "dungeon"
+    | "landmark"
+    | "port"
+    | "town"
+    | "capital"
+    | "ruin"
+    | "fortress"
+    | "forest"
+    | "underground"
+    | "reservoir";
+  description?: string;
+  level?: number;
+  area?: Point[];
+  locked?: boolean;
+  factionIds?: Id[];
+  generatedRole?: "settlement" | "harbor";
   preference: "any-land" | "plain" | "forest" | "mountain" | "desert";
   position?: Point;
   regionId?: Id;
@@ -379,7 +480,9 @@ export interface TravelRoute {
   id: Id;
   from: Id;
   to: Id;
-  mode: "road" | "sea";
+  mode: "road" | "sea" | "trail" | "pass" | "bridge" | "tunnel" | "canal" | "aqueduct";
+  distanceKm?: number;
+  crossings?: Point[];
   /**
    * @minItems 2
    */
@@ -399,6 +502,7 @@ export interface ValidationFinding {
   suggestedRepair: string;
   fieldPath?: string;
   causeNodeId?: Id;
+  spatialCell?: Point;
   blockedTransitions?: BlockedTransition[];
   referenceId?: Id;
   expectedType?: string;

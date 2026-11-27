@@ -1,3 +1,4 @@
+import {atlasPlaces} from './atlasPlaces';
 import { advance, narrativeFresh } from './project';
 import type { Project } from './project.generated';
 import { entities, isProject, preparedStateEntities, scenarioReferencePath, structurallyValidProject } from './validation';
@@ -28,10 +29,13 @@ export function reconcileSource(project: Project): Project {
   });
 }
 export function editDesign(project: Project, mutate: (next: Project) => void, layoutOnly = false): Project {
-  const next = structuredClone(
-    layoutOnly ? { ...project, revision: project.revision + 1 } : advance(project, ['scenario']),
-  );
-  mutate(next);
+  const draft = structuredClone(project);
+  mutate(draft);
+  if (equalData(project, draft)) return project;
+  if (layoutOnly && (!project.scenario || !draft.scenario ||
+      !equalData(draft, { ...project, scenario: { ...project.scenario, layout: draft.scenario.layout } })))
+    throw Error('A layout edit can only change node positions.');
+  const next = layoutOnly ? { ...draft, revision: project.revision + 1 } : advance(draft, ['scenario']);
   if (!layoutOnly && next.scenario) next.scenario.approved = false;
   if (!isProject(next)) throw new Error('Edit contains an unresolved reference or invalid field.');
   return next;
@@ -165,7 +169,7 @@ export function applyProposal(p: Project, response: unknown, targetId?: string):
   }
   return next;
 }
-function equalData(left: unknown, right: unknown): boolean {
+export function equalData(left: unknown, right: unknown): boolean {
   if (left === right) return true;
   if (Array.isArray(left) && Array.isArray(right))
     return left.length === right.length && left.every((v, i) => equalData(v, right[i]));
@@ -202,7 +206,7 @@ export function scenarioMarkdown(p: Project): string {
       ' · Source narrative ' +
       (p.basis.scenario?.narrative ?? '—'),
   );
-  const places = [...(p.world?.locations ?? []), ...(s?.locations ?? [])];
+  const places = atlasPlaces(p);
   const names = new Map([
     ...places.map((x) => [x.id, x.name] as const),
     ...p.nodes.map((x) => [x.id, x.title] as const),

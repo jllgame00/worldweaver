@@ -1,4 +1,5 @@
 ﻿import { useState } from 'react';
+import {atlasPlaces} from './atlasPlaces';
 import type { Ending, Project, Quest, ScenarioNode } from './project.generated';
 import { newId } from './project';
 import { removeQuests } from './scenarioGraph';
@@ -22,7 +23,7 @@ export function NodeInspector({ project, original, edit, select, isNew }: {
   const [ending, setEnding] = useState<Ending>(() => priorEnding ??
     { id: newId('ending'), nodeId: original.id, consequence: '' });
   const [confirm, setConfirm] = useState(false);
-  const places = [...new Map([...(project.world?.locations ?? []), ...(project.scenario?.locations ?? [])].map((p) => [p.id, p])).values()];
+  const places = atlasPlaces(project);
   const nodeOptions = project.nodes.filter((n) => n.id !== original.id).map((n) => ({ id: n.id, name: n.title }));
   function changeNode(patch: Partial<ScenarioNode>) { setNode({ ...node, ...patch }); }
   function changeQuest(patch: Partial<Quest>) { setQuest({ ...quest, ...patch }); }

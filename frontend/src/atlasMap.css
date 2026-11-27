@@ -1,0 +1,107 @@
+.atlas-map {
+  min-width: 0;
+}
+.atlas-map-tools {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-block: 0.6rem;
+}
+.atlas-map-tools button,
+.atlas-layer-menu summary {
+  min-height: 34px;
+  padding: 0.27rem 0.62rem;
+  font-size: 0.78rem;
+}
+.atlas-zoom {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  align-items: center;
+  overflow: hidden;
+}
+.atlas-zoom button {
+  border: 0;
+  border-radius: 0;
+  min-width: 32px;
+  font-size: 1rem;
+}
+.atlas-zoom output {
+  min-width: 4.1ch;
+  margin-inline: 0.35rem;
+  text-align: center;
+  color: var(--muted);
+  font:
+    0.72rem ui-monospace,
+    monospace;
+}
+.atlas-layer-menu {
+  position: relative;
+}
+.atlas-layer-menu summary {
+  display: list-item;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--raised);
+}
+.atlas-layer-menu fieldset {
+  position: absolute;
+  z-index: 2;
+  top: 100%;
+  right: 0;
+  min-width: 12rem;
+  border: 1px solid #756147;
+  background: #25201a;
+  border-radius: 6px;
+  box-shadow: 0 0.4rem 1.5rem #16141088;
+  padding: 0.55rem 0.7rem;
+}
+.atlas-layer-menu legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.atlas-layer-menu label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.81rem;
+  padding: 0.15rem;
+  cursor: pointer;
+}
+.atlas-layer-menu input {
+  width: 1rem;
+  height: 1rem;
+  min-height: auto;
+  margin: 0;
+  accent-color: #be8d5d;
+}
+.atlas-map-tools .atlas-export {
+  margin-inline-start: auto;
+}
+.atlas-sheet {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 3px;
+  box-shadow: 0 3px 14px #12100e44;
+}
+.atlas-sheet [role='button']:focus-visible,
+.atlas-sheet svg:focus-visible {
+  outline: 2px solid #96452c;
+}
+@media (max-width: 560px) {
+  .atlas-map-tools {
+    gap: 0.3rem;
+  }
+  .atlas-layer-menu fieldset {
+    right: auto;
+    left: 0;
+  }
+}

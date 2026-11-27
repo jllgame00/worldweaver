@@ -14,6 +14,7 @@ import { recoveryProject } from './referenceRepair';
 import ProposalEntities from './ProposalEntities';
 import ScenarioBrief from './ScenarioBrief';
 import { scenarioCopy as c } from './studioWorkflowCopy';
+import { validationRun } from './scenarioApproval';
 import {
   applyProposal,
   designOf,
@@ -26,9 +27,13 @@ import {
 } from './scenarioWorkflow';
 
 interface Props {
+  selectedId?:string;
+  openAtlas?:(id:string)=>void;
   project: Project;
   generation: GenerationStatus | null | undefined;
-  commit: (p: Project) => Promise<boolean>;
+  commit: (p: Project, checkedRunId?: string) => Promise<boolean>;
+  checkedRunId?: string;
+  disabledReasons: string[];
   disabled: boolean;
   current: () => Project | undefined;
   refreshGeneration: () => void;
@@ -49,7 +54,6 @@ const options = {
   sideQuests: ['none', 'some'],
   endings: ['single', 'multiple'],
 } as const;
-type Finding = ReturnType<typeof findingsOf>[number];
 interface Entry {
   project: Project;
   layout: boolean;
@@ -64,7 +68,9 @@ interface Proposal {
 
 export default function ScenarioStudio({
   project: p,
+  selectedId,openAtlas,
   commit,
+  checkedRunId, disabledReasons,
   current,
   disabled,
   generation,
@@ -81,7 +87,8 @@ export default function ScenarioStudio({
   const [busy, setBusy] = useState<false | 'generate' | 'revise' | 'validate'>(false);
   const [message, setMessage] = useState('');
   const [reviewed, setReviewed] = useState(false);
-  const [check, setCheck] = useState<{ revision: number; ok: boolean; findings: Finding[]; paths: string[][] }>();
+  const [witnesses, setWitnesses] = useState<{ runId: string; paths: string[][] }>();
+  const [validationError, setValidationError] = useState('');
   const [undo, setUndo] = useState<Entry[]>([]),
     [redo, setRedo] = useState<Entry[]>([]);
   const controller = useRef<AbortController | null>(null);
@@ -89,7 +96,9 @@ export default function ScenarioStudio({
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     setReviewed(false);
-  }, [p.id, p.revision]);
+    setValidationError('');
+  }, [p.id, p.scenario?.id, p.versions.scenario, p.versions.narrative, p.versions.content, p.versions.candidates]);
+  useEffect(() => { setValidationError(''); }, [checkedRunId]);
   useEffect(() => {
     let active = true;
     loadRejection(p.id).then(saved => {
@@ -102,7 +111,8 @@ export default function ScenarioStudio({
   const fresh = scenarioCurrent(p);
   const locked = disabled || !!busy;
   const source = !!p.narrative?.approved && narrativeFresh(p);
-  const checked = check?.revision === p.revision ? check : undefined;
+  const checked = validationRun(p, checkedRunId);
+  const paths = witnesses?.runId === checked?.id ? witnesses?.paths : undefined;
   const hasRecovery = failedProposal?.recovery != null;
 
   async function retain(value: RejectedDraft) {
@@ -146,6 +156,7 @@ export default function ScenarioStudio({
       setMessage(c.changed);
       return false;
     }
+    if (next === p) return true;
     if (await commit(next)) {
       const history = historyRevision.current === p.revision ? undo : [];
       setUndo([...history.slice(-29), { project: p, layout }]);
@@ -171,6 +182,10 @@ export default function ScenarioStudio({
     const next = editDesign(
       p,
       (draft) => {
+        if (entry.layout) {
+          draft.scenario!.layout = structuredClone(entry.project.scenario!.layout);
+          return;
+        }
         Object.assign(draft, structuredClone(designOf(entry.project)));
         draft.characters = structuredClone(entry.project.characters);
         draft.factions = structuredClone(entry.project.factions);
@@ -194,12 +209,13 @@ export default function ScenarioStudio({
     }
   }
   async function request(action: 'generate' | 'revise' | 'validate') {
-    if (controller.current || disabled || loadingRecovery || (hasRecovery && action !== 'validate')) return;
+    if (controller.current || disabled || (action !== 'validate' && (loadingRecovery || hasRecovery))) return;
     const ctl = new AbortController();
     controller.current = ctl;
     setBusy(action);
     setMessage('');
-    if (!hasRecovery) {
+    if (action === 'validate') setValidationError('');
+    if (!hasRecovery && action !== 'validate') {
       setPending(undefined);
       setFailedProposal(undefined);
     }
@@ -226,7 +242,7 @@ export default function ScenarioStudio({
       });
       const data = await res.json();
       if (ctl.signal.aborted) return;
-      if (current()?.revision !== p.revision || current()?.id !== p.id) throw Error(c.changed);
+      if (current()?.revision !== p.revision || current()?.id !== p.id) throw Error(action === 'validate' ? c.staleCheck : c.changed);
       if (!res.ok) {
         if (res.status === 409 && data?.error?.code === 'generation_configuration_changed') refreshGeneration();
         const run = data?.error?.run;
@@ -258,12 +274,15 @@ export default function ScenarioStudio({
         throw Error([data?.error?.message ?? c.requestFailed, usage].filter(Boolean).join(' '));
       }
       if (action === 'validate') {
+        if (typeof data?.valid !== 'boolean' || typeof data.complete !== 'boolean' || !Array.isArray(data.paths))
+          throw Error(c.invalidCheckResponse);
         const findings = findingsOf(data.findings);
         const ok = data.valid === true && data.complete === true && !findings.some((f) => f.severity === 'error');
         const runId = newId('check');
         const knownIds = new Set(entities(p).map((entity) => entity.id));
         const saved: Project = {
           ...p,
+          ...(p.scenario?.approved && !ok && {scenario: {...p.scenario, approved: false}}),
           runs: [
             ...p.runs,
             {
@@ -275,7 +294,7 @@ export default function ScenarioStudio({
               calls: 0,
               repairAttempts: 0,
               receipts: [
-                { tool: 'validate_scenario', outcome: ok ? 'passed' : 'failed', detail: ok ? c.valid : c.invalid },
+                { tool: 'validate_scenario', outcome: ok ? 'passed' : 'failed', detail: !data.complete ? c.incompleteCheck : ok ? c.valid : c.invalid },
               ],
             },
           ],
@@ -305,7 +324,7 @@ export default function ScenarioStudio({
             }),
           ],
         };
-        if (!isProject(saved)) throw Error(c.requestFailed);
+        if (!isProject(saved)) throw Error(c.invalidCheckRecord);
         const paths: string[][] = [];
         if (Array.isArray(data.paths))
           for (const route of data.paths) {
@@ -313,10 +332,11 @@ export default function ScenarioStudio({
               !Array.isArray(route?.nodeIds) ||
               !route.nodeIds.every((id: unknown) => p.nodes.some((n) => n.id === id))
             )
-              throw Error(c.requestFailed);
+              throw Error(c.invalidCheckResponse);
             paths.push(route.nodeIds);
           }
-        if (await commit(saved)) setCheck({ revision: p.revision, ok, findings, paths });
+        if (await commit(saved, runId)) setWitnesses({ runId, paths });
+        else setValidationError(c.checkSaveFailed);
       } else {
         const id = action === 'revise' ? target : undefined;
         const next = applyProposal(p, data, id);
@@ -325,7 +345,11 @@ export default function ScenarioStudio({
         setTarget('');
       }
     } catch (error) {
-      if (!ctl.signal.aborted) setMessage(error instanceof Error ? error.message : c.requestFailed);
+      if (!ctl.signal.aborted) {
+        const detail = error instanceof Error ? error.message : c.requestFailed;
+        if (action === 'validate') setValidationError(detail);
+        else setMessage(detail);
+      }
     } finally {
       if (controller.current === ctl) {
         controller.current = null;
@@ -333,11 +357,39 @@ export default function ScenarioStudio({
       }
     }
   }
-  const findings =
-    checked?.findings ??
-    p.findings.filter(
-      (f) => f.rule.startsWith('scenario.') && f.status === 'open' && f.checkedRevision === p.revision,
-    );
+  const findings = p.findings.filter(f => f.rule.startsWith('scenario.') &&
+    (checked ? f.runId === checked.id : f.status === 'open' && f.checkedRevision === p.revision));
+  const blockers = findings.filter(f => f.severity === 'error');
+  const checkFailed = checked?.status === 'unresolved' || !!blockers.length;
+  const checkDetail = checked?.receipts.find(r => r.tool === 'validate_scenario')?.detail;
+  function approvalReasons() {
+    const reasons = [...disabledReasons];
+    if (busy) reasons.push(busy === 'validate' ? c.checking : c.generating);
+    if (validationError) reasons.push(validationError);
+    if (!source) reasons.push(c.approveSource);
+    if (p.scenario && (p.scenario.sourceNarrativeId !== p.narrative?.id ||
+        p.basis.scenario?.narrative !== p.versions.narrative || p.basis.scenario?.content !== p.versions.content))
+      reasons.push(c.reconcileForApproval);
+    if (pending) reasons.push(c.pendingApproval);
+    if (checkFailed && checked) {
+      const rules = [...new Set(blockers.map(f => f.rule.replace(/^scenario\./, '')))];
+      if (!blockers.length || checkDetail === c.incompleteCheck) reasons.push(checkDetail || c.invalid);
+      if (blockers.length) reasons.push(c.blocking(blockers.length, rules));
+      for (const finding of blockers.filter(f => f.rule === 'scenario.blocked_start')) {
+        const titleOf = (id: string) => p.nodes.find(n => n.id === id)?.title || id;
+        const visits = (finding.blockedTransitions ?? []).filter(b => b.kind === 'visited');
+        if (visits.length && finding.entityIds[0])
+          reasons.push(c.startingVisits(titleOf(finding.entityIds[0]), visits.map(b => titleOf(b.key))));
+      }
+    }
+    if (p.scenario?.approved) reasons.push(c.alreadyApproved);
+    else {
+      if (!checked) reasons.push(c.validationMissing(p.versions.scenario));
+      if (!reviewed) reasons.push(c.reviewRequired);
+    }
+    return [...new Set(reasons)];
+  }
+  const reasons = approvalReasons();
   const renderPreview = (project: Project, id?: string) => {
     if (!id)
       return (
@@ -607,6 +659,7 @@ export default function ScenarioStudio({
               edit={edit}
             />
             <ScenarioEditor
+              selectedId={selectedId} openAtlas={openAtlas}
               project={p}
               edit={edit}
               revise={hasRecovery ? undefined : (id) => {
@@ -618,12 +671,15 @@ export default function ScenarioStudio({
             />
             <section className="panel">
               <h2>{c.approval}</h2>
-              <p>{checked ? (checked.ok ? c.valid : c.invalid) : c.validateFirst}</p>
-              {!!checked?.paths.length && (
+              {checked && !reasons.includes(checkDetail ?? '') && <p>{checkFailed ? checkDetail : c.valid}</p>}
+              <div id="scenario-approval-reason" aria-live="polite">
+                {reasons.length > 0 && <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
+              </div>
+              {!!paths?.length && (
                 <details>
                   <summary>{c.paths}</summary>
                   <ol>
-                    {checked.paths.map((ids, i) => (
+                    {paths.map((ids, i) => (
                       <li key={i}>{ids.map((id) => p.nodes.find((n) => n.id === id)?.title).join(' → ')}</li>
                     ))}
                   </ol>
@@ -644,10 +700,12 @@ export default function ScenarioStudio({
                 {c.reviewed}
               </label>
               <button
-                disabled={!checked?.ok || !fresh || !reviewed || p.scenario.approved || !!pending}
+                disabled={locked || reasons.length > 0}
+                aria-describedby="scenario-approval-reason"
                 onClick={() => {
-                  if (checked?.ok && fresh && reviewed && p.scenario)
-                    void commit({ ...p, scenario: { ...p.scenario, approved: true } });
+                  if (locked || reasons.length || checked?.status !== 'verified' || !p.scenario) return;
+                  if (current() !== p) { setValidationError(c.staleCheck); return; }
+                  void commit({ ...p, scenario: { ...p.scenario, approved: true } });
                 }}
               >
                 {c.approve}

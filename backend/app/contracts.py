@@ -277,16 +277,32 @@ def valid_project_references(data: dict[str, JsonValue], identifiers: set[str]) 
     locations = records(world, "locations")
     faction_ids = ids(records(data, "factions"))
     region_ids = ids(records(world, "regions"))
-    location_ids = ids(locations)
+    scenario = cast(dict[str, JsonValue], data.get("scenario", {}))
+    placements = records(world, "placements")
+    placed_ids = {cast(str, row["locationId"]) for row in placements}
+    if len(placed_ids) != len(placements) or not placed_ids <= ids(records(scenario, "locations")):
+        return False
+    location_ids = ids(locations) | placed_ids
+    if world.get("approved"):
+        spatial = {row["id"]: row for row in locations}
+        spatial.update({row["locationId"]: row for row in placements})
+        for route in records(world, "routes"):
+            for endpoint, index in (("from", 0), ("to", -1)):
+                site = spatial.get(route[endpoint])
+                if not site or not site.get("regionId") or site.get("position") != route["path"][index]:
+                    return False
     run_ids = ids(records(data, "runs"))
     single_refs = (
         (records(world, "regions"), "controllerId", faction_ids),
-        (locations, "regionId", region_ids),
+        ([*locations, *placements], "regionId", region_ids),
         (records(world, "routes"), "from", location_ids),
         (records(world, "routes"), "to", location_ids),
         (records(data, "findings"), "runId", run_ids),
     )
     list_refs = (
+        ([row for row in [*locations, *placements] if "factionIds" in row], "factionIds", faction_ids),
+        (records(world, "territories"), "regionIds", region_ids),
+        (records(world, "territories"), "factionIds", faction_ids),
         ([row for row in records(data, "findings") if row["status"] != "superseded"], "entityIds", identifiers),
     )
     approval = cast(dict[str, JsonValue], data.get("approval", {}))

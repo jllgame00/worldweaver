@@ -7,6 +7,7 @@ import type { SavedProject } from './storage';
 interface PendingSave {
   project: Project;
   conflict: boolean;
+  checkedRunId?: string;
 }
 
 export function useProjects(databaseName: string) {
@@ -35,19 +36,19 @@ export function useProjects(databaseName: string) {
     setRecord(next);
   }
 
-  async function commit(project: Project): Promise<boolean> {
+  async function commit(project: Project, checkedRunId?: string): Promise<boolean> {
     if (writing.current) return false;
     writing.current = true;
     setSaving(true);
     try {
       const active = current.current;
-      const saved = await saveProject(databaseName, project, active?.project.id === project.id ? active.token : undefined);
+      const saved = await saveProject(databaseName, project, active?.project.id === project.id ? active.token : undefined, checkedRunId);
       setProjects((previous) => [saved, ...previous.filter(({ project: existing }) => existing.id !== project.id)]);
       select(saved);
       setPending(undefined);
       return true;
     } catch (error) {
-      setPending({ project, conflict: error instanceof SaveConflict });
+      setPending({ project, conflict: error instanceof SaveConflict, checkedRunId });
       return false;
     } finally {
       writing.current = false;

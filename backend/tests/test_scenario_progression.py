@@ -19,6 +19,21 @@ def finding(check, rule):
     return next(f for f in check["findings"] if f["rule"] == rule)
 
 
+def test_prologue_requiring_later_quest_and_ending_blocks_every_route(project):
+    start = next(n for n in project["nodes"] if n["kind"] == "prologue")
+    start["requiresVisited"] = [project["quests"][0]["nodeId"], project["endings"][0]["nodeId"]]
+    check = validate_graph(project)
+    assert check["complete"] and not check["valid"]
+    assert check["statesExplored"] == 0 and check["paths"] == []
+    guards = finding(check, "blocked_start")["blockedTransitions"]
+    assert [(g["kind"], g["key"], g["actual"]) for g in guards] == [
+        ("visited", node_id, None) for node_id in start["requiresVisited"]
+    ]
+    start["requiresVisited"] = []
+    repaired = validate_graph(project)
+    assert repaired["valid"] and len(repaired["paths"]) == len(project["endings"])
+
+
 @pytest.mark.parametrize("where", ["node", "edge"])
 def test_active_quest_completes_after_later_effect(project, where):
     project["quests"][0]["completion"] = [proof]

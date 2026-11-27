@@ -1,10 +1,12 @@
 import type { Project } from './project.generated';
 import { isProject } from './validation';
+import { sameScenarioInputs, validationRun } from './scenarioApproval';
 
 export interface SavedProject {
   project: Project;
   token: string;
   savedAt: number;
+  scenarioCheckRunId?: string;
 }
 
 export class SaveConflict extends Error {}
@@ -42,10 +44,12 @@ export async function listProjects(databaseName: string): Promise<{ projects: Sa
   }
 }
 
-export async function saveProject(databaseName: string, project: Project, expectedToken?: string): Promise<SavedProject> {
+export async function saveProject(databaseName: string, project: Project, expectedToken?: string, checkedRunId?: string): Promise<SavedProject> {
   if (!isProject(project)) throw new Error('Invalid project');
+  if (checkedRunId && validationRun(project, checkedRunId)?.baseRevision !== project.revision)
+    throw new Error('The validation receipt does not match the checked revision.');
   const database = await open(databaseName);
-  const record = { project, token: crypto.randomUUID(), savedAt: Date.now() };
+  const record: SavedProject = { project, token: crypto.randomUUID(), savedAt: Date.now() };
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(storeName, 'readwrite');
@@ -56,11 +60,15 @@ export async function saveProject(databaseName: string, project: Project, expect
       transaction.onabort = () => reject(conflicted ? new SaveConflict() : transaction.error ?? new Error('IndexedDB save aborted'));
       read.onsuccess = () => {
         const current: unknown = read.result;
-        if (current === undefined ? expectedToken !== undefined : !validRecord(current) || current.token !== expectedToken) {
+        const previous = validRecord(current) ? current : undefined;
+        if (current === undefined ? expectedToken !== undefined : !previous || previous.token !== expectedToken) {
           conflicted = true;
           transaction.abort();
           return;
         }
+        if (checkedRunId) record.scenarioCheckRunId = checkedRunId;
+        else if (previous && validationRun(project, previous.scenarioCheckRunId) &&
+            sameScenarioInputs(previous.project, project)) record.scenarioCheckRunId = previous.scenarioCheckRunId;
         store.put(record);
       };
     });
