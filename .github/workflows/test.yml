@@ -117,7 +117,10 @@ jobs:
       - name: Build the tested revision once
         run: |
           set -eo pipefail
-          git archive "$GITHUB_SHA" | docker build --platform linux/amd64 --build-arg REVISION="$GITHUB_SHA" -t "worldweaver:$GITHUB_SHA" -
+          context=$(mktemp -d "$RUNNER_TEMP/worldweaver-context.XXXXXX")
+          # A local directory context lets Docker apply .dockerignore.
+          git archive "$GITHUB_SHA" | tar -xf - -C "$context"
+          docker build --platform linux/amd64 --build-arg REVISION="$GITHUB_SHA" -t "worldweaver:$GITHUB_SHA" "$context"
       - name: Inspect and probe the running image
         shell: bash
         run: |
@@ -126,7 +129,12 @@ jobs:
           test "$(docker inspect -f '{{.Os}}/{{.Architecture}}' "$image")" = linux/amd64
           test "$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$GITHUB_SHA"
           docker image inspect -f 'Image bytes: {{.Size}}' "$image"
-          docker run --rm --entrypoint sh "$image" -ec 'test "$(id -u)" != 0 && test -r docs/project-v1.schema.json && test -z "$(find /app \( -name ".env*" -o -name .git -o -name .scratch -o -name node_modules -o -name tests \) -print -quit)"'
+          docker run --rm --entrypoint sh "$image" -ec '
+            test "$(id -u)" != 0
+            test -r docs/project-v1.schema.json
+            test ! -e docs/examples
+            test ! -e frontend/src
+            test -z "$(find /app \( -name ".env*" -o -name .git -o -name .scratch -o -name node_modules -o -name tests \) -print -quit)"'
           name="worldweaver-ci-$GITHUB_RUN_ID"
           trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
           docker run -d --name "$name" -e PORT=10001 -p 127.0.0.1:18080:10001 "$image"

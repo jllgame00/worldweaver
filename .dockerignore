@@ -6,6 +6,8 @@
 !backend/app/*.py
 !docs/
 !docs/project-v1.schema.json
+!docs/examples/
+!docs/examples/salt-census.json
 !frontend/
 !frontend/package.json
 !frontend/package-lock.json
@@ -15,11 +17,10 @@
 !frontend/scripts/
 !frontend/scripts/generate-types.mjs
 !frontend/src/
+# The web stage type-checks production and test sources. The runtime gets only dist.
 !frontend/src/*.ts
 !frontend/src/*.tsx
 !frontend/src/*.css
-frontend/src/*.test.*
-frontend/src/*.testdata.*
 !frontend/public/
 !frontend/public/examples/
 !frontend/public/examples/salt-census.json

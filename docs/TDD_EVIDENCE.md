@@ -19,6 +19,12 @@ The tests use the public Salt Census project and synthetic variants. No owner da
 
 ## Phase 6A · release isolation and verification
 
+### Docker build hotfix
+
+The hosted run of `3b6c749` passed tests, the standalone frontend build and the required check. The container job loaded the stdin tar as a remote context. Test files named in the old exclusions reached the web stage, where strict TypeScript failed with TS2307 because the Dockerfile copied only the canonical schema from `docs`. Publication and deployment were skipped. [Hosted build log](https://github.com/jllgame00/worldweaver/actions/runs/45960487654/job/140378145152)
+
+Recreating the old web-stage inputs from `git archive HEAD` reproduced TS2307 and exit 2 with `npm run build`. With the explicitly allowed and copied synthetic fixture, the same command exited 0. The frontend output contains the distinct public example, and the runtime copies only the compiled frontend. CI extracts the same tested SHA into a local directory so Docker applies the allowlist. The runtime smoke now also checks for absent test source and documentation fixtures. Local HTTP smoke, pytest (329), Vitest (236 across 48 files), actionlint and `git diff --check` passed. Docker Engine was unavailable for a container run.
+
 The candidate was prepared against merged PR #1 (a8648b9) in an isolated source tree. No new commit is claimed. Initial pytest temporary-directory permission errors are excluded from RED evidence.
 
 | Focused command | Observed RED | Observed GREEN |

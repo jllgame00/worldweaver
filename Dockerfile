@@ -3,6 +3,8 @@ WORKDIR /src/frontend
 COPY frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY docs/project-v1.schema.json /src/docs/project-v1.schema.json
+# Strict TypeScript checking also resolves imports in the Vitest sources.
+COPY docs/examples/salt-census.json /src/docs/examples/salt-census.json
 COPY frontend/ ./
 RUN npm run build
 
