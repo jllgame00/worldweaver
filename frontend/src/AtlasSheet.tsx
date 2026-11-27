@@ -3,6 +3,8 @@ import type { AtlasIssue } from './atlasTypes';
 import { geometry, line, placeLabels } from './atlasGeometry';
 import type { MapLabel, View } from './atlasGeometry';
 import type { Location, Point, TravelRoute, World } from './project.generated';
+import { useAtlasDiagnostic, useAtlasLabels } from './atlasCopy';
+import { useFormatter, useLocalized } from './locale';
 
 export const layerNames = {
   biomes: 'Biomes',
@@ -70,6 +72,24 @@ const roadInk: Record<TravelRoute['mode'], [string, string | undefined]> = {
   aqueduct: ['#397c79', '.6 .13'],
 };
 const infrastructure = new Set(['bridge', 'tunnel', 'canal', 'aqueduct', 'pass']);
+const english = {
+  crossingLabel: (mode: string) => 'Crossing · ' + mode,
+  crossingTitle: (mode: string) => mode + ' crossing',
+  level: (level: string) => 'level ' + level,
+  compass: 'North compass',
+  north: 'N',
+  highlands: 'Highlands',
+  water: 'Water',
+};
+const korean = {
+  crossingLabel: (mode: string) => '횡단 지점 · ' + mode,
+  crossingTitle: (mode: string) => mode + ' 횡단 지점',
+  level: (level: string) => level + '층',
+  compass: '북쪽 나침반',
+  north: '북',
+  highlands: '고지대',
+  water: '수역',
+};
 
 function SurfaceDefs({ id }: { id: string }) {
   return (
@@ -204,6 +224,10 @@ export function Geography({
   scenarioLocationIds,
   scenarioRouteIds,
 }: GeographyProps) {
+  const copy = useLocalized(english, korean);
+  const types = useAtlasLabels();
+  const diagnostic = useAtlasDiagnostic();
+  const { number } = useFormatter();
   const g = useMemo(() => geometry(world), [world]);
   const id = useId().replace(/:/g, '');
   const size = (view.width / 73) * typeScale;
@@ -311,7 +335,7 @@ export function Geography({
               active = f.id === selected;
             return (
               <g key={f.id} {...interactive(f.id, f.name)}>
-                <title>{f.name + ' · ' + f.kind}</title>
+                <title>{f.name + ' · ' + types.feature[f.kind]}</title>
                 <path
                   d={g.areas.get(f.id)}
                   fill={river ? 'none' : 'transparent'}
@@ -383,7 +407,7 @@ export function Geography({
             if (!points.length) return null;
             return (
               <g key={i}>
-                <title>{c.strength + ' ' + c.relation + ' · ' + c.description}</title>
+                <title>{types.strength[c.strength] + ' ' + types.relation[c.relation] + ' · ' + c.description}</title>
                 <path d={line(points)} />
                 {points.map(([x, y], j) => (
                   <circle key={j} cx={x + 0.5} cy={y + 0.5} r=".58" />
@@ -410,7 +434,7 @@ export function Geography({
                     active = selected === r.id;
                   return (
                     <g key={r.id} {...interactive(r.id, name)}>
-                      <title>{name + (r.distanceKm != null ? ' · ' + r.distanceKm + ' km' : '')}</title>
+                      <title>{name + (r.distanceKm != null ? ' · ' + number(r.distanceKm, { style: 'unit', unit: 'kilometer' }) : '')}</title>
                       <path d={g.areas.get(r.id)} fill="none" stroke="transparent" strokeWidth=".75" />
                       <path
                         d={g.areas.get(r.id)}
@@ -437,9 +461,9 @@ export function Geography({
                     <g
                       key={r.id + i}
                       transform={'translate(' + (x + 0.5) + ' ' + (y + 0.5) + ')'}
-                      {...interactive(r.id, 'Crossing · ' + r.mode)}
+                      {...interactive(r.id, copy.crossingLabel(types.route[r.mode]))}
                     >
-                      <title>{r.mode + ' crossing'}</title>
+                      <title>{copy.crossingTitle(types.route[r.mode])}</title>
                       <path d="M-.28-.14H.28M-.28.14H.28" stroke="#59452e" strokeWidth=".09" />
                     </g>
                   )),
@@ -457,7 +481,7 @@ export function Geography({
             return (
               <g key={loc.id} {...interactive(loc.id, loc.name)}>
                 <title>
-                  {loc.name + ' · ' + loc.kind + (loc.level != null ? ' · level ' + loc.level : '')}
+                  {loc.name + ' · ' + types.location[loc.kind] + (loc.level != null ? ' · ' + copy.level(number(loc.level)) : '')}
                 </title>
                 {loc.area?.length ? (
                   <path
@@ -507,7 +531,7 @@ export function Geography({
                       fill="#513e59"
                       fontWeight="bold"
                     >
-                      {'−' + Math.abs(loc.level!)}
+                      {'−' + number(Math.abs(loc.level!))}
                     </text>
                   )}
                 </g>
@@ -527,7 +551,7 @@ export function Geography({
                 key={i + '-' + j}
                 transform={'translate(' + (x + 0.85) + ' ' + (y + 0.12) + ') scale(' + size * 0.1 + ')'}
               >
-                <title>{issue.severity + ' · ' + issue.message}</title>
+                <title>{types.severity[issue.severity] + ' · ' + diagnostic(issue.message, issue.code)}</title>
                 <path
                   d="M0-6L6 5H-6Z"
                   fill={issue.severity === 'error' ? '#9c4132' : '#856023'}
@@ -585,10 +609,11 @@ export function Geography({
 }
 
 export function Compass() {
+  const copy = useLocalized(english, korean);
   return (
-    <g transform="translate(907 39)" fill="#485451" stroke="#485451" aria-label="North compass">
-      <text y="-18" textAnchor="middle" stroke="none" fontFamily="Georgia,serif" fontSize="11">
-        N
+    <g transform="translate(907 39)" fill="#485451" stroke="#485451" aria-label={copy.compass}>
+      <text y="-18" textAnchor="middle" stroke="none" fontFamily="Georgia, 'Malgun Gothic', serif" fontSize="11">
+        {copy.north}
       </text>
       <circle r="10" fill="none" strokeWidth=".7" />
       <path d="M0-15L3-3L15 0L3 3L0 15L-3 3L-15 0L-3-3Z" fill="#eee4c8" strokeWidth=".7" />
@@ -616,24 +641,27 @@ export function Legend({
   columns: number;
   routeRows: number;
 }) {
+  const copy = useLocalized(english, korean);
+  const types = useAtlasLabels();
+  const { number } = useFormatter();
   const cells = Math.max(1, Math.floor(viewWidth / 9)),
     length = (cells * mapWidth) / viewWidth / typeScale;
   const entries = [
-    ['Woodland', '#859b70'],
-    ['Highlands', '#ad997a'],
-    ['Water', '#8dafaa'],
-  ];
+    ['woodland', types.biomes.f, '#859b70'],
+    ['highlands', copy.highlands, '#ad997a'],
+    ['water', copy.water, '#8dafaa'],
+  ] as const;
   const routeKinds = Array.from(new Set(world.routes.map((r) => r.mode)));
   return (
     <g
       data-layer="legend"
       transform={'translate(0 ' + y + ') scale(' + typeScale + ')'}
       fill="#484a3b"
-      fontFamily="Georgia,serif"
+      fontFamily="Georgia, 'Malgun Gothic', serif"
       fontSize="13"
     >
-      {entries.map(([label, color], i) => (
-        <g key={label} transform={'translate(' + (25 + i * 107) + ' 0)'}>
+      {entries.map(([key, label, color], i) => (
+        <g key={key} transform={'translate(' + (25 + i * 107) + ' 0)'}>
           <rect y="-9" width="17" height="9" rx="2" fill={color} />
           <text x="24">{label}</text>
         </g>
@@ -646,13 +674,13 @@ export function Legend({
             strokeWidth="2.8"
             strokeDasharray={roadInk[mode][1] ? '4 2' : undefined}
           />
-          <text x="25">{mode[0]!.toUpperCase() + mode.slice(1)}</text>
+          <text x="25">{types.route[mode].charAt(0).toUpperCase() + types.route[mode].slice(1)}</text>
         </g>
       ))}
       <g transform={'translate(' + 915 / typeScale + ' ' + (typeScale > 1.5 ? 19 + routeRows * 26 : 0) + ')'} textAnchor="end" data-scale="true">
         <path d={'M-' + length + ' -7v7H0v-7'} fill="none" stroke="#525045" strokeWidth="1.5" />
         <path d={'M-' + length + ' -2h' + length / 2} stroke="#525045" strokeWidth="3" />
-        <text y="17">{scale ? cells * scale + ' km' : cells + ' cells'}</text>
+        <text y="17">{scale ? number(cells * scale, { style: 'unit', unit: 'kilometer' }) : types.cells(number(cells))}</text>
       </g>
     </g>
   );

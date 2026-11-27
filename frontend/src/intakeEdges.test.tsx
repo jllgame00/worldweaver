@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
@@ -61,3 +62,5 @@ test('review highlights the second identical quotation and counts each explicit 
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(commit).not.toHaveBeenCalled();
 });
+
+useEnglishTestLocale();

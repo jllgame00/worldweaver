@@ -2,6 +2,51 @@ import type { Location, Point, Project, Region, World } from './project.generate
 import { newId } from './project';
 import { links, moveSite, removeSite } from './atlasWorkflow';
 import { buildRoutes } from './atlasSpatial';
+import { useAtlasLabels } from './atlasCopy';
+import { useFormatter, useLocalized } from './locale';
+
+const english = {
+  inspector: 'Atlas inspector',
+  outside: 'Outside map',
+  locationName: 'Location name',
+  description: 'Description',
+  locationType: 'Location type',
+  column: 'Column',
+  row: 'Row',
+  depth: 'Depth level',
+  factions: 'Faction associations',
+  lock: 'Lock position during regeneration',
+  saveLocation: 'Save location',
+  references: 'Scenario references',
+  confirmLocation: (name: string) => 'Remove ' + name + ' and its incident atlas routes? Scenario references are protected.',
+  removeLocation: 'Remove location',
+  landCells: (count: string) => count + ' land cells',
+  regionName: 'Region name',
+  regionDescription: 'Region description',
+  exceptionalBiome: 'Exceptional biome',
+  ecologicalRule: 'Established ecological rule',
+  saveRegion: 'Save region',
+  territoryName: 'Territory name',
+  memberRegions: 'Member regions',
+  politicalInfluence: 'Political influence',
+  saveTerritory: 'Save territory',
+  pathCells: (count: string) => count + ' path cells',
+  confirmRoute: 'Remove this route? Required journeys will be revalidated.',
+  removeRoute: 'Remove route',
+  sourceOutlet: (source: string, outlet: string) => 'Source ' + source + ' → outlet ' + outlet,
+  addConnection: 'Add connection',
+  routeOrigin: 'Route origin',
+  routeDestination: 'Route destination',
+  connectionPurpose: 'Connection purpose',
+  playerTravel: 'Player travel',
+  buildConnection: 'Build connection',
+  addLocation: 'Add location',
+  newPlaceName: 'New place name',
+  type: 'Type',
+  newColumn: 'New column',
+  newRow: 'New row',
+  addPlace: 'Add place to atlas',
+};
 
 type Props = {
   p: Project;
@@ -12,41 +57,64 @@ type Props = {
   change: (next: () => World) => void;
 };
 export default function AtlasInspector({ p, world: w, id, select, openScenario, change }: Props) {
+  const copy = useLocalized(english, {
+    inspector: '지도 상세 정보',
+    outside: '지도 범위 밖',
+    locationName: '장소 이름',
+    description: '설명',
+    locationType: '장소 유형',
+    column: '열',
+    row: '행',
+    depth: '깊이 층',
+    factions: '관련 세력',
+    lock: '다시 생성할 때도 위치 고정',
+    saveLocation: '장소 저장',
+    references: '시나리오 참조',
+    confirmLocation: (name) => name + ' 및 연결된 지도 경로를 삭제할까요? 시나리오 참조는 보호됩니다.',
+    removeLocation: '장소 삭제',
+    landCells: (count) => '육지 ' + count + '칸',
+    regionName: '지역 이름',
+    regionDescription: '지역 설명',
+    exceptionalBiome: '특수 생물군계',
+    ecologicalRule: '설정된 생태 규칙',
+    saveRegion: '지역 저장',
+    territoryName: '영토 이름',
+    memberRegions: '소속 지역',
+    politicalInfluence: '정치적 영향권',
+    saveTerritory: '영토 저장',
+    pathCells: (count) => '경로 ' + count + '칸',
+    confirmRoute: '이 경로를 삭제할까요? 필수 여정을 다시 검증합니다.',
+    removeRoute: '경로 삭제',
+    sourceOutlet: (source, outlet) => '발원지 ' + source + ' → 유출구 ' + outlet,
+    addConnection: '연결 추가',
+    routeOrigin: '경로 출발지',
+    routeDestination: '경로 도착지',
+    connectionPurpose: '연결 목적',
+    playerTravel: '플레이어 이동',
+    buildConnection: '연결 만들기',
+    addLocation: '장소 추가',
+    newPlaceName: '새 장소 이름',
+    type: '유형',
+    newColumn: '새 열',
+    newRow: '새 행',
+    addPlace: '지도에 장소 추가',
+  });
+  const labels = useAtlasLabels();
+  const { number: formatNumber } = useFormatter();
   const site = w.locations.find((l) => l.id === id),
     region = w.regions.find((r) => r.id === id),
     route = w.routes.find((r) => r.id === id),
     territory = w.territories?.find((t) => t.id === id);
   const feature = w.features.find((f) => f.id === id);
-  const biomes: Record<string, string> = {
-    '~': 'Ocean',
-    l: 'Inland lake',
-    m: 'Mountains',
-    h: 'Hills',
-    v: 'River valley',
-    p: 'Plains',
-    f: 'Woodland',
-    d: 'Dryland',
-    s: 'Alpine snow',
-  };
   const origins = site && links(p, site.id);
   const placeName = (key: string) => w.locations.find((l) => l.id === key)?.name ?? key;
   const number = (f: FormData, k: string) => Number(f.get(k));
   const value = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
-  const kinds: Location['kind'][] = [
-    'capital',
-    'city',
-    'town',
-    'village',
-    'port',
-    'fortress',
-    'ruin',
-    'dungeon',
-    'landmark',
-    'forest',
-    'underground',
-    'reservoir',
-  ];
+  const kinds = Object.keys(labels.location) as Location['kind'][];
   const pos = site?.position;
+  const elevation = pos && w.elevation?.[pos[1]]?.[pos[0]];
+  const tile = pos && w.tiles[pos[1]]?.[pos[0]];
+  const coordinates = (point: Point) => point.map((axis) => formatNumber(axis)).join(', ');
   function updateRegion(r: Region, f: FormData) {
     const biome = value(f, 'biome'),
       rule = value(f, 'rule');
@@ -66,23 +134,23 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
     };
   }
   return (
-    <section aria-label="Atlas inspector" className="panel atlas-inspector">
+    <section aria-label={copy.inspector} className="panel atlas-inspector">
       <h2>
         {site?.name ??
           region?.name ??
           feature?.name ??
           territory?.name ??
-          (route ? placeName(route.from) + ' → ' + placeName(route.to) : 'Atlas inspector')}
+          (route ? placeName(route.from) + ' → ' + placeName(route.to) : copy.inspector)}
       </h2>
       {site && (
         <>
           <p>
-            {site.kind} · {site.regionId ? w.regions.find((r) => r.id === site.regionId)?.name : 'Unplaced'}{' '}
+            {labels.location[site.kind]} · {site.regionId ? w.regions.find((r) => r.id === site.regionId)?.name : labels.unplaced}{' '}
             {pos &&
               ' · ' +
-                (w.elevation?.[pos[1]]?.[pos[0]] ?? '—') +
-                ' m · ' +
-                (biomes[w.tiles[pos[1]]?.[pos[0]] ?? ''] ?? 'Outside map')}
+                (elevation == null ? '—' : formatNumber(elevation, { style: 'unit', unit: 'meter' })) +
+                ' · ' +
+                (labels.biomes[tile as keyof typeof labels.biomes] ?? copy.outside)}
           </p>
           <form
             key={JSON.stringify(site)}
@@ -118,23 +186,23 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
             }}
           >
             <label>
-              Location name
+              {copy.locationName}
               <input name="name" required defaultValue={site.name} />
             </label>
             <label>
-              Description
+              {copy.description}
               <textarea name="description" defaultValue={site.description} />
             </label>
             <label>
-              Location type
+              {copy.locationType}
               <select name="kind" defaultValue={site.kind}>
                 {kinds.map((k) => (
-                  <option key={k}>{k}</option>
+                  <option key={k} value={k}>{labels.location[k]}</option>
                 ))}
               </select>
             </label>
             <label>
-              Column
+              {copy.column}
               <input
                 name="x"
                 type="number"
@@ -145,7 +213,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
               />
             </label>
             <label>
-              Row
+              {copy.row}
               <input
                 name="y"
                 type="number"
@@ -156,11 +224,11 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
               />
             </label>
             <label>
-              Depth level
+              {copy.depth}
               <input name="level" type="number" min={-32} max={0} defaultValue={site.level ?? 0} />
             </label>
             <label>
-              Faction associations
+              {copy.factions}
               <select name="factions" multiple defaultValue={site.factionIds ?? []}>
                 {p.factions.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -170,12 +238,11 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
               </select>
             </label>
             <label>
-              <input name="locked" type="checkbox" defaultChecked={site.locked} /> Lock position during
-              regeneration
+              <input name="locked" type="checkbox" defaultChecked={site.locked} /> {copy.lock}
             </label>
-            <button>Save location</button>
+            <button>{copy.saveLocation}</button>
           </form>
-          <h3>Scenario references</h3>
+          <h3>{copy.references}</h3>
           {[...origins!.chapters, ...origins!.nodes, ...origins!.quests].map((v) => (
             <button key={v.id} onClick={() => openScenario(v.id)}>
               {v.title ?? ('objective' in v ? v.objective : v.id)}
@@ -185,14 +252,12 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
           <button
             onClick={() => {
               if (
-                window.confirm(
-                  'Remove ' + site.name + ' and its incident atlas routes? Scenario references are protected.',
-                )
+                window.confirm(copy.confirmLocation(site.name))
               )
                 change(() => removeSite(p, w, site.id));
             }}
           >
-            Remove location
+            {copy.removeLocation}
           </button>
         </>
       )}
@@ -206,24 +271,24 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
             change(() => updateRegion(region, f));
           }}
         >
-          <p>{region.cells.length} land cells</p>
+          <p>{copy.landCells(formatNumber(region.cells.length))}</p>
           <label>
-            Region name
+            {copy.regionName}
             <input required name="name" defaultValue={region.name} />
           </label>
           <label>
-            Region description
+            {copy.regionDescription}
             <textarea name="description" defaultValue={region.description} />
           </label>
           <label>
-            Exceptional biome
+            {copy.exceptionalBiome}
             <input name="biome" defaultValue={region.climateException?.biome} />
           </label>
           <label>
-            Established ecological rule
+            {copy.ecologicalRule}
             <textarea name="rule" defaultValue={region.climateException?.rule} />
           </label>
-          <button>Save region</button>
+          <button>{copy.saveRegion}</button>
         </form>
       )}
       {territory && (
@@ -249,11 +314,11 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
           }}
         >
           <label>
-            Territory name
+            {copy.territoryName}
             <input name="name" required defaultValue={territory.name} />
           </label>
           <label>
-            Member regions
+            {copy.memberRegions}
             <select name="regions" multiple defaultValue={territory.regionIds}>
               {w.regions.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -263,7 +328,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
             </select>
           </label>
           <label>
-            Political influence
+            {copy.politicalInfluence}
             <select multiple name="factions" defaultValue={territory.factionIds}>
               {p.factions.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -272,33 +337,33 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
               ))}
             </select>
           </label>
-          <button>Save territory</button>
+          <button>{copy.saveTerritory}</button>
         </form>
       )}
       {route && (
         <>
           <p>
-            {route.mode} · {route.distanceKm ?? '—'} km · {route.path.length} path cells
+            {labels.route[route.mode]} · {route.distanceKm == null ? '—' : formatNumber(route.distanceKm, { style: 'unit', unit: 'kilometer' })} · {copy.pathCells(formatNumber(route.path.length))}
           </p>
           <button
             onClick={() => {
-              if (window.confirm('Remove this route? Required journeys will be revalidated.'))
+              if (window.confirm(copy.confirmRoute))
                 change(() => ({ ...w, routes: w.routes.filter((r) => r.id !== route.id) }));
             }}
           >
-            Remove route
+            {copy.removeRoute}
           </button>
         </>
       )}
       {feature && (
         <p>
-          {feature.kind} · {feature.cells.length} cells.{' '}
+          {labels.feature[feature.kind]} · {labels.cells(formatNumber(feature.cells.length))}.{' '}
           {feature.kind === 'river' &&
-            'Source ' + feature.cells[0].join(', ') + ' → outlet ' + feature.cells.at(-1)!.join(', ')}
+            copy.sourceOutlet(coordinates(feature.cells[0]), coordinates(feature.cells.at(-1)!))}
         </p>
       )}
       <details>
-        <summary>Add connection</summary>
+        <summary>{copy.addConnection}</summary>
         <form
           className="atlas-fields"
           onSubmit={(e) => {
@@ -324,7 +389,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
         >
           {['from', 'to'].map((k) => (
             <label key={k}>
-              {k === 'from' ? 'Route origin' : 'Route destination'}
+              {k === 'from' ? copy.routeOrigin : copy.routeDestination}
               <select name={k} defaultValue={k === 'from' ? site?.id : undefined}>
                 {w.locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -335,18 +400,18 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
             </label>
           ))}
           <label>
-            Connection purpose
+            {copy.connectionPurpose}
             <select name="relation">
-              <option value="travel">Player travel</option>
-              <option>canal</option>
-              <option>aqueduct</option>
+              <option value="travel">{copy.playerTravel}</option>
+              <option value="canal">{labels.route.canal}</option>
+              <option value="aqueduct">{labels.route.aqueduct}</option>
             </select>
           </label>
-          <button>Build connection</button>
+          <button>{copy.buildConnection}</button>
         </form>
       </details>
       <details>
-        <summary>Add location</summary>
+        <summary>{copy.addLocation}</summary>
         <form
           className="atlas-fields"
           onSubmit={(e) => {
@@ -365,19 +430,19 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
           }}
         >
           <label>
-            New place name
+            {copy.newPlaceName}
             <input name="name" required />
           </label>
           <label>
-            Type
+            {copy.type}
             <select name="kind">
               {kinds.map((k) => (
-                <option key={k}>{k}</option>
+                <option key={k} value={k}>{labels.location[k]}</option>
               ))}
             </select>
           </label>
           <label>
-            New column
+            {copy.newColumn}
             <input
               name="x"
               type="number"
@@ -388,7 +453,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
             />
           </label>
           <label>
-            New row
+            {copy.newRow}
             <input
               name="y"
               type="number"
@@ -398,7 +463,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
               required
             />
           </label>
-          <button>Add place to atlas</button>
+          <button>{copy.addPlace}</button>
         </form>
       </details>
     </section>

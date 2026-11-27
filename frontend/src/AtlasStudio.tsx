@@ -19,7 +19,69 @@ import { downloadFile } from './scenarioWorkflow';
 import AtlasMap from './AtlasMap';
 import AtlasInspector from './AtlasInspector';
 import { AtlasPlan } from './AtlasPlan';
+import { useAtlasDiagnostic, useAtlasLabels } from './atlasCopy';
+import { useFormatter, useLocale, useLocalized } from './locale';
 import './atlasStudio.css';
+
+const english = {
+  title: 'World Atlas',
+  approveScenario: 'Approve a scenario to place its locations.',
+  localGeneration: 'Local procedural generation',
+  reading: 'Reading or saving local atlas…',
+  proposal: 'Working proposal',
+  outdated: 'Outdated world',
+  needsReview: 'World needs review',
+  approved: 'Approved world',
+  savedDraft: 'Saved world draft',
+  stale: (base: string, current: string) => 'Working copy is based on project revision ' + base + '. Current revision is ' + current + '.',
+  localOnly: 'The working copy is only in this tab. Browser storage failed. Keep the tab open and retry saving.',
+  settings: 'Continent settings',
+  worldName: 'World name',
+  seed: 'Seed',
+  size: 'Continent size',
+  small: 'small',
+  standard: 'standard',
+  landform: 'Landform',
+  continent: 'continent',
+  islands: 'islands',
+  scale: 'Scale (km per cell)',
+  land: 'Land share',
+  climate: 'Climate',
+  temperate: 'temperate',
+  arid: 'arid',
+  cold: 'cold',
+  density: ['Minimal', 'Low', 'Medium', 'High'],
+  ruggedness: 'Terrain ruggedness',
+  settlements: 'Settlement density',
+  roads: 'Road density',
+  politics: 'Political territory density',
+  generate: 'Generate continent',
+  confirmGenerate: 'Replace the current working proposal with a new generation?',
+  undo: 'Undo atlas edit',
+  redo: 'Redo atlas edit',
+  recalculate: 'Recalculate routes',
+  confirmReposition: 'Reposition unlocked locations and recalculate routes?',
+  placeUnlocked: 'Place unlocked locations',
+  reconcile: 'Reconcile with approved scenario',
+  index: 'Atlas index',
+  find: 'Find a record',
+  journeys: 'Scenario journeys',
+  validation: 'Geography validation',
+  validated: (count: string) => 'Validation complete · ' + count + ' blocking findings.',
+  revalidate: 'Revalidate world',
+  passed: 'Geography and required journeys passed.',
+  review: 'Review terrain, political boundaries and journey meaning against the approved scenario.',
+  acceptDraft: 'Accept world draft',
+  approve: 'Approve world',
+  confirmDiscard: 'Discard the working proposal and return to the saved project?',
+  discard: 'Discard world proposal',
+  exportMarkdown: 'Export atlas Markdown',
+  exportProject: 'Export saved project JSON',
+  cancel: 'Cancel generation',
+  technical: 'Technical details',
+};
+
+type Notice = string | { error: string; saved?: string } | { findings: number };
 
 interface Props {
   project: Project;
@@ -46,8 +108,69 @@ export default function AtlasStudio({
   current,
   databaseName,
 }: Props) {
+  const copy = useLocalized(english, {
+    title: '세계 지도',
+    approveScenario: '장소를 배치하려면 시나리오를 승인하세요.',
+    localGeneration: '로컬 절차적 생성',
+    reading: '로컬 지도를 읽거나 저장하는 중…',
+    proposal: '작업 중인 제안',
+    outdated: '이전 버전의 세계',
+    needsReview: '세계 검토 필요',
+    approved: '승인된 세계',
+    savedDraft: '저장된 세계 초안',
+    stale: (base, current) => '작업본은 프로젝트 리비전 ' + base + '에 기반합니다. 현재 리비전은 ' + current + '입니다.',
+    localOnly: '이 탭에만 작업본이 있습니다. 브라우저에 저장하지 못했습니다. 탭을 열어 둔 채 다시 저장하세요.',
+    settings: '대륙 설정',
+    worldName: '세계 이름',
+    seed: '시드',
+    size: '대륙 크기',
+    small: '소형',
+    standard: '표준',
+    landform: '육지 형태',
+    continent: '대륙',
+    islands: '섬',
+    scale: '축척 (칸당 km)',
+    land: '육지 비율',
+    climate: '기후',
+    temperate: '온대',
+    arid: '건조',
+    cold: '한랭',
+    density: ['최소', '낮음', '보통', '높음'],
+    ruggedness: '지형 기복',
+    settlements: '정착지 밀도',
+    roads: '도로 밀도',
+    politics: '정치적 영토 밀도',
+    generate: '대륙 생성',
+    confirmGenerate: '새로 생성한 제안으로 현재 작업 중인 제안을 교체할까요?',
+    undo: '지도 편집 실행 취소',
+    redo: '지도 편집 다시 실행',
+    recalculate: '경로 다시 계산',
+    confirmReposition: '잠기지 않은 장소를 다시 배치하고 경로를 다시 계산할까요?',
+    placeUnlocked: '잠기지 않은 장소 배치',
+    reconcile: '승인된 시나리오와 조정',
+    index: '지도 색인',
+    find: '기록 찾기',
+    journeys: '시나리오 여정',
+    validation: '지리 검증',
+    validated: (count) => '검증 완료 · 진행을 막는 문제 ' + count + '건.',
+    revalidate: '세계 다시 검증',
+    passed: '지리와 필수 여정이 검증을 통과했습니다.',
+    review: '승인된 시나리오를 기준으로 지형, 정치적 경계, 여정의 의미를 검토하세요.',
+    acceptDraft: '세계 초안 채택',
+    approve: '세계 승인',
+    confirmDiscard: '작업 중인 제안을 삭제하고 저장된 프로젝트로 돌아갈까요?',
+    discard: '세계 제안 삭제',
+    exportMarkdown: '지도 Markdown 내보내기',
+    exportProject: '저장된 프로젝트 JSON 내보내기',
+    cancel: '생성 취소',
+    technical: '기술 상세 정보',
+  });
+  const labels = useAtlasLabels();
+  const diagnostic = useAtlasDiagnostic();
+  const locale = useLocale();
+  const { number } = useFormatter();
   const [draft, setDraft] = useState<AtlasDraft>(),
-    [notice, setNotice] = useState(''),
+    [notice, setNotice] = useState<Notice>(),
     [busy, setBusy] = useState(false),
     [stage, setStage] = useState('');
   const [writing, setWriting] = useState(true),
@@ -98,6 +221,7 @@ export default function AtlasStudio({
   const scenarioRoutes = useMemo(() => [...new Set(p.edges.flatMap((e) => journey(p, w, e.id)))], [p, w]);
   const stale = !!draft && draft.base !== p.revision;
   const blocked = issues.some((i) => i.severity === 'error') || stale;
+  const sourceProblem = atlasSourceProblem(p);
   function sourceCurrent() {
     const source = current();
     if (source?.revision === p.revision && source.id === p.id) return true;
@@ -112,18 +236,13 @@ export default function AtlasStudio({
       setUnsaved(false);
     } catch (e) {
       if (e instanceof SaveConflict) {
-        setNotice(
-          savedMessage
-            ? savedMessage +
-                ' Another tab changed the proposal. Reopen the project to check for a newer working copy.'
-            : e.message,
-        );
+        setNotice(savedMessage
+          ? { saved: savedMessage, error: 'Another tab changed the proposal. Reopen the project to check for a newer working copy.' }
+          : { error: e.message });
         return false;
       }
       if (!next) {
-        setNotice(
-          (savedMessage + ' Could not clear the saved working copy. Reopen the project to review it.').trim(),
-        );
+        setNotice({ saved: savedMessage, error: 'Could not clear the saved working copy. Reopen the project to review it.' });
         return false;
       }
       setUnsaved(true);
@@ -137,23 +256,23 @@ export default function AtlasStudio({
     if (!sourceCurrent()) return;
     try {
       const next = { ...build(), approved: false };
-      setNotice('');
+      setNotice(undefined);
       if (await store({ world: next, base })) {
         setHistory(w ? [...history.slice(-11), { world: w, base: draft?.base ?? p.revision }] : []);
         setFuture([]);
         setCustom(next.constraints ?? []);
       }
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'Atlas edit failed.');
+      setNotice({ error: e instanceof Error ? e.message : 'Atlas edit failed.' });
     }
   }
   async function generate() {
     if (ctl.current || !sourceReady(p)) return;
-    if (draft && !window.confirm('Replace the current working proposal with a new generation?')) return;
+    if (draft && !window.confirm(copy.confirmGenerate)) return;
     const controller = new AbortController();
     ctl.current = controller;
     setBusy(true);
-    setNotice('');
+    setNotice(undefined);
     try {
       // Use reviewed local edits (including locked positions) as the input to regeneration.
       const source = w ? { ...p, world: portableWorld(p, w) } : p;
@@ -171,7 +290,7 @@ export default function AtlasStudio({
         throw Error('The source changed during generation. Reopen this project.');
       await mutate(() => next, p.revision);
     } catch (e) {
-      if (!controller.signal.aborted) setNotice(e instanceof Error ? e.message : 'Generation failed.');
+      if (!controller.signal.aborted) setNotice({ error: e instanceof Error ? e.message : 'Generation failed.' });
     } finally {
       if (!controller.signal.aborted) {
         setBusy(false);
@@ -205,7 +324,7 @@ export default function AtlasStudio({
         }
       } else setNotice('The project save failed. Your working proposal is still available.');
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'Save failed.');
+      setNotice({ error: e instanceof Error ? e.message : 'Save failed.' });
     } finally {
       setWriting(false);
     }
@@ -227,8 +346,8 @@ export default function AtlasStudio({
         value={settings[field]}
         onChange={(e) => setSettings({ ...settings, [field]: +e.target.value })}
       >
-        {['Minimal', 'Low', 'Medium', 'High'].map((v, i) => (
-          <option key={v} value={i}>
+        {copy.density.map((v, i) => (
+          <option key={i} value={i}>
             {v}
           </option>
         ))}
@@ -238,51 +357,63 @@ export default function AtlasStudio({
   return (
     <section className="atlas-studio">
       <header className="page-heading">
-        <h1>World Atlas</h1>
+        <h1>{copy.title}</h1>
         <p>
-          {p.scenario?.title ?? 'Approve a scenario to place its locations.'} · Local procedural generation
+          {p.scenario?.title ?? copy.approveScenario} · {copy.localGeneration}
         </p>
       </header>
       {w && (
         <strong>
           {writing
-            ? 'Reading or saving local atlas…'
+            ? copy.reading
             : draft
-              ? 'Working proposal'
+              ? copy.proposal
               : issues.some((i) => i.code === 'source')
-                ? 'Outdated world'
+                ? copy.outdated
                 : blocked
-                  ? 'World needs review'
+                  ? copy.needsReview
                   : w.approved
-                    ? 'Approved world'
-                    : 'Saved world draft'}
+                    ? copy.approved
+                    : copy.savedDraft}
         </strong>
       )}
       {stale && (
         <p role="alert">
-          Working copy is based on project revision {draft!.base}. Current revision is {p.revision}.
+          {copy.stale(number(draft!.base), number(p.revision))}
         </p>
       )}
       {notice && (
-        <p role="status" className="notice">
-          {notice}
-        </p>
+        <div role="status" className="notice">
+          {typeof notice === 'string'
+            ? diagnostic(notice)
+            : 'findings' in notice
+              ? copy.validated(number(notice.findings))
+              : <>
+                  {notice.saved && diagnostic(notice.saved) + ' '}{diagnostic(notice.error)}
+                  {locale === 'ko' && (
+                    <details>
+                      <summary>{copy.technical}</summary>
+                      <code lang="en">{notice.error}</code>
+                    </details>
+                  )}
+                </>}
+        </div>
       )}
       {unsaved && (
         <p role="alert">
-          The working copy is only in this tab. Browser storage failed. Keep the tab open and retry saving.
+          {copy.localOnly}
         </p>
       )}
       <fieldset disabled={disabled || busy || writing} className="atlas-controls">
         <details className="panel" open={!w || undefined}>
-          <summary>Continent settings</summary>
+          <summary>{copy.settings}</summary>
           <div className="atlas-fields">
             <label>
-              World name
+              {copy.worldName}
               <input value={name} maxLength={160} onChange={(e) => setName(e.target.value)} />
             </label>
             <label>
-              Seed
+              {copy.seed}
               <input
                 type="number"
                 min="0"
@@ -292,29 +423,29 @@ export default function AtlasStudio({
               />
             </label>
             <label>
-              Continent size
+              {copy.size}
               <select
                 value={settings.size}
                 onChange={(e) => setSettings({ ...settings, size: e.target.value as AtlasSettings['size'] })}
               >
-                <option>small</option>
-                <option>standard</option>
+                <option value="small">{copy.small}</option>
+                <option value="standard">{copy.standard}</option>
               </select>
             </label>
             <label>
-              Landform
+              {copy.landform}
               <select
                 value={settings.landform ?? 'continent'}
                 onChange={(e) =>
                   setSettings({ ...settings, landform: e.target.value as AtlasSettings['landform'] })
                 }
               >
-                <option>continent</option>
-                <option>islands</option>
+                <option value="continent">{copy.continent}</option>
+                <option value="islands">{copy.islands}</option>
               </select>
             </label>
             <label>
-              Scale (km per cell)
+              {copy.scale}
               <input
                 type="number"
                 min=".1"
@@ -325,7 +456,7 @@ export default function AtlasStudio({
               />
             </label>
             <label>
-              Land share · {settings.land}%
+              {copy.land} · {number(settings.land / 100, { style: 'percent' })}
               <input
                 type="range"
                 min="35"
@@ -335,27 +466,27 @@ export default function AtlasStudio({
               />
             </label>
             <label>
-              Climate
+              {copy.climate}
               <select
                 value={settings.climate}
                 onChange={(e) =>
                   setSettings({ ...settings, climate: e.target.value as AtlasSettings['climate'] })
                 }
               >
-                <option>temperate</option>
-                <option>arid</option>
-                <option>cold</option>
+                <option value="temperate">{copy.temperate}</option>
+                <option value="arid">{copy.arid}</option>
+                <option value="cold">{copy.cold}</option>
               </select>
             </label>
-            {density('ruggedness', 'Terrain ruggedness')}
-            {density('settlements', 'Settlement density')}
-            {density('roads', 'Road density')}
-            {density('politics', 'Political territory density')}
+            {density('ruggedness', copy.ruggedness)}
+            {density('settlements', copy.settlements)}
+            {density('roads', copy.roads)}
+            {density('politics', copy.politics)}
             <button disabled={!sourceReady(p) || !name.trim()} onClick={() => void generate()}>
-              Generate continent
+              {copy.generate}
             </button>
           </div>
-          {atlasSourceProblem(p) && <p>{atlasSourceProblem(p)}</p>}
+          {sourceProblem && <p>{diagnostic(sourceProblem)}</p>}
         </details>
         <AtlasPlan
           world={w}
@@ -370,31 +501,31 @@ export default function AtlasStudio({
           <>
             <div className="atlas-tools">
               <button disabled={!history.length} onClick={() => restore(false)}>
-                Undo atlas edit
+                {copy.undo}
               </button>
               <button disabled={!future.length} onClick={() => restore(true)}>
-                Redo atlas edit
+                {copy.redo}
               </button>
               <button onClick={() => mutate(() => ({ ...w, routes: buildRoutes(w, plan) }))}>
-                Recalculate routes
+                {copy.recalculate}
               </button>
               <button
                 onClick={() => {
-                  if (window.confirm('Reposition unlocked locations and recalculate routes?'))
+                  if (window.confirm(copy.confirmReposition))
                     mutate(() => {
                       const next = { ...w, locations: placeLocations(w, w.locations, plan) };
                       return { ...next, routes: buildRoutes(next, plan) };
                     });
                 }}
               >
-                Place unlocked locations
+                {copy.placeUnlocked}
               </button>
               {(stale || issues.some((i) => i.code === 'source' || i.code === 'requirements')) && (
                 <button
                   disabled={!sourceReady(p)}
                   onClick={() => mutate(() => reconcileWorld(p, w), p.revision)}
                 >
-                  Reconcile with approved scenario
+                  {copy.reconcile}
                 </button>
               )}
             </div>
@@ -414,19 +545,20 @@ export default function AtlasStudio({
               scenarioRouteIds={paths.length ? paths : scenarioRoutes}
             />
             <div className="atlas-records">
-              <nav className="panel atlas-index" aria-label="Atlas index">
-                <h2>Atlas index</h2>
+              <nav className="panel atlas-index" aria-label={copy.index}>
+                <h2>{copy.index}</h2>
                 <label>
-                  Find a record
+                  {copy.find}
                   <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
                 </label>
                 {(
                   [
-                    ['Locations', w.locations],
-                    ['Regions', w.regions],
-                    ['Territories', w.territories ?? []],
+                    ['locations', labels.locations, w.locations],
+                    ['regions', labels.regions, w.regions],
+                    ['territories', labels.territories, w.territories ?? []],
                     [
-                      'Routes',
+                      'routes',
+                      labels.routes,
                       w.routes.map((r) => ({
                         id: r.id,
                         name:
@@ -436,16 +568,17 @@ export default function AtlasStudio({
                       })),
                     ],
                     [
-                      'Scenario journeys',
+                      'journeys',
+                      copy.journeys,
                       p.edges
                         .filter((e) => e.travel === 'required' && e.kind !== 'reference')
                         .map((e) => ({ id: e.id, name: e.label })),
                     ],
                   ] as const
-                ).map(([title, rows]) => (
-                  <details key={title} open={title === 'Locations' || undefined}>
+                ).map(([id, title, rows]) => (
+                  <details key={id} open={id === 'locations' || undefined}>
                     <summary>
-                      {title} ({rows.length})
+                      {title} ({number(rows.length)})
                     </summary>
                     {rows
                       .filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
@@ -467,29 +600,31 @@ export default function AtlasStudio({
               />
             </div>
             <section className="panel">
-              <h2>Geography validation</h2>
+              <h2>{copy.validation}</h2>
               <button
                 onClick={() => {
                   const all = worldIssues(p, w);
-                  setNotice(
-                    'Validation complete · ' +
-                      all.filter((i) => i.severity === 'error').length +
-                      ' blocking findings.',
-                  );
+                  setNotice({ findings: all.filter((i) => i.severity === 'error').length });
                 }}
               >
-                Revalidate world
+                {copy.revalidate}
               </button>
               {issues.length === 0 ? (
-                <p>Geography and required journeys passed.</p>
+                <p>{copy.passed}</p>
               ) : (
                 <ul>
                   {issues.map((v, i) => (
                     <li key={i}>
                       <strong>
-                        {v.severity} · {v.code}
+                        {labels.severity[v.severity]} · {v.code}
                       </strong>{' '}
-                      {v.message} {v.repair}
+                      {diagnostic(v.message, v.code)} {diagnostic(v.repair, v.code)}
+                      {locale === 'ko' && (
+                        <details>
+                          <summary>{copy.technical}</summary>
+                          <code lang="en">{v.message} {v.repair}</code>
+                        </details>
+                      )}
                       {v.ids.map((id) => (
                         <button key={id} onClick={() => select(id)}>
                           {sites.find((l) => l.id === id)?.name ?? id}
@@ -499,19 +634,19 @@ export default function AtlasStudio({
                   ))}
                 </ul>
               )}
-              <p>Review terrain, political boundaries and journey meaning against the approved scenario.</p>
+              <p>{copy.review}</p>
               <div className="atlas-tools">
                 <button disabled={!draft || blocked} onClick={() => void adopt(false)}>
-                  Accept world draft
+                  {copy.acceptDraft}
                 </button>
                 <button disabled={blocked || (!draft && w.approved)} onClick={() => void adopt(true)}>
-                  Approve world
+                  {copy.approve}
                 </button>
                 {draft && (
                   <button
                     onClick={async () => {
                       if (
-                        window.confirm('Discard the working proposal and return to the saved project?') &&
+                        window.confirm(copy.confirmDiscard) &&
                         (await store(undefined))
                       ) {
                         setHistory([]);
@@ -520,23 +655,23 @@ export default function AtlasStudio({
                       }
                     }}
                   >
-                    Discard world proposal
+                    {copy.discard}
                   </button>
                 )}
-                <button onClick={() => downloadFile(p.id + '-atlas.md', atlasMarkdown(w), 'text/markdown')}>
-                  Export atlas Markdown
+                <button onClick={() => downloadFile(p.id + '-atlas.md', atlasMarkdown(w, locale), 'text/markdown')}>
+                  {copy.exportMarkdown}
                 </button>
               </div>
             </section>
           </>
         )}
         <button onClick={() => downloadFile(p.id + '.json', JSON.stringify(p, null, 2), 'application/json')}>
-          Export saved project JSON
+          {copy.exportProject}
         </button>
       </fieldset>
       {busy && (
         <p role="status">
-          {stage}
+          {stage && diagnostic(stage)}
           <button
             onClick={() => {
               ctl.current?.abort();
@@ -545,7 +680,7 @@ export default function AtlasStudio({
               setNotice('Generation cancelled.');
             }}
           >
-            Cancel generation
+            {copy.cancel}
           </button>
         </p>
       )}

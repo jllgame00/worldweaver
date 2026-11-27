@@ -13,7 +13,15 @@ Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했�
 
 Post-GREEN coverage added 13 backend and two frontend cases. Full regression passed 313 pytest and 175 Vitest. Type synchronization, strict TypeScript, Vite build, canonical and five transport schemas, actionlint and Git whitespace checks passed. The compiled integration used jsdom, fake IndexedDB and one real loopback request to the development mock. Native Chrome access was declined. Live provider requests and credit use stayed at zero. [Exact test names and limitations](PHASE_5B_REPORT.md)
 
-GREEN commit SHA pending the owner's separate implementation commit.
+The owner's separate 5B GREEN commit is `0a9cc291a1a8df71b6a52542d3a8505db92e2272`, directly after the verified 5B RED commit.
+
+## Phase 5C owner test commit
+
+The clean `feature/product-polish` branch started at `16f8ae67550cd342627c12cb7615b31a319dabb8`. Its parent is the 5B GREEN commit. `git diff HEAD^ HEAD --name-status` showed only the new `frontend/src/interfaceLocale.test.tsx`.
+
+`npm.cmd --prefix frontend test -- interfaceLocale.test.tsx --reporter=verbose` collected six cases and exited 1 before implementation. C1 expected `프로젝트` and received `Projects`. C2, C3, C4 and both C5 cases stopped at the absent language combobox. With the committed tests intact, the six passed and executed their project, draft, approval, receipt and persistence assertions. The owner has yet to create the 5C GREEN commit. [Exact test names and results](PHASE_5C_REPORT.md)
+
+Post-GREEN tests covered an invalid stored locale, an open reviewed intake proposal, an unknown API diagnostic, and Atlas viewport and export persistence. Full runs passed 313 pytest and 185 Vitest tests. Strict TypeScript, generated types, Vite build, schema checks and actionlint passed. The compiled jsdom check used an isolated fake IndexedDB and a real loopback FastAPI mock server. Provider requests stayed at zero.
 
 ## Phase 2.2 · Canonical entity references
 

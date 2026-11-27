@@ -4,7 +4,10 @@ import type { Project, Scenario } from './project.generated';
 import type { ScenarioEditorProps } from './ScenarioEditor';
 import { TextField, SelectField, options } from './ScenarioFields';
 
-const c = {
+import { useLocalized, type Translation } from './locale';
+import { useScenarioKind } from './scenarioCopy';
+
+const copy = {
   overview: 'Scenario overview',
   title: 'Scenario title',
   summary: 'Scenario summary',
@@ -28,9 +31,21 @@ const c = {
   via: 'Separating place',
   cancel: 'Cancel',
 };
+const copyKo = {
+  overview: '시나리오 개요', title: '시나리오 제목', summary: '시나리오 요약', save: '개요 저장',
+  places: '장소 요구 사항', place: '제안 장소', addPlace: '제안 장소 추가', kind: '장소 유형',
+  name: '장소 이름', purpose: '서사적 목적', savePlace: '장소 저장',
+  geography: '지리와 이동', relation: '관계', from: '출발지', to: '도착지',
+  detail: '지리 요구 사항', add: '요구 사항 추가', remove: '요구 사항 제거',
+  confirm: '이 지리 요구 사항을 제거할까요?', catalog: '세계 지도에 등록된 장소', via: '사이를 가르는 장소',
+  cancel: '취소',
+} satisfies Translation<typeof copy>;
+
 type Place = Scenario['locations'][number];
 type Geography = Scenario['geography'][number];
 export default function ScenarioBrief({ project, edit }: { project: Project; edit: ScenarioEditorProps['edit'] }) {
+  const c = useLocalized(copy, copyKo);
+  const kindLabel = useScenarioKind();
   const s = project.scenario!;
   const [title, setTitle] = useState(s.title),
     [summary, setSummary] = useState(s.summary);
@@ -95,7 +110,7 @@ export default function ScenarioBrief({ project, edit }: { project: Project; edi
           <SelectField
             label={c.kind}
             value={place.kind}
-            options={options(['city', 'village', 'dungeon', 'landmark', 'port'])}
+            options={options(['city', 'village', 'dungeon', 'landmark', 'port'], kindLabel)}
             onChange={(kind) => setPlace({ ...place, kind: kind as Place['kind'] })}
           />
           <TextField
@@ -114,7 +129,7 @@ export default function ScenarioBrief({ project, edit }: { project: Project; edi
       <ul>
         {s.geography.map((g, i) => (
           <li key={i}>
-            {label(g.from)} · {g.relation} · {label(g.to)}
+            {label(g.from)} · {kindLabel(g.relation)} · {label(g.to)}
             {g.via ? ' (' + label(g.via) + ')' : ''} — {g.description}
             <button
               onClick={() => {
@@ -156,7 +171,7 @@ export default function ScenarioBrief({ project, edit }: { project: Project; edi
         />
         <SelectField
           label={c.relation}
-          options={options(['near', 'beneath', 'separates', 'travel'])}
+          options={options(['near', 'beneath', 'separates', 'travel'], kindLabel)}
           value={geo.relation}
           onChange={(relation) => {
             const { via: _, ...pair } = geo;

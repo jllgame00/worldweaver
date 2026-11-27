@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import NarrativeRegistry from './NarrativeRegistry';
 import type { FormEvent } from 'react';
-import { copy, storyLabels } from './copy';
+import { useStoryLabels, useWorkspaceCopy } from './workspaceLocale';
 import { verificationCopy } from './verificationCopy';
+import { useLocalized } from './locale';
 import { Coverage, FactList } from './Direction';
 import { approveNarrative, candidateBatchMode, editNarrative, mandatoryConflict, narrativeFresh, sourceDirection } from './project';
 import type { Narrative as NarrativeRecord, Project, Story } from './project.generated';
@@ -17,8 +18,16 @@ interface NarrativeProps {
 
 const textFields = ['title', 'genre', 'tone', 'premise', 'conflict', 'motivation', 'opposition', 'background'] as const;
 const listFields = ['progression', 'possibleEndings'] as const;
+const restoreCopy = { changed: verificationCopy.narrativeChanged, restore: verificationCopy.restoreNarrative };
+const restoreCopyKo = {
+  changed: '편집하는 중에 저장된 스토리가 바뀌었습니다. 현재 편집 내용은 그대로 남아 있습니다.',
+  restore: '저장된 스토리 다시 불러오기',
+};
 
 export default function Narrative({ project, narrative, disabled, inspect, commit }: NarrativeProps) {
+  const copy = useWorkspaceCopy();
+  const storyLabels = useStoryLabels();
+  const restore = useLocalized(restoreCopy, restoreCopyKo);
   const [edit, setEdit] = useState<{base:Story;value:Story}>();
   const story = edit?.value ?? narrative.story;
   const [reviewed, setReviewed] = useState(false);
@@ -96,8 +105,8 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
               </fieldset>
             ))}
             {invalid && <p className="error" role="alert">{copy.blank}</p>}
-            {changed && <div role="alert"><p>{verificationCopy.narrativeChanged}</p>
-              <button type="button" onClick={()=>setEdit(undefined)}>{verificationCopy.restoreNarrative}</button></div>}
+            {changed && <div role="alert"><p>{restore.changed}</p>
+              <button type="button" onClick={()=>setEdit(undefined)}>{restore.restore}</button></div>}
             <div className="actions"><button type="submit" className="primary" disabled={!dirty || changed}>{copy.saveEdits}</button></div>
           </fieldset>
         </form>

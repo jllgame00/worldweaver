@@ -5,7 +5,9 @@ import { scenarioCurrent } from './scenarioWorkflow';
 import { sourceIssues } from './atlasWorkflow';
 import { WorldBibleEditor } from './WorldBibleEditor';
 import { WorldBibleGraph } from './WorldBibleGraph';
-import { bibleCopy as t, bibleKinds, bibleSources } from './worldBibleCopy';
+import { useBibleCopy, useBibleKinds, useBibleSources } from './worldBibleCopy';
+import { DiagnosticDetails, useFormatter, useLocale } from './locale';
+import { useVerificationDetail, useVerificationStatus } from './verificationCopy';
 import { buildWorldBible, dependencyImpact, type BibleEntity } from './worldBibleIndex';
 import './worldBible.css';
 import { bibleFindings, suggestedLinks, useVerificationIdentity } from './worldBibleEvidence';
@@ -19,7 +21,7 @@ export interface BibleProps {
   navigate: (view: 'atlas' | 'scenario' | 'content' | 'narrative', id: string) => void;
   review: (id: string) => void;
 }
-function sourceStatus(p: Project, e: BibleEntity) {
+function sourceStatus(p: Project, e: BibleEntity, t: ReturnType<typeof useBibleCopy>) {
   if (e.kind === 'fact') return t.locked;
   if (e.source === 'content') return t.sourceInput;
   if (e.source === 'atlas')
@@ -35,6 +37,13 @@ function sourceStatus(p: Project, e: BibleEntity) {
 }
 
 export function WorldBible(props: BibleProps) {
+  const t = useBibleCopy();
+  const kinds = useBibleKinds();
+  const sources = useBibleSources();
+  const locale = useLocale();
+  const { number } = useFormatter();
+  const detail = useVerificationDetail();
+  const status = useVerificationStatus();
   const { project, selectedId, navigate, review } = props;
   const index = useMemo(() => buildWorldBible(project), [project]);
   const all = Array.from(index.entities.values());
@@ -77,7 +86,7 @@ export function WorldBible(props: BibleProps) {
         <aside className="panel bible-register">
           <div className="section-heading">
             <h2>{t.records}</h2>
-            <span className="count">{rows.length}</span>
+            <span className="count">{number(rows.length)}</span>
           </div>
           <label>
             {t.search}
@@ -88,10 +97,10 @@ export function WorldBible(props: BibleProps) {
             <select value={kind} onChange={(ev) => setKind(ev.target.value)}>
               <option value="">{t.all}</option>
               {[...new Set(all.map((e) => e.kind))]
-                .sort((a, b) => bibleKinds[a].localeCompare(bibleKinds[b]))
+                .sort((a, b) => kinds[a].localeCompare(kinds[b], locale))
                 .map((k) => (
                   <option key={k} value={k}>
-                    {bibleKinds[k]}
+                    {kinds[k]}
                   </option>
                 ))}
             </select>
@@ -105,7 +114,7 @@ export function WorldBible(props: BibleProps) {
                   onClick={() => setSelection(e.id)}
                 >
                   <span>{e.label}</span>
-                  <small>{bibleKinds[e.kind]}</small>
+                  <small>{kinds[e.kind]}</small>
                 </button>
               </li>
             ))}
@@ -119,24 +128,24 @@ export function WorldBible(props: BibleProps) {
         </aside>
         {entity && (
           <div className="bible-detail">
-            <section className="panel" aria-label="Record details">
-              <span className="pill">{bibleKinds[entity.kind]}</span>
+            <section className="panel" aria-label={t.details}>
+              <span className="pill">{kinds[entity.kind]}</span>
               <h2>{entity.label}</h2>
               <code>{entity.id}</code>
               {entity.description && entity.description !== entity.label && <p>{entity.description}</p>}
               <dl className="bible-meta">
                 <div>
                   <dt>{t.source}</dt>
-                  <dd>{bibleSources[entity.source]}</dd>
+                  <dd>{sources[entity.source]}</dd>
                 </div>
                 <div>
                   <dt>{t.status}</dt>
-                  <dd>{sourceStatus(project, entity)}</dd>
+                  <dd>{sourceStatus(project, entity, t)}</dd>
                 </div>
               </dl>
               <div className="actions">
                 <button className="quiet" onClick={() => navigate(entity.source, entity.id)}>
-                  Open in {bibleSources[entity.source]}
+                  {t.openIn(sources[entity.source])}
                 </button>
                 <button className="quiet" disabled={props.disabled} onClick={() => review(entity.id)}>
                   {t.review}
@@ -175,14 +184,19 @@ export function WorldBible(props: BibleProps) {
                   {findings.map(({ finding: f, current }) => (
                     <li key={f.id}>
                       <strong>
-                        {f.origin === 'editorial' ? t.semantic : t.structural} · {f.severity} · {f.status}
+                        {f.origin === 'editorial' ? t.semantic : t.structural} · {status(f.severity)} · {status(f.status)}
                       </strong>
-                      <p>{f.explanation}</p>
-                      <p>{f.suggestedRepair}</p>
+                      <p>{f.origin === 'editorial' ? f.explanation : detail(f.explanation, f.rule)}</p>
+                      {f.suggestedRepair && (
+                        <p>{f.origin === 'editorial' ? f.suggestedRepair : detail(f.suggestedRepair, undefined, f.suggestedRepair)}</p>
+                      )}
+                      {locale === 'ko' && f.origin === 'deterministic' && (
+                        <DiagnosticDetails detail={[f.explanation, f.suggestedRepair].filter(Boolean).join('\n')} code={f.rule} />
+                      )}
                       <code>{f.rule}</code>
                       <p className="muted">
                         {current === undefined ? t.checked : current ? t.current : t.historical} · {f.runId} ·{' '}
-                        {f.checkedRevision}
+                        {number(f.checkedRevision)}
                       </p>
                     </li>
                   ))}

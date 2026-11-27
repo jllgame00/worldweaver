@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: Inter, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   --background: #191713;
   --raised: #201d19;
   --field: #181612;
@@ -63,6 +63,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .studio-nav button { padding-inline: .2rem; min-width: 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); }
 .studio-nav button[aria-current="page"] { border-bottom-color: var(--accent); color: var(--accent-strong); }
 .studio-nav button:hover:not(:disabled) { background: none; border-bottom-color: var(--accent-strong); color: var(--text); }
+.header-inner, .studio-nav { flex-wrap: wrap; }
+.interface-preference { margin-inline-start: auto; min-width: min(100%, 10rem); }
+.interface-preference label { display: flex; gap: .5rem; align-items: center; }
+.interface-preference select { min-width: 6rem; }
+.interface-preference small { display: block; max-width: 24ch; }
+:lang(ko) button, :lang(ko) label { word-break: keep-all; overflow-wrap: anywhere; }
 
 .workspace { padding-block: 1.7rem 5rem; }
 .project-tools, .heading-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }

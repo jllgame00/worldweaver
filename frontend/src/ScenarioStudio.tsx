@@ -6,7 +6,7 @@ import type { Project, ScenarioSettings } from './project.generated';
 import type { GenerationStatus } from './validation';
 import { entities, isProject } from './validation';
 import ScenarioEditor from './ScenarioEditor';
-import ScenarioFindings, { findingsOf, type ScenarioFinding } from './ScenarioFindings';
+import ScenarioFindings, { findingsOf, useScenarioRule, type ScenarioFinding } from './ScenarioFindings';
 import RejectedScenarioEditor from './RejectedScenarioEditor';
 import RecoveryFile from './RecoveryFile';
 import RecoveryChanges from './RecoveryChanges';
@@ -14,7 +14,9 @@ import { checkedRejection, dismissRejection, keepRejection, loadRejection, type 
 import { recoveryProject } from './referenceRepair';
 import ProposalEntities from './ProposalEntities';
 import ScenarioBrief from './ScenarioBrief';
-import { scenarioCopy as c } from './studioWorkflowCopy';
+import { scenarioCopy, scenarioMarkdownCopyKo, useScenarioCopy, useScenarioSettingsLabel } from './studioWorkflowCopy';
+import { DiagnosticDetails, useDiagnostic, useFormatter, useLocale, useLocalized, type Translation } from './locale';
+import { useScenarioFieldLabel, useScenarioKind } from './scenarioCopy';
 import { validationRun } from './scenarioApproval';
 import {
   applyProposal,
@@ -24,8 +26,38 @@ import {
   reconcileSource,
   scenarioCurrent,
   scenarioMarkdown,
+  scenarioMarkdownCopy,
   targetFields,
 } from './scenarioWorkflow';
+
+const noticeCopy = {
+  readDiagnostic: 'Could not open the saved diagnostic. You can reopen an exported copy.',
+  tabDiagnostic: 'The diagnostic is available in this tab. Export a copy before closing it.',
+  competingDiagnostic: 'Another tab changed the saved diagnostic. Review it before discarding.',
+  discardFailed: 'Could not discard the saved diagnostic. Try again.',
+  discardInstruction: 'Discard the original rejected proposal to enable generation. You can export it first.',
+  discard: 'Discard original rejected proposal',
+};
+
+const noticeCopyKo = {
+  readDiagnostic: '저장된 진단을 열 수 없습니다. 내보낸 사본을 다시 열 수 있습니다.',
+  tabDiagnostic: '이 탭에서만 진단을 확인할 수 있습니다. 닫기 전에 사본을 내보내세요.',
+  competingDiagnostic: '다른 탭에서 저장된 진단을 변경했습니다. 버리기 전에 검토하세요.',
+  discardFailed: '저장된 진단을 버릴 수 없습니다. 다시 시도하세요.',
+  discardInstruction: '생성하려면 거절된 원본 제안을 버리세요. 먼저 사본을 내보낼 수 있습니다.',
+  discard: '거절된 원본 제안 버리기',
+} satisfies Translation<typeof noticeCopy>;
+
+const feedbackKeys = [
+  'changed', 'staleCheck', 'requestFailed', 'invalidCheckResponse', 'invalidCheckRecord',
+  'checkSaveFailed', 'incompleteCheck', 'valid', 'invalid',
+] as const;
+
+interface Feedback {
+  detail: string;
+  code?: string;
+  usage?: { output: string; reasoning?: string };
+}
 
 interface Props {
   selectedId?:string;
@@ -77,19 +109,29 @@ export default function ScenarioStudio({
   generation,
   refreshGeneration,
 }: Props) {
+  const c = useScenarioCopy();
+  const notice = useLocalized(noticeCopy, noticeCopyKo);
+  const settingLabel = useScenarioSettingsLabel();
+  const kindLabel = useScenarioKind();
+  const fieldLabel = useScenarioFieldLabel();
+  const markdown = useLocalized(scenarioMarkdownCopy, { ...scenarioMarkdownCopyKo, kind: kindLabel });
+  const ruleLabel = useScenarioRule();
+  const locale = useLocale();
+  const { number } = useFormatter();
+  const diagnostic = useDiagnostic();
   const [settings, setSettings] = useState(p.scenario?.settings ?? defaults);
   const [target, setTarget] = useState('');
   const [instructions, setInstructions] = useState('');
   const [pending, setPending] = useState<Proposal>();
   const [failedProposal, setFailedProposal] = useState<{ findings: ScenarioFinding[]; recovery?: unknown }>();
   const [loadingRecovery, setLoadingRecovery] = useState(true);
-  const [storageNotice, setStorageNotice] = useState('');
+  const [storageNotice, setStorageNotice] = useState<keyof typeof noticeCopy>();
   const tabOnlyRecovery = useRef<RejectedDraft | undefined>(undefined);
   const [busy, setBusy] = useState<false | 'generate' | 'revise' | 'validate'>(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<Feedback>();
   const [reviewed, setReviewed] = useState(false);
   const [witnesses, setWitnesses] = useState<{ runId: string; paths: string[][] }>();
-  const [validationError, setValidationError] = useState('');
+  const [validationError, setValidationError] = useState<Feedback>();
   const [undo, setUndo] = useState<Entry[]>([]),
     [redo, setRedo] = useState<Entry[]>([]);
   const controller = useRef<AbortController | null>(null);
@@ -97,15 +139,15 @@ export default function ScenarioStudio({
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     setReviewed(false);
-    setValidationError('');
+    setValidationError(undefined);
   }, [p.id, p.scenario?.id, p.versions.scenario, p.versions.narrative, p.versions.content, p.versions.candidates]);
-  useEffect(() => { setValidationError(''); }, [checkedRunId]);
+  useEffect(() => { setValidationError(undefined); }, [checkedRunId]);
   useEffect(() => {
     let active = true;
     loadRejection(p.id).then(saved => {
       if (active && saved) setFailedProposal(saved);
     }).catch(() => {
-      if (active) setStorageNotice('Could not open the saved diagnostic. You can reopen an exported copy.');
+      if (active) setStorageNotice('readDiagnostic');
     }).finally(() => { if (active) setLoadingRecovery(false); });
     return () => { active = false; };
   }, [p.id]);
@@ -123,11 +165,11 @@ export default function ScenarioStudio({
       const saved = await keepRejection(p, value);
       tabOnlyRecovery.current = undefined;
       setFailedProposal(saved);
-      setStorageNotice('');
+      setStorageNotice(undefined);
     } catch {
       tabOnlyRecovery.current = value;
       setFailedProposal(value);
-      setStorageNotice('The diagnostic is available in this tab. Export a copy before closing it.');
+      setStorageNotice('tabDiagnostic');
     }
   }
   async function dismiss() {
@@ -137,24 +179,24 @@ export default function ScenarioStudio({
           const saved = await loadRejection(p.id);
           if (saved) {
             setFailedProposal(saved);
-            setStorageNotice('Another tab changed the saved diagnostic. Review it before discarding.');
+            setStorageNotice('competingDiagnostic');
             return;
           }
         }
       } catch {
-        setStorageNotice('Could not discard the saved diagnostic. Try again.');
+        setStorageNotice('discardFailed');
         return;
       }
     }
     tabOnlyRecovery.current = undefined;
     setFailedProposal(undefined);
-    setStorageNotice('');
-    setMessage('');
+    setStorageNotice(undefined);
+    setMessage(undefined);
   }
 
   async function persist(next: Project, layout = false) {
     if (current()?.revision !== p.revision) {
-      setMessage(c.changed);
+      setMessage({ detail: scenarioCopy.changed });
       return false;
     }
     if (next === p) return true;
@@ -163,7 +205,7 @@ export default function ScenarioStudio({
       setUndo([...history.slice(-29), { project: p, layout }]);
       historyRevision.current = next.revision;
       setRedo([]);
-      setMessage('');
+      setMessage(undefined);
       return true;
     }
     return false;
@@ -172,7 +214,7 @@ export default function ScenarioStudio({
     try {
       return await persist(editDesign(p, mutate, layout), layout);
     } catch (e) {
-      setMessage(String(e));
+      setMessage({ detail: String(e) });
       return false;
     }
   }
@@ -214,8 +256,8 @@ export default function ScenarioStudio({
     const ctl = new AbortController();
     controller.current = ctl;
     setBusy(action);
-    setMessage('');
-    if (action === 'validate') setValidationError('');
+    setMessage(undefined);
+    if (action === 'validate') setValidationError(undefined);
     if (!hasRecovery && action !== 'validate') {
       setPending(undefined);
       setFailedProposal(undefined);
@@ -244,11 +286,11 @@ export default function ScenarioStudio({
       });
       const data = await res.json();
       if (ctl.signal.aborted) return;
-      if (current()?.revision !== p.revision || current()?.id !== p.id) throw Error(action === 'validate' ? c.staleCheck : c.changed);
+      if (current()?.revision !== p.revision || current()?.id !== p.id) throw Error(action === 'validate' ? scenarioCopy.staleCheck : scenarioCopy.changed);
       if (!res.ok) {
         if (res.status === 409 && data?.error?.code === 'generation_configuration_changed') refreshGeneration();
         const run = data?.error?.run;
-        let usage = '';
+        let usage: Feedback['usage'];
         if (
           run?.baseRevision === p.revision &&
           run.stage === 'scenario' &&
@@ -260,7 +302,7 @@ export default function ScenarioStudio({
             const receipts = failed.runs.at(-1)!.receipts;
             const output = receipts.find(r => r.tool === 'provider_usage')?.detail.match(/\boutputTokens=(\d+)$/)?.[1];
             const reasoning = receipts.find(r => r.tool === 'provider_reasoning')?.detail.match(/^reasoningTokens=(\d+)$/)?.[1];
-            if (output !== undefined) usage = c.reportedUsage(output, reasoning);
+            if (output !== undefined) usage = { output, reasoning };
             await commit(failed);
           }
         }
@@ -273,11 +315,20 @@ export default function ScenarioStudio({
             if (recovery != null) await retain({ findings, recovery });
           }
         }
-        throw Error([data?.error?.message ?? c.requestFailed, usage].filter(Boolean).join(' '));
+        if (!ctl.signal.aborted) {
+          const feedback = {
+            detail: typeof data?.error?.message === 'string' ? data.error.message : scenarioCopy.requestFailed,
+            code: typeof data?.error?.code === 'string' ? data.error.code : undefined,
+            usage,
+          };
+          if (action === 'validate') setValidationError(feedback);
+          else setMessage(feedback);
+        }
+        return;
       }
       if (action === 'validate') {
         if (typeof data?.valid !== 'boolean' || typeof data.complete !== 'boolean' || !Array.isArray(data.paths))
-          throw Error(c.invalidCheckResponse);
+          throw Error(scenarioCopy.invalidCheckResponse);
         const findings = findingsOf(data.findings);
         const ok = data.valid === true && data.complete === true && !findings.some((f) => f.severity === 'error');
         const runId = newId('check');
@@ -296,7 +347,7 @@ export default function ScenarioStudio({
               calls: 0,
               repairAttempts: 0,
               receipts: [
-                { tool: 'validate_scenario', outcome: ok ? 'passed' : 'failed', detail: !data.complete ? c.incompleteCheck : ok ? c.valid : c.invalid },
+                { tool: 'validate_scenario', outcome: ok ? 'passed' : 'failed', detail: !data.complete ? scenarioCopy.incompleteCheck : ok ? scenarioCopy.valid : scenarioCopy.invalid },
               ],
             },
           ],
@@ -326,7 +377,7 @@ export default function ScenarioStudio({
             }),
           ],
         };
-        if (!isProject(saved)) throw Error(c.invalidCheckRecord);
+        if (!isProject(saved)) throw Error(scenarioCopy.invalidCheckRecord);
         const paths: string[][] = [];
         if (Array.isArray(data.paths))
           for (const route of data.paths) {
@@ -334,23 +385,23 @@ export default function ScenarioStudio({
               !Array.isArray(route?.nodeIds) ||
               !route.nodeIds.every((id: unknown) => p.nodes.some((n) => n.id === id))
             )
-              throw Error(c.invalidCheckResponse);
+              throw Error(scenarioCopy.invalidCheckResponse);
             paths.push(route.nodeIds);
           }
         if (await commit(saved, runId)) setWitnesses({ runId, paths });
-        else setValidationError(c.checkSaveFailed);
+        else setValidationError({ detail: scenarioCopy.checkSaveFailed });
       } else {
         const id = action === 'revise' ? target : undefined;
         const next = applyProposal(p, data, id);
-        if (data.run.mode !== generation?.mode) throw Error(c.requestFailed);
+        if (data.run.mode !== generation?.mode) throw Error(scenarioCopy.requestFailed);
         setPending({ response: data, next, base: p.revision, target: id });
         setTarget('');
       }
     } catch (error) {
       if (!ctl.signal.aborted) {
-        const detail = error instanceof Error ? error.message : c.requestFailed;
-        if (action === 'validate') setValidationError(detail);
-        else setMessage(detail);
+        const feedback = { detail: error instanceof Error ? error.message : scenarioCopy.requestFailed };
+        if (action === 'validate') setValidationError(feedback);
+        else setMessage(feedback);
       }
     } finally {
       if (controller.current === ctl) {
@@ -364,10 +415,23 @@ export default function ScenarioStudio({
   const blockers = findings.filter(f => f.severity === 'error');
   const checkFailed = checked?.status === 'unresolved' || !!blockers.length;
   const checkDetail = checked?.receipts.find(r => r.tool === 'validate_scenario')?.detail;
+  function feedbackKey(detail: string) {
+    return feedbackKeys.find(key => scenarioCopy[key] === detail);
+  }
+  function feedbackText({ detail, code, usage }: Feedback) {
+    const key = feedbackKey(detail);
+    const message = key ? c[key] : diagnostic(detail, code);
+    if (!usage) return message;
+    const count = (value: string) => locale === 'ko' ? number(Number(value)) : value;
+    return [message, c.reportedUsage(count(usage.output), usage.reasoning && count(usage.reasoning))].join(' ');
+  }
+  function feedbackDetails({ detail, code }: Feedback) {
+    return (code || !feedbackKey(detail)) && <DiagnosticDetails detail={detail} code={code} />;
+  }
   function approvalReasons() {
     const reasons = [...disabledReasons];
     if (busy) reasons.push(busy === 'validate' ? c.checking : c.generating);
-    if (validationError) reasons.push(validationError);
+    if (validationError) reasons.push(feedbackText(validationError));
     if (!source) reasons.push(c.approveSource);
     if (p.scenario && (p.scenario.sourceNarrativeId !== p.narrative?.id ||
         p.basis.scenario?.narrative !== p.versions.narrative || p.basis.scenario?.content !== p.versions.content))
@@ -375,8 +439,8 @@ export default function ScenarioStudio({
     if (pending) reasons.push(c.pendingApproval);
     if (checkFailed && checked) {
       const rules = [...new Set(blockers.map(f => f.rule.replace(/^scenario\./, '')))];
-      if (!blockers.length || checkDetail === c.incompleteCheck) reasons.push(checkDetail || c.invalid);
-      if (blockers.length) reasons.push(c.blocking(blockers.length, rules));
+      if (!blockers.length || checkDetail === scenarioCopy.incompleteCheck) reasons.push(checkDetail ? feedbackText({ detail: checkDetail }) : c.invalid);
+      if (blockers.length) reasons.push(c.blocking(blockers.length, rules.map(ruleLabel)));
       for (const finding of blockers.filter(f => f.rule === 'scenario.blocked_start')) {
         const titleOf = (id: string) => p.nodes.find(n => n.id === id)?.title || id;
         const visits = (finding.blockedTransitions ?? []).filter(b => b.kind === 'visited');
@@ -408,7 +472,7 @@ export default function ScenarioStudio({
           </ol>
           <details>
             <summary>{c.compare}</summary>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{scenarioMarkdown(project)}</pre>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>{scenarioMarkdown(project, markdown)}</pre>
           </details>
         </>
       );
@@ -421,7 +485,7 @@ export default function ScenarioStudio({
           )
           .map(([k, v]) => (
             <div key={k}>
-              <dt>{k}</dt>
+              <dt>{fieldLabel(k)}</dt>
               <dd>{String(v)}</dd>
             </div>
           ))}
@@ -459,7 +523,7 @@ export default function ScenarioStudio({
           <ul>
             {p.userContent.map((f) => (
               <li key={f.id}>
-                {f.treatment} · {f.text}
+                {kindLabel(f.treatment)} · {f.text}
               </li>
             ))}
             {p.canonicalFacts.map((f) => (
@@ -489,7 +553,7 @@ export default function ScenarioStudio({
                   {c.labels[k]}
                   <select value={settings[k]} onChange={(e) => setSettings({ ...settings, [k]: e.target.value })}>
                     {values.map((v) => (
-                      <option key={v}>{v}</option>
+                      <option key={v} value={v}>{settingLabel(k, v)}</option>
                     ))}
                   </select>
                 </label>
@@ -502,7 +566,7 @@ export default function ScenarioStudio({
                 onChange={(e) => setSettings({ ...settings, chapterCount: Number(e.target.value) })}
               >
                 {[1, 2, 3, 4].map((n) => (
-                  <option key={n}>{n}</option>
+                  <option key={n} value={n}>{number(n)}</option>
                 ))}
               </select>
             </label>
@@ -517,7 +581,7 @@ export default function ScenarioStudio({
           </div>
           <p>{generation?.available && generation.mode==='live' && generation.limits?.scenarioMaxOutputTokens && generation.limits.timeoutSeconds
             ? c.liveBudget(generation.limits.scenarioMaxOutputTokens, generation.limits.timeoutSeconds) : c.limit}</p>
-          {hasRecovery && <p>Discard the original rejected proposal to enable generation. You can export it first.</p>}
+          {hasRecovery && <p>{notice.discardInstruction}</p>}
           <button
             disabled={!source || !generation?.available || !!pending || hasRecovery || loadingRecovery}
             onClick={() => void request('generate')}
@@ -527,26 +591,27 @@ export default function ScenarioStudio({
         </fieldset>
       </details>
       {message && (
-        <p className="notice" role="alert">
-          {message}
-        </p>
+        <>
+          <p className="notice" role="alert">{feedbackText(message)}</p>
+          {feedbackDetails(message)}
+        </>
       )}
-      {storageNotice && <p role="status">{storageNotice}</p>}
+      {storageNotice && <p role="status">{notice[storageNotice]}</p>}
       <RecoveryFile project={p} rejected={failedProposal} disabled={locked || !!pending || loadingRecovery}
-        onRestore={value => { if (!hasRecovery) void retain(value).catch(() => setMessage(c.requestFailed)); }} />
+        onRestore={value => { if (!hasRecovery) void retain(value).catch(() => setMessage({ detail: scenarioCopy.requestFailed })); }} />
       {failedProposal && <section className="panel">
         {failedProposal.recovery != null ? <RejectedScenarioEditor project={p} recovery={failedProposal.recovery}
           disabled={locked || !!pending}
           findings={failedProposal.findings} onProposal={(response, next, rejectedOriginal) => {
             if (current()?.id !== p.id || current()?.revision !== p.revision) {
-              setMessage(c.changed);
+              setMessage({ detail: scenarioCopy.changed });
               return;
             }
-            setMessage('');
+            setMessage(undefined);
             setPending({ response, next, base: p.revision, rejectedOriginal });
           }} /> : <ScenarioFindings title={c.proposalFindings} findings={failedProposal.findings} />}
         <button disabled={locked || !!pending} onClick={() => void dismiss()}>
-          {hasRecovery ? 'Discard original rejected proposal' : c.dismiss}
+          {hasRecovery ? notice.discard : c.dismiss}
         </button>
       </section>}
       {busy && (
@@ -577,7 +642,7 @@ export default function ScenarioStudio({
                 const next = applyProposal(p, pending.response, pending.target);
                 if (await persist(next)) setPending(undefined);
               } catch (e) {
-                setMessage(String(e));
+                setMessage({ detail: String(e) });
               }
             }}
           >
@@ -597,7 +662,7 @@ export default function ScenarioStudio({
                       status: 'cancelled',
                       receipts: [
                         ...run.receipts,
-                        { tool: 'review_proposal', outcome: 'cancelled', detail: c.rejected },
+                        { tool: 'review_proposal', outcome: 'cancelled', detail: scenarioCopy.rejected },
                       ],
                     },
                   ],
@@ -646,7 +711,7 @@ export default function ScenarioStudio({
           </button>
           {p.scenario && (
             <>
-              <button onClick={() => downloadFile(p.id + '.md', scenarioMarkdown(p), 'text/markdown')}>
+              <button onClick={() => downloadFile(p.id + '.md', scenarioMarkdown(p, markdown), 'text/markdown')}>
                 {c.markdown}
               </button>
               <button onClick={() => void request('validate')}>{c.validate}</button>
@@ -673,9 +738,12 @@ export default function ScenarioStudio({
             />
             <section className="panel">
               <h2>{c.approval}</h2>
-              {checked && !reasons.includes(checkDetail ?? '') && <p>{checkFailed ? checkDetail : c.valid}</p>}
+              {checked && !checkFailed && <p>{c.valid}</p>}
+              {checked && checkFailed && checkDetail && !reasons.includes(feedbackText({ detail: checkDetail })) && <p>{feedbackText({ detail: checkDetail })}</p>}
               <div id="scenario-approval-reason" aria-live="polite">
-                {reasons.length > 0 && <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
+                {reasons.length > 0 && <ul>{reasons.map((reason, i) => <li key={i}>{reason}</li>)}</ul>}
+                {checkFailed && checkDetail && feedbackDetails({ detail: checkDetail })}
+                {validationError && feedbackDetails(validationError)}
               </div>
               {!!paths?.length && (
                 <details>
@@ -706,7 +774,7 @@ export default function ScenarioStudio({
                 aria-describedby="scenario-approval-reason"
                 onClick={() => {
                   if (locked || reasons.length || checked?.status !== 'verified' || !p.scenario) return;
-                  if (current() !== p) { setValidationError(c.staleCheck); return; }
+                  if (current() !== p) { setValidationError({ detail: scenarioCopy.staleCheck }); return; }
                   void commit({ ...p, scenario: { ...p.scenario, approved: true } });
                 }}
               >

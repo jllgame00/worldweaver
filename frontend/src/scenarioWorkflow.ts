@@ -189,23 +189,35 @@ export function importProject(text: string): Project {
   }
   return value;
 }
-export function scenarioMarkdown(p: Project): string {
+export const scenarioMarkdownCopy = {
+  approved: 'Approved',
+  draft: 'Draft',
+  stale: 'Source requires review',
+  revision: (project: number, scenario: number, narrative?: number) =>
+    'Revision ' + project + ' · Scenario ' + scenario + ' · Source narrative ' + (narrative ?? '—'),
+  events: 'Story events',
+  location: 'Location',
+  requires: 'Requires',
+  sets: 'Sets',
+  quest: 'Quest',
+  ending: 'Ending',
+  locations: 'Locations',
+  via: (name?: string) => ' via ' + name,
+  findings: 'Open findings',
+  kind: (value: string) => value,
+  severity: (value: Project['findings'][number]['severity']): string => value,
+};
+
+export function scenarioMarkdown(p: Project, copy = scenarioMarkdownCopy): string {
   const s = p.scenario;
   const lines = [
     '# ' + (s?.title ?? p.title),
     '',
     s?.summary ?? '',
     '',
-    scenarioCurrent(p) ? (s?.approved ? 'Approved' : 'Draft') : 'Source requires review',
+    scenarioCurrent(p) ? (s?.approved ? copy.approved : copy.draft) : copy.stale,
   ];
-  lines.push(
-    'Revision ' +
-      p.revision +
-      ' · Scenario ' +
-      p.versions.scenario +
-      ' · Source narrative ' +
-      (p.basis.scenario?.narrative ?? '—'),
-  );
+  lines.push(copy.revision(p.revision, p.versions.scenario, p.basis.scenario?.narrative));
   const places = atlasPlaces(p);
   const names = new Map([
     ...places.map((x) => [x.id, x.name] as const),
@@ -214,45 +226,45 @@ export function scenarioMarkdown(p: Project): string {
   for (const chapter of [...(s?.chapters ?? []), undefined]) {
     const nodes = p.nodes.filter((n) => n.chapterId === chapter?.id);
     if (!chapter && !nodes.length) continue;
-    lines.push('', '## ' + (chapter?.title ?? 'Story events'), chapter?.purpose ?? '', chapter?.summary ?? '');
+    lines.push('', '## ' + (chapter?.title ?? copy.events), chapter?.purpose ?? '', chapter?.summary ?? '');
     for (const node of nodes) {
       lines.push(
         '',
-        '### ' + node.title + ' · ' + node.kind,
+        '### ' + node.title + ' · ' + copy.kind(node.kind),
         node.description,
         node.purpose ?? '',
         node.objective ?? '',
         node.outcome ?? '',
       );
-      if (node.locationId) lines.push('Location · ' + names.get(node.locationId));
+      if (node.locationId) lines.push(copy.location + ' · ' + names.get(node.locationId));
       for (const e of p.edges.filter((e) => e.from === node.id)) {
-        lines.push('- ' + e.label + ' → ' + names.get(e.to) + ' (' + (e.kind ?? 'progression') + ')');
+        lines.push('- ' + e.label + ' → ' + names.get(e.to) + ' (' + copy.kind(e.kind ?? 'progression') + ')');
         for (const t of e.conditions ?? [])
-          lines.push('  - Requires ' + t.kind + ' ' + t.key + ' = ' + t.value);
-        for (const t of e.consequences ?? []) lines.push('  - Sets ' + t.kind + ' ' + t.key + ' = ' + t.value);
+          lines.push('  - ' + copy.requires + ' ' + copy.kind(t.kind) + ' ' + t.key + ' = ' + t.value);
+        for (const t of e.consequences ?? []) lines.push('  - ' + copy.sets + ' ' + copy.kind(t.kind) + ' ' + t.key + ' = ' + t.value);
       }
       for (const q of p.quests.filter((q) => q.nodeId === node.id))
         lines.push(
           '',
-          '#### ' + (q.title ?? 'Quest'),
+          '#### ' + (q.title ?? copy.quest),
           q.description ?? '',
           q.objective,
           q.outcome,
           q.reward ?? '',
         );
-      for (const e of p.endings.filter((e) => e.nodeId === node.id)) lines.push('Ending · ' + e.consequence);
+      for (const e of p.endings.filter((e) => e.nodeId === node.id)) lines.push(copy.ending + ' · ' + e.consequence);
     }
   }
-  lines.push('', '## Locations', ...places.map((x) => '- ' + x.name + ' (' + x.kind + ', ' + x.id + ')'));
+  lines.push('', '## ' + copy.locations, ...places.map((x) => '- ' + x.name + ' (' + copy.kind(x.kind) + ', ' + x.id + ')'));
   for (const g of s?.geography ?? [])
     lines.push(
       '- ' +
         names.get(g.from) +
         ' → ' +
         names.get(g.to) +
-        (g.via ? ' via ' + names.get(g.via) : '') +
+        (g.via ? copy.via(names.get(g.via)) : '') +
         ' · ' +
-        g.relation +
+        copy.kind(g.relation) +
         ' · ' +
         g.description,
     );
@@ -260,9 +272,9 @@ export function scenarioMarkdown(p: Project): string {
   if (findings.length)
     lines.push(
       '',
-      '## Open findings',
+      '## ' + copy.findings,
       ...findings.map(
-        (f) => '- ' + f.severity + ' · ' + f.rule + ' · ' + f.explanation + ' ' + f.suggestedRepair,
+        (f) => '- ' + copy.severity(f.severity) + ' · ' + f.rule + ' · ' + f.explanation + ' ' + f.suggestedRepair,
       ),
     );
   return lines.join('\n');

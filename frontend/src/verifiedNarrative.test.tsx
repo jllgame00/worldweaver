@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import Narrative from './Narrative';
@@ -22,3 +23,5 @@ it('reflects a repaired narrative and protects unsaved text from overwriting a n
   expect(screen.getByLabelText('Premise')).toHaveValue('Unsaved owner text');
   expect(screen.getByRole('button', { name: 'Save narrative edits' })).toBeDisabled();
 });
+
+useEnglishTestLocale();

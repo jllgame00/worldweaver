@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { approvedProject } from './atlasFixture.testdata';
@@ -166,3 +167,5 @@ it('shows only current cited editorial relationships as suggestions without chan
   expect(within(related).getAllByRole('button')).toHaveLength(1);
   expect(dependencyImpact(buildWorldBible(p), 'l-beacon').direct).not.toContain('ch-iven');
 });
+
+useEnglishTestLocale();

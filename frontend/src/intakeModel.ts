@@ -147,7 +147,8 @@ function readOperation(value: unknown, mode: 'live' | 'mock') {
 }
 
 export class ExtractionError extends Error {
-  constructor(message: string, readonly outcome: IntakeOutcome, readonly counts = {}, readonly configurationChanged = false) {
+  constructor(message: string, readonly outcome: IntakeOutcome, readonly counts = {},
+    readonly configurationChanged = false, readonly code?: string) {
     super(message);
   }
 }
@@ -168,7 +169,8 @@ export async function requestExtraction(
       body: JSON.stringify({ sourceText, projectId, baseRevision }),
     });
   } catch {
-    throw new ExtractionError('Extraction did not return a receipt. Your original is available for local review.', 'unconfirmed');
+    throw new ExtractionError('Extraction did not return a receipt. Your original is available for local review.',
+      'unconfirmed', {}, false, 'request_failed');
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
@@ -186,13 +188,13 @@ export async function requestExtraction(
     const counts = blocked && !error?.operation ? { dispatches: 0, responses: 0 } : readOperation(error?.operation, configuration.mode);
     throw new ExtractionError(typeof error?.message === 'string' ? error.message
       : 'Extraction failed. Organize with rules or edit fragments directly.', outcome, counts,
-    code === 'generation_configuration_changed');
+    code === 'generation_configuration_changed', typeof code === 'string' ? code : undefined);
   }
   const counts = readOperation(record(body) ? body.operation : undefined, configuration.mode);
   if (!record(body) || body.projectId !== projectId || body.baseRevision !== baseRevision
     || !Array.isArray(body.fragments) || body.fragments.length > 24
     || !body.fragments.every(fragment => isFragment(fragment, sourceText, false))) {
-    throw new ExtractionError('Extraction returned an invalid proposal or source citation.', 'invalid', counts);
+    throw new ExtractionError('Extraction returned an invalid proposal or source citation.', 'invalid', counts, false, 'invalid_provider_response');
   }
   return { fragments: body.fragments.map(fragment => ({ ...fragment, selected: false }) as DraftFragment), counts };
 }

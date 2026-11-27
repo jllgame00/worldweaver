@@ -5,10 +5,9 @@ import ScenarioStudio from './ScenarioStudio';
 import AtlasStudio from './AtlasStudio';
 import { WorldBible } from './WorldBible';
 import VerificationAgent from './VerificationAgent';
-import { verificationCopy } from './verificationCopy';
-import { scenarioCopy } from './studioWorkflowCopy';
 import { importProject, InvalidProjectReference } from './scenarioWorkflow';
-import { copy } from './copy';
+import { DiagnosticDetails, LanguageSelector, LocaleProvider, useDiagnostic, useLocale } from './locale';
+import { useShellCopy, useWorkspaceCopy } from './workspaceLocale';
 import Dashboard from './Dashboard';
 import { DirectionDetail, Directions, StoryFields } from './Direction';
 import Narrative from './Narrative';
@@ -20,6 +19,8 @@ import type { CandidateResult, GenerationStatus } from './validation';
 
 type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas' | 'bible' | 'verification';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
+type Notice = { label: 'cancelled' | 'staleResponse' | 'generationSaved' | 'requestFailed' | 'importReview' | 'importError' | 'large' }
+  | { detail: string; code?: string };
 
 function startingStudio(project: Project): Studio {
   if (project.world?.settings) return 'atlas';
@@ -29,6 +30,14 @@ function startingStudio(project: Project): Studio {
 }
 
 export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?: string }) {
+  return <LocaleProvider><Workspace databaseName={databaseName} /></LocaleProvider>;
+}
+
+function Workspace({ databaseName }: { databaseName: string }) {
+  const locale = useLocale();
+  const copy = useWorkspaceCopy();
+  const shell = useShellCopy();
+  const diagnostic = useDiagnostic();
   const store = useProjects(databaseName);
   const project = store.record?.project;
   const [view, setView] = useState<View>('content');
@@ -45,7 +54,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   const [generation, setGeneration] = useState<GenerationStatus | null>();
   const [statusAttempt, setStatusAttempt] = useState(0);
   const [generating, setGenerating] = useState(false);
-  const [notice, setNotice] = useState<{ message: string; error?: boolean }>();
+  const [notice, setNotice] = useState<Notice>();
   const request = useRef<AbortController | null>(null);
   const main = useRef<HTMLElement>(null);
   const disabled = store.saving || !!store.pending;
@@ -76,7 +85,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
     request.current?.abort();
     request.current = null;
     setGenerating(false);
-    setNotice({ message: copy.cancelled });
+    setNotice({ label: 'cancelled' });
   }
 
   function refreshGenerationStatus() {
@@ -100,10 +109,10 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   async function accept(result: CandidateResult) {
     const current = store.current.current?.project;
     if (!current || current.revision !== result.baseRevision) {
-      setNotice({ message: copy.staleResponse });
+      setNotice({ label: 'staleResponse' });
     } else if (await store.commit(acceptBatch(current, result.candidates, result.run))) {
       setView('directions');
-      setNotice({ message: copy.generationSaved });
+      setNotice({ label: 'generationSaved' });
     }
     setProposal(undefined);
   }
@@ -125,16 +134,16 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
       if (request.current !== controller) return;
       request.current = null;
       setGenerating(false);
-      if (!currentRevision()) setNotice({ message: copy.staleResponse });
+      if (!currentRevision()) setNotice({ label: 'staleResponse' });
       else if (project.narrative) setProposal(result);
       else await accept(result);
     } catch (error) {
       if (request.current !== controller) return;
       const failure = error instanceof GenerationError ? error : undefined;
-      if (!failure?.configurationChanged && !currentRevision()) setNotice({ message: copy.staleResponse });
+      if (!failure?.configurationChanged && !currentRevision()) setNotice({ label: 'staleResponse' });
       else {
         if (failure?.configurationChanged) refreshGenerationStatus();
-        setNotice({ message: failure?.message ?? copy.requestFailed, error: true });
+        setNotice(failure ? { detail: failure.message, code: failure.code } : { label: 'requestFailed' });
         if (failure?.run) await store.commit({ ...project, runs: [...project.runs, failure.run] });
       }
     } finally {
@@ -187,7 +196,16 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
     : generation?.mode === 'live' ? copy.liveProvider(generation.model)
     : generation?.mode === 'mock' ? copy.mockProvider : generation === undefined ? copy.checkingGeneration : '';
   const generationIssue = generation === null ? copy.providerStatusFailed
-    : generation && !generation.available ? generation.message ?? copy.providerUnavailable : undefined;
+    : generation && !generation.available
+      ? locale === 'ko' && generation.message ? shell.unknownProvider : generation.message ?? copy.providerUnavailable
+      : undefined;
+  const noticeLabels = {
+    cancelled: copy.cancelled, staleResponse: copy.staleResponse, generationSaved: copy.generationSaved,
+    requestFailed: copy.requestFailed, importReview: shell.importReview, importError: shell.importError, large: shell.large,
+  };
+  const noticeText = notice && ('detail' in notice ? diagnostic(notice.detail, notice.code) : noticeLabels[notice.label]);
+  const noticeError = notice && ('detail' in notice || ['importError', 'large', 'requestFailed'].includes(notice.label));
+  const noticeDetails = notice && 'detail' in notice && <DiagnosticDetails detail={notice.detail} code={notice.code} />;
 
   return (
     <div className="app">
@@ -199,17 +217,20 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             <span role="status" className="save-status" data-save-state={store.saving ? 'saving' : store.pending ? 'pending' : 'saved'}>
               <i aria-hidden="true" />{store.saving ? copy.saving : store.pending ? copy.unsaved : copy.saved}</span>
           </>}
+          <LanguageSelector />
         </div>
         {project && <nav className="studio-nav" aria-label={copy.studioNav}>
           {(['content', 'directions', 'narrative', 'scenario', 'atlas','bible','verification'] as const).map((name) => (
             <button key={name} type="button" aria-current={studio === name ? 'page' : undefined}
               disabled={name === 'directions' ? !project.storyCandidates.length : name === 'narrative' && !project.narrative}
-              onClick={() => {setLinked(undefined);setView(name);}}>{name==='bible'?verificationCopy.bible:name==='verification'?verificationCopy.title:name==='atlas'?'World Atlas':name==='scenario'?scenarioCopy.title:copy[name]}</button>
+              onClick={() => {setLinked(undefined);setView(name);}}>
+              {name === 'content' || name === 'directions' || name === 'narrative' ? copy[name] : shell[name]}
+            </button>
           ))}
         </nav>}
       </header>
       <main className="workspace" ref={main}>
-        {store.loadError && <p role="alert" className="notice error">{store.loadError}</p>}
+        {store.loadError && <p role="alert" className="notice error">{copy[store.loadError]}</p>}
         {store.pending && <div className="notice">
           <p role="alert" className="error">{store.pending.conflict ? copy.saveConflict : copy.saveFailure}</p>
           <div className="actions"><button type="button" className="quiet" onClick={downloadDraft}>{copy.downloadDraft}</button>
@@ -229,9 +250,10 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           </div>
           {generationIssue && <div className="notice">
             <p role={store.pending ? 'status' : 'alert'} className="error">{generationIssue}</p>
+            {!generation?.available && generation?.message && <DiagnosticDetails detail={generation.message} />}
             <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
           </div>}
-          {notice && <p role={notice.error ? 'alert' : 'status'} className={`notice ${notice.error ? 'error' : ''}`}>{notice.message}</p>}
+          {noticeText && <><p role={noticeError ? 'alert' : 'status'} className={`notice ${noticeError ? 'error' : ''}`}>{noticeText}</p>{noticeDetails}</>}
           {proposal && <section className="panel confirmation" aria-labelledby="replacement-title">
             <h2 id="replacement-title">{copy.replacementTitle}</h2><p>{copy.replacementPrompt}</p>
             <p>{copy.proposalSource(proposal.run.mode)}</p>
@@ -262,7 +284,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
             disabledReasons={[
               ...(store.pending ? [store.pending.conflict ? copy.saveConflict : copy.saveFailure] : []),
               ...(store.saving ? [copy.saving] : []),
-              ...(generating ? [scenarioCopy.generating] : []),
+              ...(generating ? [shell.generating] : []),
             ]}
             generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
           {view==='bible' && <WorldBible key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
@@ -286,14 +308,14 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
         </> : <><Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
           open={(id) => void reopen(id)} create={(title) => openNewProject(createProject(title))}
           sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />
-          <label className="panel">{scenarioCopy.import}<input type="file" accept="application/json,.json" disabled={disabled||store.loading}
+          <label className="panel">{shell.import}<input type="file" accept="application/json,.json" disabled={disabled||store.loading}
             onChange={async e=>{
               const file=e.target.files?.[0];e.target.value='';if(!file) return;
+              if (file.size > 16 * 1024 * 1024) { setNotice({ label: 'large' }); return; }
               try {
-                if(file.size>16*1024*1024) throw Error(scenarioCopy.large);
                 const imported=importProject(await file.text());
                 if(store.projects.some(row=>row.project.id===imported.id)) {
-                  if(!window.confirm(scenarioCopy.duplicate)) return;
+                  if(!window.confirm(shell.duplicate)) return;
                   const oldId=imported.id;
                   imported.id=newId('project');
                   for(const finding of imported.findings) finding.entityIds=finding.entityIds.map(id=>id===oldId?imported.id:id);
@@ -301,13 +323,13 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
                 delete imported.approval;
                 if(imported.scenario) imported.scenario.approved=false;
                 if(imported.world?.approved) imported.world.approved=false;
-                setNotice(imported.scenario?{message:scenarioCopy.importReview}:undefined);
+                setNotice(imported.scenario ? { label: 'importReview' } : undefined);
                 if(await store.commit(imported)) setView(startingStudio(imported));
               } catch (err) {
-                const show = err instanceof InvalidProjectReference || (err instanceof Error && err.message === scenarioCopy.large);
-                setNotice({message: show ? err.message : scenarioCopy.importError, error:true});
+                setNotice(err instanceof InvalidProjectReference
+                  ? { detail: err.message, code: 'invalid_project' } : { label: 'importError' });
               }
-            }}/></label>{notice?.error && <p role="alert">{notice.message}</p>}</>}
+            }}/></label>{noticeError && <><p role="alert">{noticeText}</p>{noticeDetails}</>}</>}
       </main>
     </div>
   );

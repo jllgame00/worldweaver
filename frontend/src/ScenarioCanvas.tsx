@@ -1,7 +1,7 @@
-﻿import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { cardHeight as h, cardWidth as w, arrange } from './scenarioGraph';
 import type { Position } from './scenarioGraph';
-import { studioCopy as c } from './scenarioCopy';
+import { useScenarioKind, useStudioCopy } from './scenarioCopy';
 import type { Project } from './project.generated';
 
 interface Camera { x: number; y: number; width: number; height: number }
@@ -10,6 +10,8 @@ export default function ScenarioCanvas({ project, selected, select, move, reset,
   project: Project; selected?: string; select: (id: string) => void; move: (point: Position) => void;
   reset: () => void; problems: Set<string>; visibleIds: Set<string>; entityIdPrefix: string;
 }) {
+  const c = useStudioCopy();
+  const labelKind = useScenarioKind();
   const svg = useRef<SVGSVGElement>(null);
   const arrow = useId();
   const [camera, setCamera] = useState<Camera>();
@@ -115,7 +117,7 @@ export default function ScenarioCanvas({ project, selected, select, move, reset,
             if (step && project.scenario) { e.preventDefault(); move({ ...point, x: point.x + step[0]!, y: point.y + step[1]! }); }
           }}>
           <title>{node.title}</title><rect width={w} height={h} rx="6" />
-          <text className="node-kind" x="12" y="20">{kind.toUpperCase()}{problems.has(node.id) ? '  ⚠' : ''}</text>
+          <text className="node-kind" x="12" y="20">{labelKind(kind).toUpperCase()}{problems.has(node.id) ? '  ⚠' : ''}</text>
           <text className="node-title" x="12" y="43">{node.title.length > 21 ? node.title.slice(0, 20) + '…' : node.title}</text>
         </g>;
       })}

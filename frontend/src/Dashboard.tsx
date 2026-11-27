@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { copy } from './copy';
+import { useWorkspaceCopy } from './workspaceLocale';
+import { useFormatter } from './locale';
 import { candidatesFresh, narrativeFresh } from './project';
 import type { SavedProject } from './storage';
 
@@ -13,9 +14,9 @@ interface DashboardProps {
   sample?: { title: string; create: () => void };
 }
 
-const formatDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-
 export default function Dashboard({ projects, loading, disabled, open, create, sample }: DashboardProps) {
+  const copy = useWorkspaceCopy();
+  const format = useFormatter();
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [invalid, setInvalid] = useState(false);
@@ -49,12 +50,12 @@ export default function Dashboard({ projects, loading, disabled, open, create, s
         </fieldset>
       </form>}
       <section className="panel projects-panel" aria-labelledby="project-list-heading">
-        <div className="section-heading"><h2 id="project-list-heading">{copy.localProjects}</h2><span className="count">{projects.length}</span></div>
+        <div className="section-heading"><h2 id="project-list-heading">{copy.localProjects}</h2><span className="count">{format.number(projects.length)}</span></div>
         {loading ? <p role="status">{copy.loadingProjects}</p> : projects.length === 0 ? <p className="empty">{copy.emptyProjects}</p> : (
           <ul className="project-list">
             {projects.map(({ project, savedAt }) => (
               <li key={project.id}>
-                <div><h3 className="creative">{project.title}</h3><time dateTime={new Date(savedAt).toISOString()}>{formatDate.format(savedAt)}</time></div>
+                <div><h3 className="creative">{project.title}</h3><time dateTime={new Date(savedAt).toISOString()}>{format.date(savedAt, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>
                 <span className="pill">{project.narrative ? (narrativeFresh(project) ? (project.narrative.approved ? copy.approved : copy.draft) : copy.stale)
                   : project.storyCandidates.length ? (candidatesFresh(project) ? copy.directions : copy.stale) : copy.content}</span>
                 <button type="button" disabled={disabled} aria-label={copy.open(project.title)} onClick={() => open(project.id)}>{copy.openProject}</button>

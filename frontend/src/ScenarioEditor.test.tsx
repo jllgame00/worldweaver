@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 ﻿import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -191,3 +192,5 @@ test('selects a registered legacy flag by kind without accepting arbitrary item 
   expect(within(key).queryByRole('option', { name: /q-rubbing/ })).toBeNull();
   expect(within(conditions).queryByRole('textbox', { name: 'Key' })).toBeNull();
 });
+
+useEnglishTestLocale();

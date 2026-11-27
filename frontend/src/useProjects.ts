@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { copy } from './copy';
 import type { Project } from './project.generated';
 import { listProjects, SaveConflict, saveProject } from './storage';
 import type { SavedProject } from './storage';
@@ -18,7 +17,7 @@ export function useProjects(databaseName: string) {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string>();
+  const [loadError, setLoadError] = useState<'unreadableProjects' | 'storageUnavailable'>();
   const [pending, setPending] = useState<PendingSave>();
 
   useEffect(() => {
@@ -26,8 +25,8 @@ export function useProjects(databaseName: string) {
     void listProjects(databaseName).then(({ projects, unreadable }) => {
       if (!active) return;
       setProjects(projects);
-      if (unreadable) setLoadError(copy.unreadableProjects);
-    }).catch(() => { if (active) setLoadError(copy.storageUnavailable); })
+      if (unreadable) setLoadError('unreadableProjects');
+    }).catch(() => { if (active) setLoadError('storageUnavailable'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [databaseName]);
@@ -64,16 +63,16 @@ export function useProjects(databaseName: string) {
       const { projects, unreadable } = await listProjects(databaseName);
       const saved = projects.find(({ project }) => project.id === id);
       if (!saved) {
-        setLoadError(copy.unreadableProjects);
+        setLoadError('unreadableProjects');
         return undefined;
       }
       setProjects(projects);
-      if (unreadable) setLoadError(copy.unreadableProjects);
+      if (unreadable) setLoadError('unreadableProjects');
       select(saved);
       setPending(undefined);
       return saved.project;
     } catch {
-      setLoadError(copy.storageUnavailable);
+      setLoadError('storageUnavailable');
       return undefined;
     }
   }

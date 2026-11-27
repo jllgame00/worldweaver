@@ -3,7 +3,9 @@ import type { Project, SavedRepair, ValidationFinding, VerificationEntry } from 
 import { newId } from './project';
 import { repairDraft, repairFields, routeCorrection, type RepairEdit } from './verificationRepair';
 import { buildWorldBible, dependencyImpact } from './worldBibleIndex';
-import { verificationCopy as c } from './verificationCopy';
+import { useVerificationCopy, useVerificationDetail, useVerificationStatus, useVerificationTool } from './verificationCopy';
+import { DiagnosticDetails, useFormatter, useLocale } from './locale';
+import { useBibleKinds } from './worldBibleCopy';
 
 type Action = 'simulate' | 'accept' | 'reject';
 export type RepairAction = (action: Action, edits: RepairEdit[], saved?: SavedRepair) => Promise<void>;
@@ -20,6 +22,13 @@ export function VerificationRepairReview({
   disabled: boolean;
   act: RepairAction;
 }) {
+  const c = useVerificationCopy();
+  const kinds = useBibleKinds();
+  const locale = useLocale();
+  const { number } = useFormatter();
+  const detail = useVerificationDetail();
+  const status = useVerificationStatus();
+  const tool = useVerificationTool();
   const automatic = useMemo(() => routeCorrection(project, finding), [project, finding]);
   const options = useMemo(() => repairFields(project, finding), [project, finding]);
   const [selected, setSelected] = useState(
@@ -78,7 +87,7 @@ export function VerificationRepairReview({
         )
         .map(
           (k) =>
-            k +
+            (locale === 'ko' ? kinds[k] : k) +
             ' · ' +
             (project[k]?.approved ? c.approved : c.noApproval) +
             ' → ' +
@@ -122,22 +131,24 @@ export function VerificationRepairReview({
                   </tr>
                 </thead>
                 <tbody>
-                  {s.afterTools.map((t) => (
-                    <tr key={t.tool}>
-                      <td>{t.tool}</td>
-                      <td>
-                        {s.beforeTools.find((b) => b.tool === t.tool)?.status} ·{' '}
-                        {s.beforeTools.find((b) => b.tool === t.tool)?.findings}
-                      </td>
-                      <td>
-                        {t.status} · {t.findings} · {t.detail}
-                      </td>
-                    </tr>
-                  ))}
+                  {s.afterTools.map((t) => {
+                    const before = s.beforeTools.find((b) => b.tool === t.tool);
+                    return (
+                      <tr key={t.tool}>
+                        <td title={t.tool}>{tool(t.tool)}</td>
+                        <td>{before ? `${status(before.status)} · ${number(before.findings)}` : c.notChecked}</td>
+                        <td>
+                          {status(t.status)} · {number(t.findings)} · {detail(t.detail)}
+                          <DiagnosticDetails detail={t.detail} code={t.tool} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
-            <p role="status">{s.detail ?? (ready ? c.available : c.waitingForSimulation)}</p>
+            <p role="status">{s.detail ? detail(s.detail) : ready ? c.available : c.waitingForSimulation}</p>
+            {s.detail && <DiagnosticDetails detail={s.detail} />}
             {s.sourceRevision !== project.revision && <p>{c.expired}</p>}
             {ready && (
               <>

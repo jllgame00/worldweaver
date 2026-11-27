@@ -1,13 +1,15 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import type { Chapter, Project, ScenarioEdge } from './project.generated';
 import type { ScenarioEditorProps } from './ScenarioEditor';
-import { studioCopy as c } from './scenarioCopy';
+import { edgeKinds, studioCopy, useScenarioKind, useStudioCopy } from './scenarioCopy';
 import { connectionError } from './scenarioGraph';
 import { MultiField, options, SelectField, StateFields, TextField } from './ScenarioFields';
 
 export function EdgeInspector({ project, original, edit, select, isNew }: {
   project: Project; original: ScenarioEdge; edit: ScenarioEditorProps['edit']; select: (id: string) => void; isNew: boolean;
 }) {
+  const c = useStudioCopy();
+  const kindLabel = useScenarioKind();
   const [edge, setEdge] = useState(original);
   const [error, setError] = useState('');
   const nodes = project.nodes.map((n) => ({ id: n.id, name: n.title }));
@@ -27,8 +29,8 @@ export function EdgeInspector({ project, original, edit, select, isNew }: {
       <SelectField label={c.from} options={nodes} value={edge.from} onChange={(from) => change({ from })} />
       <SelectField label={c.to} options={nodes} value={edge.to} onChange={(to) => change({ to })} />
     </div>
-    {error && <p className="error" role="alert">{error}</p>}
-    <SelectField label={c.edgeType} options={options(c.edgeKinds)} value={edge.kind ?? 'progression'} onChange={(kind) => change({ kind: kind as ScenarioEdge['kind'] })} />
+    {error && <p className="error" role="alert">{error === studioCopy.cycle ? c.cycle : c.selfEdge}</p>}
+    <SelectField label={c.edgeType} options={options(edgeKinds, kindLabel)} value={edge.kind ?? 'progression'} onChange={(kind) => change({ kind: kind as ScenarioEdge['kind'] })} />
     <SelectField label={c.travel} options={[{ id: 'none', name: c.sceneCut }, { id: 'required', name: c.travelRequired }]}
       value={edge.travel} onChange={(travel) => change({ travel: travel as ScenarioEdge['travel'] })} />
     <MultiField label={c.visited} options={nodes} values={edge.requiresVisited} onChange={(requiresVisited) => change({ requiresVisited })} />
@@ -41,6 +43,7 @@ export function EdgeInspector({ project, original, edit, select, isNew }: {
 export function ChapterInspector({ original, edit, select, isNew }: {
   original: Chapter; edit: ScenarioEditorProps['edit']; select: (id: string) => void; isNew: boolean;
 }) {
+  const c = useStudioCopy();
   const [chapter, setChapter] = useState(original);
   return <form className="scenario-form" onSubmit={async (e) => {
     e.preventDefault();
@@ -56,5 +59,3 @@ export function ChapterInspector({ original, edit, select, isNew }: {
     <button className="primary">{c.saveChapter}</button>
   </form>;
 }
-
-

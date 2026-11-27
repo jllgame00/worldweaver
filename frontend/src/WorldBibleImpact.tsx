@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { Project } from './project.generated';
-import { bibleCopy as t } from './worldBibleCopy';
+import { useBibleCopy } from './worldBibleCopy';
+import { useFormatter } from './locale';
+import { useVerificationTool } from './verificationCopy';
 import { editStages } from './worldBibleEdits';
 import { dependencyImpact, type BibleIndex, type BibleEntity } from './worldBibleIndex';
 import { useVerificationIdentity } from './worldBibleEvidence';
@@ -16,9 +18,12 @@ export function WorldBibleImpact({
   project: Project;
   entity: BibleEntity;
   index: BibleIndex;
-  changes: { label: string; before: string; after: string }[];
+  changes: { key: string; label: string; before: string; after: string }[];
   children: ReactNode;
 }) {
+  const t = useBibleCopy();
+  const { number } = useFormatter();
+  const tool = useVerificationTool();
   const impact = dependencyImpact(index, entity.id);
   const fingerprint = useVerificationIdentity(project);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -61,7 +66,7 @@ export function WorldBibleImpact({
         {t.impact}
       </h3>
       {changes.map((f) => (
-        <div key={f.label}>
+        <div key={f.key}>
           <strong>{f.label}</strong>
           <div className="bible-diff">
             <div>
@@ -77,13 +82,13 @@ export function WorldBibleImpact({
       ))}
       {(
         [
-          [t.direct, impact.direct],
-          [t.indirect, impact.transitive],
+          ['direct', impact.direct],
+          ['indirect', impact.transitive],
         ] as const
-      ).map(([title, ids]) => (
-        <details key={title} open={title === t.direct}>
+      ).map(([key, ids]) => (
+        <details key={key} open={key === 'direct'}>
           <summary>
-            {title} ({ids.length})
+            {t[key]} ({number(ids.length)})
           </summary>
           <ul>
             {ids.map((id) => (
@@ -99,12 +104,12 @@ export function WorldBibleImpact({
       </p>
       <details>
         <summary>
-          {t.receipts} ({checks.length})
+          {t.receipts} ({number(checks.length)})
         </summary>
         <ul>
           {checks.map((r, i) => (
-            <li key={i}>
-              {r.tool} · {r.run} · {r.revision}
+            <li key={i} title={r.tool}>
+              {tool(r.tool)} · {r.run} · {number(r.revision)}
             </li>
           ))}
         </ul>

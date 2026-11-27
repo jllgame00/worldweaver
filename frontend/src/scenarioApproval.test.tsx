@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from './App';
@@ -225,3 +226,5 @@ it('undoing a layout change after a failed check cannot restore a prior approval
   await waitFor(async () => expect((await record()).project.scenario!.layout).toEqual(p.scenario!.layout));
   expect((await record()).project.scenario!.approved).toBe(false);
 });
+
+useEnglishTestLocale();

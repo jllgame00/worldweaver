@@ -1,6 +1,8 @@
 import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { categories, copy, treatments } from './copy';
+import { useCategories, useTreatments, useWorkspaceCopy } from './workspaceLocale';
+import { useIntakeCopy } from './intakeLocale';
+import { useFormatter, useLocalized } from './locale';
 import { editContent, fragmentInUse, newId } from './project';
 import type { CanonicalFact, Project, UserContent } from './project.generated';
 import { buildWorldBible } from './worldBibleIndex';
@@ -23,14 +25,22 @@ const blankFragment: Pick<UserContent, 'category' | 'treatment' | 'text'> = { ca
 type Patch = Parameters<typeof editContent>[1];
 type SaveContent = (id:string,patch:Patch,onSaved:()=>void)=>void;
 type EditorProps = Omit<ContentProps,'commit'> & {save:SaveContent};
+const impactFields = ['factStatement', 'sourceFragment', 'fragment', 'category', 'treatment'] as const;
 
-function contentFields(row?:UserContent | CanonicalFact): Record<string,string> {
-  if (!row) return {};
-  return 'statement' in row ? {[copy.factStatement]:row.statement,[copy.sourceFragment]:row.sourceContentId ?? ''}
-    : {[copy.fragment]:row.text,[copy.category]:categories[row.category],[copy.treatment]:treatments[row.treatment]};
-}
+const impactEn = { stale: bibleCopy.stale, applyFact: bibleCopy.applyFact, apply: bibleCopy.apply };
+const impactKo = { stale: '프로젝트가 바뀌었습니다. 현재 기록을 다시 검토하세요.', applyFact: '고정 설정 변경 반영', apply: '변경 반영' };
 
 export default function Content(props: ContentProps) {
+  const copy = useWorkspaceCopy();
+  const categories = useCategories();
+  const treatments = useTreatments();
+  const intakeCopy = useIntakeCopy();
+  const impact = useLocalized(impactEn, impactKo);
+  function contentFields(row?: UserContent | CanonicalFact): Partial<Record<typeof impactFields[number], string>> {
+    if (!row) return {};
+    return 'statement' in row ? { factStatement: row.statement, sourceFragment: row.sourceContentId ?? '' }
+      : { fragment: row.text, category: categories[row.category], treatment: treatments[row.treatment] };
+  }
   const {project,disabled,commit}=props;
   const [intake, setIntake] = useState(false);
   const id = useId();
@@ -59,7 +69,7 @@ export default function Content(props: ContentProps) {
   return (
     <>
       <div className="page-heading"><h1>{copy.contentTitle}</h1><p>{copy.contentIntro}</p></div>
-      <div className="actions intake-tabs" role="tablist" aria-label="Content input mode"
+      <div className="actions intake-tabs" role="tablist" aria-label={intakeCopy.inputMode}
         onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           event.preventDefault();
@@ -69,9 +79,9 @@ export default function Content(props: ContentProps) {
           tabs[Number(next)]?.focus();
         }}>
         <button type="button" role="tab" id={id + '-edit'} aria-controls={id + '-edit-panel'}
-          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>Edit fragments</button>
+          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>{intakeCopy.edit}</button>
         <button type="button" role="tab" id={id + '-paste'} aria-controls={id + '-paste-panel'}
-          aria-selected={intake} tabIndex={intake ? 0 : -1} onClick={() => setIntake(true)}>Paste ideas</button>
+          aria-selected={intake} tabIndex={intake ? 0 : -1} onClick={() => setIntake(true)}>{intakeCopy.paste}</button>
       </div>
       <div role="tabpanel" id={id + '-edit-panel'} aria-labelledby={id + '-edit'} hidden={intake}>
         <div className="content-grid">
@@ -89,17 +99,21 @@ export default function Content(props: ContentProps) {
           storageKey={JSON.stringify(['worldweaver-content-intake-v1', props.databaseName ?? 'worldweaver-v1', project.id])} />
       </div>
       {!intake && pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
-        [...new Set([...Object.keys(previous),...Object.keys(proposed)])].filter(key=>previous[key]!==proposed[key])
-          .map(label=>({label,before:previous[label] ?? '',after:proposed[label] ?? ''}))}>
-        {pending.base.revision!==project.revision && <p role="alert">{bibleCopy.stale}</p>}
+        impactFields.filter(key => previous[key] !== proposed[key])
+          .map(key => ({ key, label: copy[key], before: previous[key] ?? '', after: proposed[key] ?? '' }))}>
+        {pending.base.revision!==project.revision && <p role="alert">{impact.stale}</p>}
         <div className="actions"><button disabled={disabled || pending.base.revision!==project.revision} onClick={()=>void accept()}>
-          {fact?bibleCopy.applyFact:bibleCopy.apply}</button><button onClick={()=>setPending(undefined)}>{copy.cancel}</button></div>
+          {fact?impact.applyFact:impact.apply}</button><button onClick={()=>setPending(undefined)}>{copy.cancel}</button></div>
       </WorldBibleImpact>}
     </>
   );
 }
 
 function Fragments({ project, disabled, save }: EditorProps) {
+  const copy = useWorkspaceCopy();
+  const categories = useCategories();
+  const treatments = useTreatments();
+  const format = useFormatter();
   const [draft, setDraft] = useState(blankFragment);
   const [editing, setEditing] = useState<string>();
   const [removing, setRemoving] = useState<string>();
@@ -133,7 +147,7 @@ function Fragments({ project, disabled, save }: EditorProps) {
 
   return (
     <section className="panel" aria-labelledby="fragments-heading">
-      <div className="section-heading"><h2 id="fragments-heading">{copy.fragments}</h2><span className="count">{project.userContent.length}</span></div>
+      <div className="section-heading"><h2 id="fragments-heading">{copy.fragments}</h2><span className="count">{format.number(project.userContent.length)}</span></div>
       <form onSubmit={submit} aria-label={editing ? copy.editFragment : copy.addFragment}>
         <fieldset disabled={disabled}>
           <div className="paired-fields">
@@ -189,6 +203,7 @@ function Fragments({ project, disabled, save }: EditorProps) {
 }
 
 function Facts({ project, disabled, save }: EditorProps) {
+  const copy = useWorkspaceCopy();
   const [statement, setStatement] = useState('');
   const [source, setSource] = useState('');
   const [editing, setEditing] = useState<string>();

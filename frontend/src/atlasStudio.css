@@ -1,3 +1,6 @@
+.atlas-studio {
+  overflow-wrap: anywhere;
+}
 .atlas-controls {
   border: 0;
   padding: 0;
@@ -12,7 +15,7 @@
 }
 .atlas-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   gap: 0.75rem;
   align-items: end;
 }
@@ -20,6 +23,11 @@
 .atlas-index label {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
+}
+.atlas-fields :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
 }
 .atlas-tools {
   display: flex;

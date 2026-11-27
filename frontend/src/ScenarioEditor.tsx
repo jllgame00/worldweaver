@@ -1,13 +1,14 @@
-﻿import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import {atlasPlaces} from './atlasPlaces';
 import type { Chapter, Project, ScenarioEdge, ScenarioNode } from './project.generated';
 import { newId } from './project';
-import { studioCopy as c } from './scenarioCopy';
+import { nodeKinds, questKinds, useScenarioKind, useStudioCopy } from './scenarioCopy';
 import { arrange, deleteEntity, deletionImpact } from './scenarioGraph';
 import ScenarioCanvas from './ScenarioCanvas';
 import ScenarioFindings, { type ScenarioFinding } from './ScenarioFindings';
 import { freshNode, NodeInspector } from './NodeInspector';
 import { ChapterInspector, EdgeInspector } from './ScenarioInspectors';
+import { useFormatter } from './locale';
 import './scenario.css';
 
 export interface ScenarioEditorProps {
@@ -22,6 +23,9 @@ export interface ScenarioEditorProps {
 type Draft = { node: ScenarioNode } | { edge: ScenarioEdge } | { chapter: Chapter };
 
 export default function ScenarioEditor({ project, edit, revise, findings,selectedId,openAtlas }: ScenarioEditorProps) {
+  const c = useStudioCopy();
+  const kindLabel = useScenarioKind();
+  const { number } = useFormatter();
   const entityIdPrefix = useId() + '-entity-';
   const [view, setView] = useState<'graph'|'outline'>('graph');
   const [selection, setSelection] = useState(selectedId ? target(selectedId) : project.nodes[0]?.id);
@@ -98,9 +102,9 @@ export default function ScenarioEditor({ project, edit, revise, findings,selecte
         {chapters.map((ch) => nav(ch.id, ch.title))}
         <h3>{c.nodes}</h3>
         <label>{c.filterNodes}<select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-          <option value="">{c.all}</option>{c.nodeKinds.map((kind) => <option key={kind}>{kind}</option>)}</select></label>
+          <option value="">{c.all}</option>{nodeKinds.map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}</select></label>
         <label>{c.filterQuests}<select value={questFilter} onChange={(e) => setQuestFilter(e.target.value)}>
-          <option value="">{c.all}</option>{c.questKinds.map((kind) => <option key={kind}>{kind}</option>)}</select></label>
+          <option value="">{c.all}</option>{questKinds.map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}</select></label>
         <div className="rail-add">
           <button disabled={!project.scenario} onClick={() => add({ chapter: { id: newId('chapter'), title: '', purpose: '', summary: '' } })}>{c.addChapter}</button>
           <button onClick={() => addNode('event')}>{c.addNode}</button>
@@ -126,12 +130,12 @@ export default function ScenarioEditor({ project, edit, revise, findings,selecte
           <label>{c.search}<input type="search" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
           {[...chapters, undefined].map((ch) => {
             const nodes = visibleNodes.filter((n) => n.chapterId === ch?.id && (
-              matches(ch?.title ?? c.unassigned) || matches(n.title) || matches(n.kind) ||
+              matches(ch?.title ?? c.unassigned) || matches(n.title) || matches(n.kind) || matches(kindLabel(n.kind)) ||
               project.edges.some((e) => e.from === n.id && matches(e.label))));
             if (!nodes.length && (!ch || chapterFilter || kindFilter || questFilter || !matches(ch.title))) return null;
             return <section className="outline-chapter" key={ch?.id ?? ''}>
               {ch ? nav(ch.id, ch.title) : <h3>{c.unassigned}</h3>}
-              <ul>{nodes.map((n) => <li key={n.id}><span className="outline-kind">{n.kind}</span>{nav(n.id, n.title, true)}
+              <ul>{nodes.map((n) => <li key={n.id}><span className="outline-kind">{kindLabel(n.kind)}</span>{nav(n.id, n.title, true)}
                 <ul>{project.edges.filter((e) => e.from === n.id).map((e) => <li key={e.id}>
                   {nav(e.id, e.label)}<span className="muted"> → {nodeTitle(e.to)}</span></li>)}</ul>
               </li>)}</ul>
@@ -143,8 +147,8 @@ export default function ScenarioEditor({ project, edit, revise, findings,selecte
           inspect={id => { setReturnId(selection); select(id); inspector.current?.focus(); }} />
       </div>
       <aside ref={inspector} tabIndex={-1} className="scenario-inspector panel" aria-label={c.inspector}>
-        {openAtlas && node?.locationId && <button onClick={()=>openAtlas(node.locationId!)}>Show location on atlas</button>}
-        {openAtlas && edge?.travel==='required' && edge.kind!=='reference' && <button onClick={()=>openAtlas(edge.id)}>Show journey on atlas</button>}
+        {openAtlas && node?.locationId && <button onClick={()=>openAtlas(node.locationId!)}>{c.showLocation}</button>}
+        {openAtlas && edge?.travel==='required' && edge.kind!=='reference' && <button onClick={()=>openAtlas(edge.id)}>{c.showJourney}</button>}
         <header><span className="outline-kind">{c.inspector}</span><h2>{title ?? (node ? c.addNode : chapter ? c.addChapter : edge ? c.addEdge : c.inspector)}</h2>
           {chosen && !draft && <small className="muted">{chosen.id}</small>}
         </header>
@@ -155,14 +159,14 @@ export default function ScenarioEditor({ project, edit, revise, findings,selecte
           <button disabled={chapterIndex >= chapters.length - 1} onClick={() => shiftChapter(1)}>{c.moveDown}</button>
         </div>}
         {members && <div className="actions">{members.map((n) => nav(n.id, n.title))}</div>}
-        {linked && linked.length > 0 && <details><summary>{c.linked} ({linked.length})</summary>
+        {linked && linked.length > 0 && <details><summary>{c.linked} ({number(linked.length)})</summary>
           <div className="actions">{linked.map((e) => nav(e.id, e.label))}</div>
         </details>}
         {node && <NodeInspector key={JSON.stringify([node, quest, project.endings.find((e) => e.nodeId === node.id)])}
           project={project} original={node} edit={edit} select={select} isNew={!!draft} />}
         {chapter && <ChapterInspector key={JSON.stringify(chapter)} original={chapter} edit={edit} select={select} isNew={!!draft} />}
         {edge && <EdgeInspector key={JSON.stringify(edge)} original={edge} project={project} edit={edit} select={select} isNew={!!draft} />}
-        {place && !draft && <div><p>{place.kind}</p><p>{place.description}</p>{openAtlas && <button onClick={()=>openAtlas(place.id)}>Show location on atlas</button>}
+        {place && !draft && <div><p>{kindLabel(place.kind)}</p><p>{place.description}</p>{openAtlas && <button onClick={()=>openAtlas(place.id)}>{c.showLocation}</button>}
           <div className="actions">{project.nodes.filter((n) => n.locationId === place.id).map((n) => nav(n.id, n.title))}</div></div>}
         {!chosen && <p>{c.noSelection}</p>}
         <div className="actions">

@@ -11,7 +11,7 @@ export function generationIntent(configuration: GenerationStatus) {
 }
 
 export class GenerationError extends Error {
-  constructor(message: string, readonly run?: AgentRun, readonly configurationChanged = false) {
+  constructor(message: string, readonly run?: AgentRun, readonly configurationChanged = false, readonly code?: string) {
     super(message);
   }
 }
@@ -33,15 +33,16 @@ export async function generateDirections(project: Project, configuration: Genera
       body: JSON.stringify(designSnapshot(project)), signal,
     });
   } catch {
-    throw new GenerationError(copy.requestFailed);
+    throw new GenerationError(copy.requestFailed, undefined, false, 'request_failed');
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
     const failure = generationFailure(body, project);
     const configurationChanged = response.status === 409 && failure?.code === 'generation_configuration_changed';
     const run = !configurationChanged && failure?.run?.mode === configuration.mode ? failure.run : undefined;
-    throw new GenerationError(failure?.message ?? copy.requestFailed, run, configurationChanged);
+    throw new GenerationError(failure?.message ?? copy.requestFailed, run, configurationChanged, failure?.code ?? 'request_failed');
   }
-  if (!isCandidateResult(body, project) || body.run.mode !== configuration.mode) throw new GenerationError(copy.invalidResponse);
+  if (!isCandidateResult(body, project) || body.run.mode !== configuration.mode)
+    throw new GenerationError(copy.invalidResponse, undefined, false, 'invalid_provider_response');
   return body;
 }

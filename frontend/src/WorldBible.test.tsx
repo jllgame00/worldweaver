@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { approvedProject } from './atlasFixture.testdata';
@@ -182,3 +183,5 @@ it('searches and filters canon, pans and fits a neighborhood without a design wr
   expect(svg.getAttribute('viewBox')).toBe(fit);
   expect(commit).not.toHaveBeenCalled();
 });
+
+useEnglishTestLocale();

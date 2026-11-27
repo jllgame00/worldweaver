@@ -1,3 +1,4 @@
+import { useEnglishTestLocale } from './englishTestLocale';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
@@ -211,3 +212,5 @@ test('B4 rejects acceptance of a draft when a newer canonical revision has been 
   expect(input).toHaveValue(source);
   expect(await read()).toEqual([concurrent]);
 });
+
+useEnglishTestLocale();
