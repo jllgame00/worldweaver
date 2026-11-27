@@ -56,3 +56,19 @@ ChatKHU 인증, 모델·크레딧 예산 승인, 실제 성공 응답 및 창작
 | Evidence and cost | 44 classified cases, real local HTTP, privacy-preserving owner diagnostics, mocked semantic transport, zero paid development requests | Final course rubric and Phase 5 review remain separate |
 
 [Regression and limitations](PHASE_4_REPORT.md) · [TDD ledger](TDD_EVIDENCE.md) · [Case-by-case measurements](VERIFICATION_CAMPAIGN.md)
+
+## Phase 5A · 소유자가 전달한 HW6 튜토리얼 기준
+
+위 표는 각 단계 당시의 기록이다. 소유자가 전달한 제출 기준을 현재 작업에 적용하면 다음 증거가 필요하다.
+
+| 항목 | 현재 근거 | 제출 전에 확보할 근거 |
+|---|---|---|
+| 타인이 실행할 수 있는 제품·계획 | 한국어 README의 설치·시작·mock 절차, AGENTS.md, Phase 5A 설계와 게이트 | 깨끗한 환경에서 README대로 실행한 독립 시연, 실제 브라우저 사용성 점검 |
+| test-first 핵심 규칙 세 가지 | 과거 실행 원장과 별도로 5B 원문/대안, 5C 로캘/편집 상태, 5D 복원/CAS를 사전 정의 | 소유자의 테스트→구현 커밋 세 쌍, 각 SHA·부모·실패 단언 및 이후 전체 성공 기록 |
+| LLM·mock·출력 검증·fallback | ChatKHU/OpenAI 서버 어댑터, 구조/참조 검증, 자동 검사용 mock. 소유자가 실제 ChatKHU로 서사·시나리오 생성을 관찰했다고 보고했다. | 공개 가능한 승인된 실제 실행 증빙과 사용량, 5B 실패 시 원문 보존·규칙 정리의 별도 검증. 로컬 개발·CI의 유료 호출은 0회로 유지 |
+| CI와 자동 Docker 배포 | PR/push 테스트, 성공 뒤 프런트 빌드, 읽기 전용 권한의 결과 게이트 구성 | 실제 Actions RED(빌드 차단)/GREEN 링크, main 보호 설정. Phase 6에서 같은 커밋의 Docker 빌드·자동 배포·health/버전·롤백 또는 재배포 증거 |
+| 비밀 관리 | 실제 키를 받지 않는 테스트, 기존 서버 측 설정·루프백·가짜 전송 테스트, 체크아웃 자격 증명 비영속화 | 배포 시 서버 측 주입과 비노출 확인, 제출 자료의 비밀·프로젝트 본문 제거 |
+| 서브에이전트 리뷰와 수정 | 5A 독립 감사로 기존 CAS 테스트 중복을 제외하고, 복원 시 미리보기 토큰·역사적 승인·운영 집계 의미를 명세에 반영했다. | 5F 실제 코드 리뷰의 대상 SHA·지적과 대응 diff, 소유자 수정 커밋 및 재검증. 5A 설계 리뷰는 최종 수정 커밋의 증거와 구분한다. |
+| feature 브랜치와 PR | `feature/product-polish` 작업, 소유자 커밋 정지점과 일반 merge 정책 | 실제 브랜치 게시·PR·필수 검사·일반 merge commit 링크. 로컬 추적 참조로 원격 보호 설정을 판정하지 않는다. |
+
+[커밋 메시지와 정지점](PHASE_5_PLAN.md) · [화면별 제품 설계](PRODUCT_POLISH_DESIGN.md)

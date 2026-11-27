@@ -139,7 +139,7 @@ React·TypeScript·Vite 프런트엔드와 FastAPI·Pydantic 백엔드를 사용
 
 런타임 에이전트는 서사 생성, 시나리오 구성, 세계 생성, 검증을 분담한다. 현재 시나리오 생성의 모델 호출은 한 번이며, 진행 오류 수정에는 설계자의 편집과 명시적 채택이 필요하다. 개발용 저장소 스킬은 향후 코딩 에이전트가 테스트와 검증 절차를 따르도록 안내한다. [런타임 흐름](docs/AGENT_WORKFLOW.md) · [개발 규칙](AGENTS.md)
 
-검증에는 pytest와 Vitest를 사용한다. 일반 CI는 mock을 사용하도록 설계했으며, CI 구성과 배포는 후속 단계에서 진행한다. [TDD 계획](docs/TDD_PLAN.md) · [CI/CD 계획](docs/DEVOPS_PLAN.md)
+main 대상 PR 및 main·feature/product-polish의 push를 위한 테스트 CI를 구성했다. Windows에서 고정 Python 요구사항과 npm 잠금 파일로 설치한 후 정본·전송 스키마, pytest, Vitest, 생성 타입 동기화, 엄격한 TypeScript를 검사한다. 테스트에는 공급자 키를 전달하지 않는다. 테스트가 성공하면 Linux에서 잠금 파일로 다시 설치해 Vite 프로덕션 빌드를 실행한다. 필수 검사 이름은 **WORLDWEAVER required**다. 실제 GitHub 실행과 main의 필수 검사 설정은 소유자가 첫 push 후 확인한다. Docker 배포는 Phase 6에서 연결한다. [워크플로](.github/workflows/test.yml) · [단계별 작업·커밋 계획](docs/PHASE_5_PLAN.md) · [제품 편집 화면 설계](docs/PRODUCT_POLISH_DESIGN.md)
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests scripts
