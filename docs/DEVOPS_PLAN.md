@@ -25,4 +25,3 @@ Protected paid generation is deferred pending hosting permission, durable spendi
 ## Sustainability
 
 Compare calls, retries, reported tokens, geometry time, build time and artifact sizes for the same fixture across revisions. Reuse accepted intermediate stages until their inputs change. Use local deterministic geography and validators, mock ordinary CI, and recheck affected domains on edit. Keep a full check at approval/release. These are measurable engineering choices. Energy or carbon impact requires separate measurement.
-
