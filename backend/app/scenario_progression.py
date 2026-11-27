@@ -31,13 +31,15 @@ class GraphCheck(TypedDict):
     findings: list[Finding]
     paths: list[EndingPath]
     statesExplored: int
+    feasibleEdgeIds: NotRequired[list[str]]
 
 
 State = tuple[str, frozenset[str], frozenset[tuple[tuple[str, str], str]]]
 
 
 def explore(project: Record, nodes: dict[str, Record], outgoing: dict[str, list[Record]],
-            node_order: tuple[str, ...], start: str, result: GraphCheck, budget: int) -> None:
+            node_order: tuple[str, ...], start: str, result: GraphCheck, budget: int,
+            passed: set[str]) -> None:
     model = ScenarioState(project)
     end_ids = {row["nodeId"]: row["id"] for row in project["endings"]}
     edges = [edge for rows in outgoing.values() for edge in rows]
@@ -51,7 +53,6 @@ def explore(project: Record, nodes: dict[str, Record], outgoing: dict[str, list[
     completed: set[str] = set()
     side_free_completed: set[str] = set()
     objectives: dict[str, tuple[State, list[BlockedTransition]]] = {}
-    passed: set[str] = set()
     blocked_edges: dict[str, tuple[State, list[BlockedTransition]]] = {}
     roots: dict[str, list[Finding]] = defaultdict(list)
     diagnosed_quests: set[str] = set()

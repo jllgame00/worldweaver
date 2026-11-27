@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { generationIntent } from './api';
+import { designSnapshot } from './project';
 import { narrativeFresh, newId } from './project';
 import type { Project, ScenarioSettings } from './project.generated';
 import type { GenerationStatus } from './validation';
@@ -221,12 +222,13 @@ export default function ScenarioStudio({
     }
     try {
       const path = action === 'generate' ? '' : action === 'revise' ? '/revise' : '/validate';
+      const snapshot=designSnapshot(p);
       const body =
         action === 'generate'
-          ? { project: p, settings }
+          ? { project: snapshot, settings }
           : action === 'revise'
-            ? { project: p, targetId: target, instructions }
-            : p;
+            ? { project: snapshot, targetId: target, instructions }
+            : snapshot;
       const res = await fetch('/api/scenario' + path, {
         method: 'POST',
         headers: {

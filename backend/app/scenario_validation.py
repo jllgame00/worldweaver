@@ -36,7 +36,7 @@ def approved_source(project: Record) -> bool:
                 and not any(row["contentId"] in required and row["disposition"] != "incorporated" for row in source["coverage"]))
 
 
-def validate_graph(project: Record, *, budget: int = STATE_BUDGET) -> GraphCheck:
+def validate_graph(project: Record, *, budget: int = STATE_BUDGET, verification: bool = False) -> GraphCheck:
     result: GraphCheck = {"valid": False, "complete": True, "findings": [], "paths": [], "statesExplored": 0}
     issued = set()
 
@@ -59,14 +59,16 @@ def validate_graph(project: Record, *, budget: int = STATE_BUDGET) -> GraphCheck
         result["findings"].append(reference_finding(owner, ref))
     if result["findings"]:
         return result
-    try:
-        ProjectSnapshot.model_validate(project)
-    except ValidationError:
-        report("project_reference", [project["id"]], "The project has inconsistent references, coverage, or version records.", "Review the project source and restore the referenced records.")
+    # The full verification plan checks cross-domain references and approvals independently.
+    if not verification:
+        try:
+            ProjectSnapshot.model_validate(project)
+        except ValidationError:
+            report("project_reference", [project["id"]], "The project has inconsistent references, coverage, or version records.", "Review the project source and restore the referenced records.")
     scenario = project.get("scenario")
-    if not approved_source(project) or (scenario and project["basis"].get("scenario") != {
+    if not verification and (not approved_source(project) or (scenario and project["basis"].get("scenario") != {
         key: project["versions"][key] for key in ("content", "narrative")
-    }):
+    })):
         report("narrative_source", [project.get("narrative", project)["id"]], "The scenario needs a current approved narrative.", "Review and approve the upstream narrative and regenerate or review this scenario.")
     if scenario:
         for geography in scenario["geography"]:
@@ -141,7 +143,10 @@ def validate_graph(project: Record, *, budget: int = STATE_BUDGET) -> GraphCheck
         source = cycle[1]
         index, quest = next((i, q) for i, q in enumerate(project["quests"]) if q["id"] == source)
         result["findings"][-1]["fieldPath"] = f'/quests/{index}/prerequisiteIds/{quest["prerequisiteIds"].index(cycle[0])}'
-    explore(project, nodes, outgoing, node_order, prologues[0], result, budget)
+    passed: set[str] = set()
+    explore(project, nodes, outgoing, node_order, prologues[0], result, budget, passed)
+    if verification:
+        result["feasibleEdgeIds"] = sorted(passed)
     if not result["complete"]:
         return result
     if any(edge["travel"] == "required" for edge in edges) or project.get("scenario", {}).get("geography"):

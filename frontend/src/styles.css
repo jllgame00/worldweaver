@@ -194,3 +194,9 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--
 @media (prefers-reduced-motion: reduce) {
   button { transition: none; }
 }
+.verification-evidence {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow: auto;
+}

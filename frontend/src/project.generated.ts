@@ -15,6 +15,10 @@ export type Id = string;
 export type Point = [number, number];
 
 export interface Project {
+  /**
+   * @maxItems 12
+   */
+  verificationHistory?: VerificationEntry[];
   scenario?: Scenario;
   id: Id;
   schemaVersion: "1.0.0";
@@ -47,6 +51,221 @@ export interface Project {
   world?: World;
   findings: ValidationFinding[];
   runs: AgentRun[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "VerificationEntry".
+ */
+export interface VerificationEntry {
+  runId: Id;
+  fingerprint: string;
+  timestamp: string;
+  mode: "quick" | "targeted" | "full";
+  sourceRunId?: Id;
+  revalidation?: boolean;
+  /**
+   * @maxItems 64
+   */
+  submittedIds?: Id[];
+  targetId?: Id;
+  provider?: string;
+  model?: string;
+  /**
+   * @maxItems 16
+   */
+  tools: VerificationToolReceipt[];
+  /**
+   * @maxItems 500
+   */
+  findings: ValidationFinding[];
+  omittedFindings?: number;
+  /**
+   * @maxItems 64
+   */
+  paths: {
+    endingId: Id;
+    nodeIds: Id[];
+  }[];
+  statesExplored: number;
+  /**
+   * @maxItems 64
+   */
+  decisions: RepairDecision[];
+  /**
+   * @maxItems 2
+   */
+  proposals?: [] | [SavedRepair] | [SavedRepair, SavedRepair];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "VerificationToolReceipt".
+ */
+export interface VerificationToolReceipt {
+  tool: "schema" | "references" | "sources" | "progression" | "atlas" | "coverage";
+  status: "passed" | "failed" | "skipped" | "incomplete" | "cancelled";
+  detail: string;
+  durationMs: number;
+  checkedRevision: number;
+  findings: number;
+  entityIds: string[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "ValidationFinding".
+ */
+export interface ValidationFinding {
+  id: Id;
+  rule: string;
+  origin: "deterministic" | "editorial";
+  severity: "error" | "warning" | "info";
+  entityIds: Id[];
+  explanation: string;
+  suggestedRepair: string;
+  fieldPath?: string;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  evidence?:
+    | [
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        }
+      ]
+    | [
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        }
+      ]
+    | [
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        }
+      ]
+    | [
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        },
+        {
+          kind: string;
+          id: Id;
+          excerpt: string;
+        }
+      ];
+  uncertainty?: string;
+  suggestedRelationship?: {
+    fromId: Id;
+    toId: Id;
+    label: string;
+  };
+  causeNodeId?: Id;
+  spatialCell?: Point;
+  blockedTransitions?: BlockedTransition[];
+  referenceId?: Id;
+  expectedType?: string;
+  actualType?: string;
+  witnessPath?: Id[];
+  status: "open" | "proposed" | "declined" | "resolved" | "superseded";
+  checkedRevision: number;
+  runId: Id;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "BlockedTransition".
+ */
+export interface BlockedTransition {
+  edgeId?: Id;
+  targetId?: Id;
+  fieldPath: string;
+  kind: string;
+  key: Id;
+  actual: string | null;
+  required: string;
+  producerIds: Id[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "RepairDecision".
+ */
+export interface RepairDecision {
+  proposalId: Id;
+  findingId: Id;
+  recordId: Id;
+  field: string;
+  before: string;
+  after: string;
+  decision: "accepted" | "rejected";
+  revision: number;
+  timestamp: string;
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "SavedRepair".
+ */
+export interface SavedRepair {
+  /**
+   * @minItems 1
+   * @maxItems 12
+   */
+  edits: [RepairEdit, ...RepairEdit[]];
+  sourceRevision: number;
+  classification: "technical" | "creative";
+  status: "pending" | "ready" | "blocked" | "accepted" | "rejected";
+  detail?: string;
+  /**
+   * @maxItems 16
+   */
+  beforeTools: VerificationToolReceipt[];
+  /**
+   * @maxItems 16
+   */
+  afterTools: VerificationToolReceipt[];
+}
+/**
+ * This interface was referenced by `Project`'s JSON-Schema
+ * via the `definition` "RepairEdit".
+ */
+export interface RepairEdit {
+  proposalId: Id;
+  findingId: Id;
+  recordId: Id;
+  field: string;
+  before: string;
+  after: string;
+  requires: Id[];
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema
@@ -487,44 +706,6 @@ export interface TravelRoute {
    * @minItems 2
    */
   path: [Point, Point, ...Point[]];
-}
-/**
- * This interface was referenced by `Project`'s JSON-Schema
- * via the `definition` "ValidationFinding".
- */
-export interface ValidationFinding {
-  id: Id;
-  rule: string;
-  origin: "deterministic" | "editorial";
-  severity: "error" | "warning" | "info";
-  entityIds: Id[];
-  explanation: string;
-  suggestedRepair: string;
-  fieldPath?: string;
-  causeNodeId?: Id;
-  spatialCell?: Point;
-  blockedTransitions?: BlockedTransition[];
-  referenceId?: Id;
-  expectedType?: string;
-  actualType?: string;
-  witnessPath?: Id[];
-  status: "open" | "proposed" | "declined" | "resolved" | "superseded";
-  checkedRevision: number;
-  runId: Id;
-}
-/**
- * This interface was referenced by `Project`'s JSON-Schema
- * via the `definition` "BlockedTransition".
- */
-export interface BlockedTransition {
-  edgeId?: Id;
-  targetId?: Id;
-  fieldPath: string;
-  kind: string;
-  key: Id;
-  actual: string | null;
-  required: string;
-  producerIds: Id[];
 }
 /**
  * This interface was referenced by `Project`'s JSON-Schema

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import NarrativeRegistry from './NarrativeRegistry';
 import type { FormEvent } from 'react';
 import { copy, storyLabels } from './copy';
+import { verificationCopy } from './verificationCopy';
 import { Coverage, FactList } from './Direction';
 import { approveNarrative, candidateBatchMode, editNarrative, mandatoryConflict, narrativeFresh, sourceDirection } from './project';
 import type { Narrative as NarrativeRecord, Project, Story } from './project.generated';
@@ -18,30 +19,33 @@ const textFields = ['title', 'genre', 'tone', 'premise', 'conflict', 'motivation
 const listFields = ['progression', 'possibleEndings'] as const;
 
 export default function Narrative({ project, narrative, disabled, inspect, commit }: NarrativeProps) {
-  const [story, setStory] = useState<Story>(narrative.story);
+  const [edit, setEdit] = useState<{base:Story;value:Story}>();
+  const story = edit?.value ?? narrative.story;
   const [reviewed, setReviewed] = useState(false);
   const [invalid, setInvalid] = useState(false);
   const fresh = narrativeFresh(project);
   const conflict = mandatoryConflict(project);
   const source = sourceDirection(project);
   const dirty = JSON.stringify(story) !== JSON.stringify(narrative.story);
+  const changed = dirty && !!edit && JSON.stringify(edit.base) !== JSON.stringify(narrative.story);
   const reviewDisabled = disabled || dirty || !fresh || conflict || narrative.approved;
 
   function update(next: Story) {
-    setStory(next);
+    setEdit({base:edit?.base??narrative.story,value:next});
     setReviewed(false);
     setInvalid(false);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (changed) return;
     if (Object.values(story).flat().some((value: string) => !value.trim())) {
       setInvalid(true);
       Array.from(event.currentTarget.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'))
         .find((field) => !field.value.trim())?.focus();
       return;
     }
-    if (await commit(editNarrative(project, story))) setReviewed(false);
+    if (await commit(editNarrative(project, story))) {setReviewed(false);setEdit(undefined);}
   }
 
   async function approve() {
@@ -92,7 +96,9 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
               </fieldset>
             ))}
             {invalid && <p className="error" role="alert">{copy.blank}</p>}
-            <div className="actions"><button type="submit" className="primary" disabled={!dirty}>{copy.saveEdits}</button></div>
+            {changed && <div role="alert"><p>{verificationCopy.narrativeChanged}</p>
+              <button type="button" onClick={()=>setEdit(undefined)}>{verificationCopy.restoreNarrative}</button></div>}
+            <div className="actions"><button type="submit" className="primary" disabled={!dirty || changed}>{copy.saveEdits}</button></div>
           </fieldset>
         </form>
         <aside className="narrative-sidebar">

@@ -348,6 +348,13 @@
         "explanation": {"type":"string", "minLength":1},
         "suggestedRepair": {"type":"string", "minLength":1},
         "fieldPath": {"type":"string","maxLength":256},
+        "evidence":{"type":"array","minItems":1,"maxItems":4,"items":{"type":"object","additionalProperties":false,
+          "required":["kind","id","excerpt"], "properties":{"kind":{"type":"string","minLength":1,"maxLength":32},
+            "id":{"$ref":"#/definitions/Id"},"excerpt":{"type":"string","minLength":1,"maxLength":800}}}},
+        "uncertainty":{"type":"string","minLength":1,"maxLength":800},
+        "suggestedRelationship":{"type":"object","additionalProperties":false,"required":["fromId","toId","label"],
+          "properties":{"fromId":{"$ref":"#/definitions/Id"},"toId":{"$ref":"#/definitions/Id"},
+            "label":{"type":"string","minLength":1,"maxLength":120}}},
         "causeNodeId":{"$ref":"#/definitions/Id"},
         "spatialCell":{"$ref":"#/definitions/Point"},
         "blockedTransitions":{"type":"array","items":{"$ref":"#/definitions/BlockedTransition"}},
@@ -385,6 +392,60 @@
         "calls": {"type":"integer", "minimum":0},
         "tokens": {"type":"integer", "minimum":0},
         "durationMs": {"type":"integer", "minimum":0}
+      }
+    },
+    "VerificationToolReceipt": {
+      "type":"object","additionalProperties":false,
+      "required":["tool","status","detail","durationMs","checkedRevision","entityIds","findings"],
+      "properties":{
+        "tool":{"enum":["schema","references","sources","progression","atlas","coverage"]},
+        "status":{"enum":["passed","failed","skipped","incomplete","cancelled"]},
+        "detail":{"type":"string"},"durationMs":{"type":"number","minimum":0},
+        "checkedRevision":{"type":"integer","minimum":0},"findings":{"type":"integer","minimum":0},
+        "entityIds":{"type":"array","items":{"type":"string"}}
+      }
+    },
+    "RepairDecision": {
+      "type":"object","additionalProperties":false,
+      "required":["proposalId","findingId","recordId","field","before","after","decision","revision","timestamp"],
+      "properties":{
+        "proposalId":{"$ref":"#/definitions/Id"},"findingId":{"$ref":"#/definitions/Id"},"recordId":{"$ref":"#/definitions/Id"},
+        "field":{"type":"string"},"before":{"type":"string"},"after":{"type":"string"},
+        "decision":{"enum":["accepted","rejected"]},"revision":{"type":"integer","minimum":0},"timestamp":{"type":"string"}
+      }
+    },
+    "RepairEdit": {
+      "type":"object","additionalProperties":false,"required":["proposalId","findingId","recordId","field","before","after","requires"],
+      "properties":{"proposalId":{"$ref":"#/definitions/Id"},"findingId":{"$ref":"#/definitions/Id"},"recordId":{"$ref":"#/definitions/Id"},
+        "field":{"type":"string","minLength":1,"maxLength":120},"before":{"type":"string","maxLength":32768},"after":{"type":"string","maxLength":32768},
+        "requires":{"type":"array","items":{"$ref":"#/definitions/Id"}}}
+    },
+    "SavedRepair": {
+      "type":"object","additionalProperties":false,"required":["edits","sourceRevision","classification","status","beforeTools","afterTools"],
+      "properties":{"edits":{"type":"array","minItems":1,"maxItems":12,"items":{"$ref":"#/definitions/RepairEdit"}},
+        "sourceRevision":{"type":"integer","minimum":0},"classification":{"enum":["technical","creative"]},
+        "status":{"enum":["pending","ready","blocked","accepted","rejected"]},"detail":{"type":"string"},
+        "beforeTools":{"type":"array","maxItems":16,"items":{"$ref":"#/definitions/VerificationToolReceipt"}},
+        "afterTools":{"type":"array","maxItems":16,"items":{"$ref":"#/definitions/VerificationToolReceipt"}}
+      }
+    },
+    "VerificationEntry": {
+      "type":"object","additionalProperties":false,
+      "required":["runId","fingerprint","timestamp","mode","tools","findings","paths","statesExplored","decisions"],
+      "properties":{
+        "runId":{"$ref":"#/definitions/Id"},"fingerprint":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+        "timestamp":{"type":"string","maxLength":40},"mode":{"enum":["quick","targeted","full"]},
+        "sourceRunId":{"$ref":"#/definitions/Id"},"revalidation":{"type":"boolean"},
+        "submittedIds":{"type":"array","maxItems":64,"items":{"$ref":"#/definitions/Id"}},
+        "targetId":{"$ref":"#/definitions/Id"},"provider":{"type":"string","maxLength":80},"model":{"type":"string","maxLength":128},
+        "tools":{"type":"array","maxItems":16,"items":{"$ref":"#/definitions/VerificationToolReceipt"}},
+        "findings":{"type":"array","maxItems":500,"items":{"$ref":"#/definitions/ValidationFinding"}},
+        "omittedFindings":{"type":"integer","minimum":0},
+        "paths":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["endingId","nodeIds"],
+          "properties":{"endingId":{"$ref":"#/definitions/Id"},"nodeIds":{"type":"array","items":{"$ref":"#/definitions/Id"}}}}},
+        "statesExplored":{"type":"integer","minimum":0},
+        "decisions":{"type":"array","maxItems":64,"items":{"$ref":"#/definitions/RepairDecision"}},
+        "proposals":{"type":"array","maxItems":2,"items":{"$ref":"#/definitions/SavedRepair"}}
       }
     },
     "Basis": {
@@ -426,6 +487,7 @@
       "additionalProperties": false,
       "required": ["id","schemaVersion","title","revision","versions","basis","userContent","canonicalFacts","storyCandidates","characters","factions","nodes","edges","quests","endings","findings","runs"],
       "properties": {
+        "verificationHistory":{"type":"array","maxItems":12,"items":{"$ref":"#/definitions/VerificationEntry"}},
         "scenario": {"$ref":"#/definitions/Scenario"},
         "id": {"$ref":"#/definitions/Id"},
         "schemaVersion": {"enum":["1.0.0"]},

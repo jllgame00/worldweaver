@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project, World, AtlasSettings, AtlasConstraint } from './project.generated';
-import { atlasPlaces, portableWorld, resolvedWorld } from './atlasPlaces';
+import { atlasPlaces, journeyRoutes, portableWorld, resolvedWorld } from './atlasPlaces';
 import {
   acceptAtlas,
   atlasSourceProblem,
@@ -35,21 +35,7 @@ function journey(p: Project, w: World | undefined, edgeId?: string) {
   if (!w || !edge) return [];
   const from = p.nodes.find((n) => n.id === edge.from)?.locationId,
     to = p.nodes.find((n) => n.id === edge.to)?.locationId;
-  if (!from || !to) return [];
-  const queue = [from],
-    previous = new Map<string, { id: string; route: string }>();
-  for (let i = 0; i < queue.length && !previous.has(to); i++)
-    for (const r of w.routes) {
-      if (['canal', 'aqueduct'].includes(r.mode)) continue;
-      const dest = r.from === queue[i] ? r.to : r.to === queue[i] ? r.from : undefined;
-      if (dest && dest !== from && !previous.has(dest)) {
-        previous.set(dest, { id: queue[i]!, route: r.id });
-        queue.push(dest);
-      }
-    }
-  const result: string[] = [];
-  for (let v = previous.get(to); v; v = previous.get(v.id)) result.unshift(v.route);
-  return result;
+  return from && to ? journeyRoutes(w.routes)(from,to) : [];
 }
 export default function AtlasStudio({
   project: p,

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { categories, copy, treatments } from './copy';
 import { editContent, fragmentInUse, newId } from './project';
 import type { CanonicalFact, Project, UserContent } from './project.generated';
+import { buildWorldBible } from './worldBibleIndex';
+import { WorldBibleImpact } from './WorldBibleImpact';
+import { bibleCopy } from './worldBibleCopy';
 
 interface ContentProps {
   project: Project;
@@ -11,20 +14,59 @@ interface ContentProps {
 }
 
 const blankFragment: Pick<UserContent, 'category' | 'treatment' | 'text'> = { category: 'idea', treatment: 'optional', text: '' };
+type Patch = Parameters<typeof editContent>[1];
+type SaveContent = (id:string,patch:Patch,onSaved:()=>void)=>void;
+type EditorProps = Omit<ContentProps,'commit'> & {save:SaveContent};
+
+function contentFields(row?:UserContent | CanonicalFact): Record<string,string> {
+  if (!row) return {};
+  return 'statement' in row ? {[copy.factStatement]:row.statement,[copy.sourceFragment]:row.sourceContentId ?? ''}
+    : {[copy.fragment]:row.text,[copy.category]:categories[row.category],[copy.treatment]:treatments[row.treatment]};
+}
 
 export default function Content(props: ContentProps) {
+  const {project,disabled,commit}=props;
+  const [pending,setPending]=useState<{id:string;base:Project;patch:Patch;onSaved:()=>void}>();
+  const index=useMemo(()=>pending && buildWorldBible(pending.base),[pending]);
+  const save:SaveContent=(id,patch,onSaved)=>{
+    if(disabled || pending) return;
+    if (project.storyCandidates.length || project.scenario || project.world || project.runs.length ||
+      fragmentInUse(project,id) || project.canonicalFacts.some(f=>f.id===id)) {
+      setPending({id,base:project,patch,onSaved});return;
+    }
+    void commit(editContent(project,patch)).then(saved=>{if(saved) onSaved();});
+  };
+  const fact=pending && 'canonicalFacts' in pending.patch;
+  const before=pending && (fact?pending.base.canonicalFacts:pending.base.userContent).find(row=>row.id===pending.id);
+  const after=pending && ('canonicalFacts' in pending.patch?pending.patch.canonicalFacts:pending.patch.userContent).find(row=>row.id===pending.id);
+  const previous=contentFields(before), proposed=contentFields(after);
+  const entity=(pending && index?.entities.get(pending.id)) ?? (after && {
+    id:after.id,kind:'statement' in after?'fact' as const:after.category,
+    label:'statement' in after?after.statement:after.text,source:'content' as const,description:'',
+  });
+  async function accept() {
+    if (!pending || disabled || pending.base.revision!==project.revision || pending.base.id!==project.id) return;
+    if (await commit(editContent(project,pending.patch))) {pending.onSaved();setPending(undefined);}
+  }
   return (
     <>
       <div className="page-heading"><h1>{copy.contentTitle}</h1><p>{copy.contentIntro}</p></div>
       <div className="content-grid">
-        <Fragments {...props} />
-        <Facts {...props} />
+        <Fragments project={project} save={save} disabled={disabled || !!pending}/>
+        <Facts project={project} save={save} disabled={disabled || !!pending}/>
       </div>
+      {pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
+        [...new Set([...Object.keys(previous),...Object.keys(proposed)])].filter(key=>previous[key]!==proposed[key])
+          .map(label=>({label,before:previous[label] ?? '',after:proposed[label] ?? ''}))}>
+        {pending.base.revision!==project.revision && <p role="alert">{bibleCopy.stale}</p>}
+        <div className="actions"><button disabled={disabled || pending.base.revision!==project.revision} onClick={()=>void accept()}>
+          {fact?bibleCopy.applyFact:bibleCopy.apply}</button><button onClick={()=>setPending(undefined)}>{copy.cancel}</button></div>
+      </WorldBibleImpact>}
     </>
   );
 }
 
-function Fragments({ project, disabled, commit }: ContentProps) {
+function Fragments({ project, disabled, save }: EditorProps) {
   const [draft, setDraft] = useState(blankFragment);
   const [editing, setEditing] = useState<string>();
   const [removing, setRemoving] = useState<string>();
@@ -45,15 +87,15 @@ function Fragments({ project, disabled, commit }: ContentProps) {
     }
     const fragment = { ...draft, id: editing ?? newId('fragment'), text: draft.text.trim() };
     const userContent = editing ? project.userContent.map((item) => item.id === editing ? fragment : item) : [...project.userContent, fragment];
-    if (await commit(editContent(project, { userContent }))) reset();
+    save(fragment.id,{userContent},reset);
   }
 
   async function remove(id: string) {
-    if (fragmentInUse(project, id)) return;
-    if (await commit(editContent(project, { userContent: project.userContent.filter((item) => item.id !== id) }))) {
+    if (fragmentInUse(project, id) || project.scenario?.contentIds.includes(id)) return;
+    save(id,{userContent:project.userContent.filter(item=>item.id!==id)},()=>{
       setRemoving(undefined);
       if (editing === id) reset();
-    }
+    });
   }
 
   return (
@@ -88,7 +130,7 @@ function Fragments({ project, disabled, commit }: ContentProps) {
       {project.userContent.length === 0 ? <p className="empty">{copy.emptyFragments}</p> : (
         <ul className="record-list">
           {project.userContent.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} id={'canonical-'+item.id} tabIndex={-1}>
               <div className="record-header"><span className="pill">{categories[item.category]}</span><span className={`tag ${item.treatment}`}>{treatments[item.treatment]}</span></div>
               <p className="creative">{item.text}</p>
               <div className="actions row-actions">
@@ -97,7 +139,7 @@ function Fragments({ project, disabled, commit }: ContentProps) {
                 <button type="button" className="quiet" disabled={disabled} aria-label={copy.removeFragment}
                   onClick={() => setRemoving(item.id)}>{copy.remove}</button>
               </div>
-              {removing === item.id && (fragmentInUse(project, item.id) ? (
+              {removing === item.id && (fragmentInUse(project, item.id) || project.scenario?.contentIds.includes(item.id) ? (
                 <div className="notice"><p role="alert">{copy.fragmentInUse}</p><button type="button" className="quiet" onClick={() => setRemoving(undefined)}>{copy.cancel}</button></div>
               ) : (
                 <div className="notice"><p>{copy.removeFragmentConfirm}</p><div className="actions">
@@ -113,7 +155,7 @@ function Fragments({ project, disabled, commit }: ContentProps) {
   );
 }
 
-function Facts({ project, disabled, commit }: ContentProps) {
+function Facts({ project, disabled, save }: EditorProps) {
   const [statement, setStatement] = useState('');
   const [source, setSource] = useState('');
   const [editing, setEditing] = useState<string>();
@@ -137,14 +179,15 @@ function Facts({ project, disabled, commit }: ContentProps) {
     const fact: CanonicalFact = { id: editing ?? newId('fact'), statement: statement.trim() };
     if (project.userContent.some(({ id }) => id === source)) fact.sourceContentId = source;
     const canonicalFacts = editing ? project.canonicalFacts.map((item) => item.id === editing ? fact : item) : [...project.canonicalFacts, fact];
-    if (await commit(editContent(project, { canonicalFacts }))) reset();
+    save(fact.id,{canonicalFacts},reset);
   }
 
   async function remove(id: string) {
-    if (await commit(editContent(project, { canonicalFacts: project.canonicalFacts.filter((item) => item.id !== id) }))) {
+    if(project.scenario?.factIds.includes(id)) return;
+    save(id,{canonicalFacts:project.canonicalFacts.filter(item=>item.id!==id)},()=>{
       setRemoving(undefined);
       if (editing === id) reset();
-    }
+    });
   }
 
   return (
@@ -173,7 +216,7 @@ function Facts({ project, disabled, commit }: ContentProps) {
       {project.canonicalFacts.length === 0 ? <p className="empty">{copy.emptyFacts}</p> : (
         <ul className="record-list">
           {project.canonicalFacts.map((fact) => (
-            <li key={fact.id}>
+            <li key={fact.id} id={'canonical-'+fact.id} tabIndex={-1}>
               <p className="creative">{fact.statement}</p>
               {fact.sourceContentId && <p className="muted creative">{project.userContent.find(({ id }) => id === fact.sourceContentId)?.text}</p>}
               <div className="actions row-actions">
@@ -183,8 +226,9 @@ function Facts({ project, disabled, commit }: ContentProps) {
                 <button type="button" className="quiet" disabled={disabled} aria-label={copy.removeFact}
                   onClick={() => setRemoving(fact.id)}>{copy.remove}</button>
               </div>
-              {removing === fact.id && <div className="notice"><p>{copy.removeFactConfirm}</p><div className="actions">
-                <button type="button" disabled={disabled} onClick={() => void remove(fact.id)}>{copy.removeFact}</button>
+              {removing === fact.id && <div className="notice">{project.scenario?.factIds.includes(fact.id)?
+                <p role="alert">{bibleCopy.protected}</p>:<p>{copy.removeFactConfirm}</p>}<div className="actions">
+                {!project.scenario?.factIds.includes(fact.id) && <button type="button" disabled={disabled} onClick={() => void remove(fact.id)}>{copy.removeFact}</button>}
                 <button type="button" className="quiet" onClick={() => setRemoving(undefined)}>{copy.cancel}</button>
               </div></div>}
             </li>

@@ -117,6 +117,17 @@ export function worldIssues(p: Project, w: World): AtlasIssue[] {
     return issues;
   }
   const plan = requirements(p, w.constraints);
+  const containment = new Map<string, string>();
+  for (const constraint of plan) {
+    if (constraint.strength !== 'hard' || !constraint.to || !['inside', 'outside'].includes(constraint.relation)) continue;
+    const pair = constraint.from + '/' + constraint.to;
+    const previous = containment.get(pair);
+    if (previous && previous !== constraint.relation)
+      error('conflicting_constraints', [constraint.from, constraint.to],
+        'Two hard rules require the same site to be both inside and outside this area.',
+        'Review both authored constraints and decide which boundary applies.');
+    containment.set(pair, constraint.relation);
+  }
   if (plan.some((c) => !(w.constraints ?? []).some((old) => key(c) === key(old))))
     error('requirements', [], 'Scenario requirements are missing.', 'Reconcile with the approved scenario.');
   const ids = new Set(w.locations.map((v) => v.id));

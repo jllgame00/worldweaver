@@ -7,6 +7,7 @@ const { Project, ...definitions } = schema.definitions;
 const types = await compile({ ...Project, definitions }, 'Project', {
   bannerComment: '// Generated from docs/project-v1.schema.json. Run npm run generate:types after changing the schema.',
   unreachableDefinitions: true,
+  maxItems: 3,
 });
 
 if (process.argv.includes('--check')) {

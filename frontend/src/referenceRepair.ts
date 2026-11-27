@@ -1,4 +1,4 @@
-import { newId } from './project';
+import { newId, designSnapshot } from './project';
 import {atlasPlaces} from './atlasPlaces';
 import { findingsOf, type ScenarioFinding } from './ScenarioFindings';
 import type { Project } from './project.generated';
@@ -114,7 +114,7 @@ export async function validateRecoveredDraft(project: Project, draft: Project, s
   const res = await fetch('/api/scenario/validate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(draft),
+    body: JSON.stringify(designSnapshot(draft)),
     signal,
   });
   if (!res.ok) throw Error(relinkCopy.request);

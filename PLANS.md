@@ -36,3 +36,7 @@ Phase 2.3 keeps one generation request and compiles the typed design against per
 ## Phase 3 owner review
 
 The procedural atlas now runs locally from current approved sources. The UI, scoped proposal store, geometry validators, project round trip, 60-input campaign and integrated scenario journeys are implemented. The owner reported seeing a real generated scenario graph. Final scenario approval, the owner's backup and a rendered walkthrough on their saved project still require owner confirmation. Phase 4 can consume stable location IDs, route paths, source versions and deterministic findings after this review. [Phase 3 gate and measurements](docs/PHASE_3_REPORT.md)
+
+## Phase 4 owner review gate
+
+The World Bible, local verification orchestrator, scoped editorial review, atomic repair workflow and portable run history are available for owner review. The classified campaign includes 42 synthetic cases and two historical owner snapshots. Actual browser interaction with the current owner project and optional ChatKHU editorial review remain owner checks. Phase 5 requires a separate decision. [Phase 4 report](docs/PHASE_4_REPORT.md) · [Owner walkthrough](docs/VERIFICATION_AGENT.md)

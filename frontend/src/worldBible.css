@@ -1,0 +1,133 @@
+.bible-layout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.75fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: start;
+}
+.bible-detail {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bible-register {
+  min-width: 0;
+}
+.bible-records,
+.bible-links {
+  list-style: none;
+  padding: 0;
+  margin: 0.8rem 0 0;
+}
+.bible-records {
+  max-height: 70vh;
+  overflow: auto;
+}
+.bible-records button {
+  text-align: left;
+  width: 100%;
+  display: grid;
+  justify-items: start;
+  gap: 0.25rem;
+  margin: 0.12rem 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.bible-records button[aria-current] {
+  box-shadow: inset 3px 0 var(--accent);
+  background: #302821;
+  color: var(--text);
+}
+.bible-meta,
+.bible-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.bible-meta dt,
+.bible-diff small,
+.bible-links span,
+.bible-records small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.bible-meta dd {
+  margin: 0.25rem 0;
+}
+.bible-edit {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.bible-impact details {
+  margin: 0.8rem 0;
+}
+.bible-impact .actions,
+.bible-toolbar {
+  margin-top: 1rem;
+}
+.bible-network {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  margin-top: 0.6rem;
+  touch-action: none;
+}
+.bible-network line {
+  stroke: #957d68;
+  stroke-width: 2;
+}
+.bible-network line.bible-suggestion {
+  stroke: #bdabd3;
+  stroke-width: 3;
+}
+.bible-network rect {
+  fill: var(--raised);
+  stroke: #776654;
+}
+.bible-network text {
+  fill: var(--text);
+  font-size: 13px;
+}
+.bible-network .bible-svg-kind {
+  font-size: 10px;
+}
+.bible-network g[role='button'] {
+  cursor: pointer;
+}
+.bible-center rect {
+  fill: #402f23;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.bible-center text {
+  fill: var(--accent-strong);
+}
+.bible-links {
+  max-height: 24rem;
+  overflow: auto;
+}
+.bible-links li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.bible-detail h2,
+.bible-detail dl,
+.bible-detail p,
+.bible-register label {
+  margin-block: 0.55rem;
+}
+@media (max-width: 760px) {
+  .bible-layout {
+    grid-template-columns: 1fr;
+  }
+  .bible-records {
+    max-height: 14rem;
+  }
+}

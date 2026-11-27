@@ -40,6 +40,16 @@ DIRECTIONS = (
 
 class MockProvider:
     async def generate(self, request: GenerationRequest) -> str:
+        if request.task == "semantic" and request.context:
+            records = request.context["records"]
+            source = next((r for r in records if r["id"] == request.context.get("targetId")), records[0])
+            return json.dumps({"findings": [{
+                "category": "creative-suggestion", "severity": "info",
+                "evidence": [{"id": source["id"], "kind": source["kind"], "excerpt": source["text"].strip()[:100]}],
+                "explanation": "Read this passage alongside the player's next decision.",
+                "uncertainty": "This mock illustrates the review format. Its narrative fit needs designer judgment.",
+                "suggestedRepair": "Consider whether the consequence is clear to the player.",
+            }]}, ensure_ascii=False)
         if request.context is not None and request.task == "scenario":
             return json.dumps(mock_scenario(request.context), ensure_ascii=False)
         if request.context is not None and request.task == "revision":

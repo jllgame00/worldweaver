@@ -67,13 +67,13 @@ class Candidate(TypedDict):
 
 class Receipt(TypedDict):
     tool: str
-    outcome: Literal["passed", "failed"]
+    outcome: Literal["passed", "failed", "advice"]
     detail: str
 
 
 class Run(TypedDict):
     id: str
-    stage: Literal["candidates", "scenario"]
+    stage: Literal["candidates", "scenario", "verify"]
     baseRevision: int
     mode: Literal["mock", "live"]
     status: Literal["proposed", "failed"]
@@ -95,8 +95,9 @@ def entity_ids(value: JsonValue) -> Iterator[str]:
         identifier = value.get("id")
         if isinstance(identifier, str):
             yield identifier
-        for item in value.values():
-            yield from entity_ids(item)
+        for key, item in value.items():
+            if key not in {"verificationHistory", "evidence"}:
+                yield from entity_ids(item)
     elif isinstance(value, list):
         for item in value:
             yield from entity_ids(item)
@@ -334,6 +335,36 @@ class ProjectSnapshot(RootModel[dict[str, JsonValue]]):
         narrative_basis = basis.get("narrative", {})
         fresh = candidate_basis.get("content") == versions["content"]
 
+        history = cast(list[dict[str, Any]], data.get("verificationHistory", []))
+        verify_runs = {r["id"]: r for r in cast(list[dict[str, Any]], data["runs"]) if r["stage"] == "verify"}
+
+        def consistent_report(entry: dict[str, Any]) -> bool:
+            run = verify_runs.get(entry["runId"])
+            if not run:
+                return False
+            if run["status"] == "verified":
+                required = set(SCHEMA["definitions"]["VerificationToolReceipt"]["properties"]["tool"]["enum"])
+                checks = {t["tool"] for t in entry["tools"] if t["status"] == "passed" and t["checkedRevision"] == run["baseRevision"]}
+                receipts = {r["tool"] for r in run["receipts"] if r["outcome"] == "passed"}
+                if (entry["mode"] != "full" or run["mode"] != "deterministic" or run["calls"]
+                    or not entry["paths"] or not entry["statesExplored"] or any(f["severity"] == "error" for f in entry["findings"])
+                    or not required <= (checks & receipts)):
+                    return False
+            findings = {f["id"] for f in entry["findings"]}
+            for f in entry["findings"]:
+                relation = f.get("suggestedRelationship")
+                if (f["runId"] != entry["runId"] or any(e["id"] not in f["entityIds"] for e in f.get("evidence", []))
+                    or relation and (f["origin"] != "editorial" or relation["fromId"] == relation["toId"]
+                                     or not {relation["fromId"], relation["toId"]} <= set(f["entityIds"]))):
+                    return False
+            for proposal in entry.get("proposals", []):
+                ids = {edit["proposalId"] for edit in proposal["edits"]}
+                if any(e["findingId"] not in findings or not set(e["requires"]) <= ids for e in proposal["edits"]):
+                    return False
+            return len(findings) == len(entry["findings"]) and all(d["findingId"] in findings for d in entry["decisions"])
+
+        if len({entry["runId"] for entry in history}) != len(history) or not all(map(consistent_report, history)):
+            raise ValueError("verification_history_reference")
         invalid = next(scenario_references(data, historical=True), None)
         if invalid:
             raise PydanticCustomError("project_references", "Project reference mismatch", {"field": invalid[1]["fieldPath"]})

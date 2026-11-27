@@ -87,7 +87,7 @@ export default function NarrativeRegistry({
       {!proposal && !!registered.length && (
         <ul className="record-list">
           {registered.map((row) => (
-            <li key={row.kind + '/' + row.id}>
+            <li key={row.kind + '/' + row.id} id={'canonical-'+row.id} tabIndex={-1}>
               {row.name} · {labels[row.kind]} <code>{row.id}</code>
             </li>
           ))}

@@ -23,12 +23,15 @@ from .openai_provider import OpenAIProvider
 from .provider import StructuredProvider
 from .scenario import RevisionInput, ScenarioInput, ScenarioRejected, propose
 from .scenario_validation import Finding, validate_graph
+from .semantic_review import MAX_OUTPUT as REVIEW_MAX_OUTPUT, SemanticInput, review
 from .settings import Settings
 
 
 DIST = Path(__file__).resolve().parents[2] / "frontend/dist"
 MAX_PROJECT_BYTES = 1024 * 1024
 GENERATION_ERRORS = {
+    "invalid_review_scope": (422, "Select one reviewable source for a targeted review or use the full scope."),
+    "invalid_review_evidence": (502, "Semantic review returned invalid or unsupported evidence. Its findings were discarded."),
     "scenario_source": (422, "Approve a current narrative before generating or revising its scenario."),
     "revision_target": (422, "Select a scenario entity and enter revision instructions."),
     "invalid_settings": (422, "Check the scenario generation settings."),
@@ -127,6 +130,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
     app = FastAPI(title="WORLDWEAVER", version="1.0.0", lifespan=lifespan)
     active_live = False
     scenario_output_limit = config.scenario_max_output_tokens or config.max_output_tokens
+    review_output_limit = min(config.max_output_tokens, REVIEW_MAX_OUTPUT)
     recent_live: dict[tuple[str, int], float] = {}
     if (DIST / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
@@ -154,6 +158,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         failure = unavailable(request)
         status: dict[str, object] = {
             "mode": config.mode, "provider": config.provider, "model": config.model, "available": failure is None,
+            "semanticMaxOutputTokens": review_output_limit,
         }
         if gateway:
             status["api"] = config.chatkhu_api
@@ -181,12 +186,13 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             return error_response(422, "invalid_project", "The request must be a valid JSON project.")
 
     @app.post("/api/scenario/validate", response_model=None)
-    async def validate_scenario(request: Request):
+    async def validate_scenario(request: Request, verification: bool = False):
         data = await read_json(request)
         if isinstance(data, JSONResponse):
             return data
-        return validate_graph(data)
+        return validate_graph(data, verification=verification)
 
+    @app.post("/api/verify/semantic", response_model=None)
     @app.post("/api/scenario", response_model=None)
     @app.post("/api/scenario/revise", response_model=None)
     @app.post("/api/candidates", response_model=ProposalResponse)
@@ -197,11 +203,14 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             return error_response(*failure)
         assert adapter is not None
         route = request.url.path
+        semantic = route == "/api/verify/semantic"
+        if semantic and request.headers.get("x-worldweaver-semantic-budget") != f"1:{review_output_limit}":
+            return error_response(409, "generation_configuration_changed", "Review the current semantic request budget before authorizing.")
         expected_cap = request.headers.get("x-worldweaver-scenario-output-limit")
         if live and route == "/api/scenario" and expected_cap is not None and expected_cap != str(scenario_output_limit):
             return error_response(409, "generation_configuration_changed", "Review the updated scenario output limit before generating.")
         expected = request.headers.get("x-worldweaver-generation")
-        if (live or expected is not None) and expected != config.generation_intent:
+        if (live or semantic or expected is not None) and expected != config.generation_intent:
             return error_response(409, "generation_configuration_changed", "Review the current provider before generating again.")
         if live and request.headers.get("content-type", "").partition(";")[0].strip().lower() != "application/json":
             return error_response(415, "json_required", "Live requests must use application/json.")
@@ -209,14 +218,19 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
         if isinstance(data, JSONResponse):
             return data
         scenario_input = None
+        semantic_input = None
         try:
-            if route == "/api/candidates":
+            if semantic:
+                semantic_input = SemanticInput.model_validate(data)
+            elif route == "/api/candidates":
                 project = ProjectSnapshot.model_validate(data)
             else:
                 model = RevisionInput if route.endswith("/revise") else ScenarioInput
                 scenario_input = model.model_validate(data)
                 project = scenario_input.project
         except ValidationError as exc:
+            if semantic:
+                return error_response(422, "invalid_review_scope", "Supply bounded typed source excerpts for a full or targeted semantic review.")
             issue = exc.errors(include_input=False, include_url=False)[0]
             field = issue.get("ctx", {}).get("field")
             return error_response(422, "invalid_project", "The project does not match the v1 structure or references.", field=field)
@@ -226,16 +240,22 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             if active_live:
                 return error_response(409, "generation_in_progress", "Another live generation request is already in progress.")
             now = monotonic()
-            live_key = (str(project.root["id"]), project.narrative_data["revision"])
+            live_key = (semantic_input.projectId, semantic_input.baseRevision) if semantic_input else (
+                str(project.root["id"]), project.narrative_data["revision"])
             for key in [key for key, until in recent_live.items() if until <= now]:
                 del recent_live[key]
             if live_key in recent_live:
                 return error_response(409, "duplicate_generation", "This project revision was just submitted. Wait before trying again.")
             active_live = True
-        task = asyncio.create_task(propose(scenario_input, adapter, config) if scenario_input is not None else generate(
-            project.narrative_data, adapter, mode=config.mode, model=config.model, timeout=config.timeout_seconds,
-            provider_name=config.provider, max_attempts=config.live_max_attempts if live else None,
-        ))
+        if semantic_input is not None:
+            operation = review(semantic_input, adapter, config)
+        elif scenario_input is not None:
+            operation = propose(scenario_input, adapter, config)
+        else:
+            operation = generate(project.narrative_data, adapter, mode=config.mode, model=config.model,
+                                 timeout=config.timeout_seconds, provider_name=config.provider,
+                                 max_attempts=config.live_max_attempts if live else None)
+        task = asyncio.create_task(operation)
         try:
             while not task.done():
                 await asyncio.wait({task}, timeout=0.1)
@@ -247,6 +267,8 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
             status, message = GENERATION_ERRORS[code]
             if code == "provider_output_limit":
                 cap = scenario_output_limit if isinstance(scenario_input, ScenarioInput) else config.max_output_tokens
+                if semantic:
+                    cap = review_output_limit
                 message = message.format(limit=cap)
             elif code == "provider_authentication" and gateway:
                 message = ("ChatKHU rejected authentication (HTTP 401). Run python -m scripts.chatkhu check "
@@ -265,7 +287,7 @@ def create_app(settings: Settings | None = None, provider: StructuredProvider | 
                         del recent_live[next(iter(recent_live))]
                     recent_live[live_key] = monotonic() + 3
                     active_live = False
-        if scenario_input is not None:
+        if semantic_input is not None or scenario_input is not None:
             return result
         return ProposalResponse(baseRevision=result.base_revision, candidates=result.candidates, run=result.run)
 

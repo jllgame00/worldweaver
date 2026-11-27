@@ -45,3 +45,14 @@ ChatKHU 인증, 모델·크레딧 예산 승인, 실제 성공 응답 및 창작
 | 표현·내보내기 | 편집 가능한 프로젝트 JSON, 세계 Markdown, 범례와 축척이 포함된 SVG를 지원한다. 독립 출력물은 QtSVG로 그려 확인했다. 실제 브라우저 및 소유자 프로젝트 확인은 대기 중이다. |
 
 [지도 캠페인 상세](ATLAS_CAMPAIGN.md) · [Phase 3 검토 항목](PHASE_3_REPORT.md)
+
+## Phase 4 evidence update
+
+| Capability | Implemented evidence | Outstanding evidence |
+|---|---|---|
+| P6 shared records and geography | World Bible, stable ID links, reverse references, dependency/approval previews, keyboard list and bounded SVG graph | Owner review of the latest local project and native interaction |
+| P7 verification and targeted repair | Registered deterministic tools, feasible progression/journeys, scoped evidence, one-request semantic contract, two-attempt repair budget, explicit decisions and full recheck | Live editorial quality and actual provider price for the owner's model |
+| P8 portable verification metadata | Legacy import, bounded history, current/historical fingerprint, recovered proposals, JSON / Markdown, token-guarded save | Actual backup and restore in owner's browser profile |
+| Evidence and cost | 44 classified cases, real local HTTP, privacy-preserving owner diagnostics, mocked semantic transport, zero paid development requests | Final course rubric and Phase 5 review remain separate |
+
+[Regression and limitations](PHASE_4_REPORT.md) · [TDD ledger](TDD_EVIDENCE.md) · [Case-by-case measurements](VERIFICATION_CAMPAIGN.md)

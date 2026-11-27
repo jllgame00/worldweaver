@@ -1,4 +1,4 @@
-import type { Location, Project, World } from './project.generated';
+import type { Location, Project, TravelRoute, World } from './project.generated';
 
 /** A scenario owns the identity. The atlas stores only its placement and explicit cartographic edits. */
 export function atlasPlaces(p: Project): Location[] {
@@ -41,5 +41,34 @@ export function portableWorld(p: Project, draft: World): World {
           ...(description !== source.purpose && { description }),
         };
       }),
+  };
+}
+
+// Find one authored route chain for this journey. Physical validity is checked by the atlas validator.
+export function journeyRoutes(routes: TravelRoute[]) {
+  const paths = new Map<string, { to: string; route: string }[]>();
+  for (const route of routes.filter((r) => r.mode !== 'aqueduct' && r.mode !== 'canal')) {
+    for (const [from, to] of [
+      [route.from, route.to],
+      [route.to, route.from],
+    ] as const) {
+      if (!paths.has(from)) paths.set(from, []);
+      paths.get(from)!.push({ to, route: route.id });
+    }
+  }
+  return (start: string, end: string) => {
+    const visited = new Map<string, { parent: string; route: string }>();
+    const queue = [start];
+    for (let i = 0; i < queue.length && !visited.has(end); i++) {
+      const parent = queue[i]!;
+      for (const { to, route } of paths.get(parent) ?? []) {
+        if (to === start || visited.has(to)) continue;
+        visited.set(to, { parent, route });
+        queue.push(to);
+      }
+    }
+    const result: string[] = [];
+    for (let step = visited.get(end); step; step = visited.get(step.parent)) result.push(step.route);
+    return result.reverse();
   };
 }

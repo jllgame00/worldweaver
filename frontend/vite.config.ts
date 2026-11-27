@@ -23,5 +23,6 @@ export default defineConfig({
       '/health': backendProxy,
     },
   },
-  test: { environment: 'jsdom', pool: 'threads', setupFiles: ['./src/testSetup.ts'] },
+  // Each DOM worker loads the canonical schema and all studios. Bound contention on developer machines.
+  test: { environment: 'jsdom', pool: 'threads', maxWorkers: 4, setupFiles: ['./src/testSetup.ts'] },
 });

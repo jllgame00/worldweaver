@@ -9,7 +9,7 @@ export const structurallyValidProject = ajv.compile<Project>(schema);
 export const structurallyValidWorld = ajv.compile<NonNullable<Project['world']>>({$ref:'#/definitions/World',definitions:schema.definitions});
 export const validAtlasSettings = ajv.compile({$ref:'#/definitions/AtlasSettings',definitions:schema.definitions});
 const runSchema = { $ref: '#/definitions/AgentRun' };
-const validRun = ajv.compile<AgentRun>({ ...runSchema, definitions: schema.definitions });
+export const validRun = ajv.compile<AgentRun>({ ...runSchema, definitions: schema.definitions });
 
 export interface CandidateResult {
   baseRevision: number;
@@ -20,6 +20,7 @@ export interface CandidateResult {
 export type GenerationStatus = {
   available: boolean;
   model: string;
+  semanticMaxOutputTokens?: number;
   message?: string;
   limits?: { scenarioMaxOutputTokens?: number; timeoutSeconds?: number };
 } & (
@@ -34,6 +35,7 @@ const validGenerationStatus = ajv.compile<GenerationStatus>({
     mode: { enum: ['mock', 'live'] }, available: { type: 'boolean' }, provider: { enum: ['mock', 'openai', 'chatkhu'] },
     api: { enum: ['responses', 'chat_completions'] },
     model: { type: 'string', pattern: '^[A-Za-z0-9_.:/-]{1,128}$' },
+    semanticMaxOutputTokens: { type: 'integer', minimum: 128, maximum: 1600 },
     message: { type: 'string', minLength: 1, maxLength: 400 },
     limits: {
       type: 'object', properties: {
@@ -248,7 +250,26 @@ export function isProject(value: unknown): value is Project {
   if (!structurallyValidProject(value)) return false;
   const ids = entities(value).map(({ id }) => id);
   const { basis, versions } = value;
-  return ids.length === new Set(ids).size && allReferencesExist(value)
+  const history = value.verificationHistory ?? [];
+  return history.length === new Set(history.map(entry => entry.runId)).size
+    && history.every(entry => {
+      const findings = new Set(entry.findings.map(f=>f.id));
+      const run=value.runs.find(r=>r.id===entry.runId && r.stage==='verify');
+      if(!run)return false;
+      if(run.status==='verified' && (entry.mode!=='full' || run.mode!=='deterministic' || run.calls!==0
+        || !entry.paths.length || !entry.statesExplored || entry.findings.some(f=>f.severity==='error')
+        || !schema.definitions.VerificationToolReceipt.properties.tool.enum.every(tool=>
+          entry.tools.some(t=>t.tool===tool && t.status==='passed' && t.checkedRevision===run.baseRevision) &&
+          run.receipts.some(r=>r.tool===tool && r.outcome==='passed'))))return false;
+      return findings.size === entry.findings.length
+        && entry.findings.every(f=>f.runId===entry.runId && (f.evidence??[]).every(e=>f.entityIds.includes(e.id))
+          && (!f.suggestedRelationship || (f.origin==='editorial' && f.suggestedRelationship.fromId!==f.suggestedRelationship.toId
+            && [f.suggestedRelationship.fromId,f.suggestedRelationship.toId].every(id=>f.entityIds.includes(id)))))
+        && (entry.proposals??[]).every(s=>s.edits.every(e=>findings.has(e.findingId) &&
+          e.requires.every(id=>s.edits.some(peer=>peer.proposalId===id))))
+        && entry.decisions.every(d=>findings.has(d.findingId));
+    })
+    && ids.length === new Set(ids).size && allReferencesExist(value)
     && (value.storyCandidates.length > 0) === !!basis.candidates
     && !!value.narrative === !!basis.narrative
     && (!basis.candidates || basis.candidates.content <= versions.content)

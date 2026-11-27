@@ -1,4 +1,5 @@
 import { copy } from './copy';
+import { designSnapshot } from './project';
 import type { AgentRun, Project } from './project.generated';
 import { generationFailure, isCandidateResult, isGenerationStatus } from './validation';
 import type { CandidateResult, GenerationStatus } from './validation';
@@ -29,7 +30,7 @@ export async function generateDirections(project: Project, configuration: Genera
     response = await fetch('/api/candidates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Worldweaver-Generation': fingerprint },
-      body: JSON.stringify(project), signal,
+      body: JSON.stringify(designSnapshot(project)), signal,
     });
   } catch {
     throw new GenerationError(copy.requestFailed);

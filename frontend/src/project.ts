@@ -2,6 +2,10 @@ import type { AgentRun, CanonicalFact, Project, Story, StoryCandidate, UserConte
 
 export type CandidateBatch = Exclude<Project['storyCandidates'], []>;
 
+export function designSnapshot({verificationHistory: _history,...project}:Project):Project {
+  return project;
+}
+
 export function newId(kind: string): string {
   return `${kind}-${crypto.randomUUID()}`;
 }

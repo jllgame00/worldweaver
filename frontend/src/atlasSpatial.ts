@@ -305,7 +305,7 @@ class Connections {
 }
 
 const waterwork = (mode: string) => mode === 'canal' || mode === 'aqueduct';
-function lengthKm(w: World, path: Point[], from: Location, to: Location) {
+export function lengthKm(w: World, path: Point[], from: Location, to: Location) {
   const horizontal =
     (same(path[0]!, path[path.length - 1]!) ? 0 : path.length - 1) * (w.settings?.kmPerCell ?? 1);
   // An atlas depth level spans 50 metres, regardless of the continental map scale.

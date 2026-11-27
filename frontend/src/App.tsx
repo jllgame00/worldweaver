@@ -3,6 +3,9 @@ import { fetchGenerationStatus, generateDirections, GenerationError } from './ap
 import Content from './Content';
 import ScenarioStudio from './ScenarioStudio';
 import AtlasStudio from './AtlasStudio';
+import { WorldBible } from './WorldBible';
+import VerificationAgent from './VerificationAgent';
+import { verificationCopy } from './verificationCopy';
 import { scenarioCopy } from './studioWorkflowCopy';
 import { importProject, InvalidProjectReference } from './scenarioWorkflow';
 import { copy } from './copy';
@@ -15,7 +18,7 @@ import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
 import type { CandidateResult, GenerationStatus } from './validation';
 
-type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas';
+type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas' | 'bible' | 'verification';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
 
 function startingStudio(project: Project): Studio {
@@ -31,7 +34,12 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
   const [view, setView] = useState<View>('content');
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [linked,setLinked]=useState<{projectId:string;id:string}>();
-  function navigate(to:'atlas'|'scenario',id:string){if(project){setLinked({projectId:project.id,id});setView(to);}}
+  function navigate(to:Studio,id:string){
+    if(!project)return;
+    setLinked({projectId:project.id,id});
+    const candidate=project.storyCandidates.some(c=>c.id===id);
+    setView(to==='narrative' && candidate?{from:'directions',detail:id}:to);
+  }
   const [proposal, setProposal] = useState<CandidateResult>();
   const [switching, setSwitching] = useState<{ candidate: StoryCandidate; revision: number }>();
   const [generation, setGeneration] = useState<GenerationStatus | null>();
@@ -56,11 +64,13 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
 
   useEffect(() => {
     const heading = Array.from(main.current?.querySelectorAll('h1') ?? []).find((element) => !element.closest('[hidden]'));
-    if (heading) {
+    const source = linked && (view==='content' || view==='narrative') ? document.getElementById('canonical-'+linked.id) : null;
+    if(source) source.focus();
+    else if (heading) {
       heading.tabIndex = -1;
       heading.focus();
     }
-  }, [project?.id, view]);
+  }, [project?.id, view, linked]);
 
   function cancel() {
     request.current?.abort();
@@ -191,10 +201,10 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
           </>}
         </div>
         {project && <nav className="studio-nav" aria-label={copy.studioNav}>
-          {(['content', 'directions', 'narrative', 'scenario', 'atlas'] as const).map((name) => (
+          {(['content', 'directions', 'narrative', 'scenario', 'atlas','bible','verification'] as const).map((name) => (
             <button key={name} type="button" aria-current={studio === name ? 'page' : undefined}
               disabled={name === 'directions' ? !project.storyCandidates.length : name === 'narrative' && !project.narrative}
-              onClick={() => {setLinked(undefined);setView(name);}}>{name==='atlas'?'World Atlas':name==='scenario'?scenarioCopy.title:copy[name]}</button>
+              onClick={() => {setLinked(undefined);setView(name);}}>{name==='bible'?verificationCopy.bible:name==='verification'?verificationCopy.title:name==='atlas'?'World Atlas':name==='scenario'?scenarioCopy.title:copy[name]}</button>
           ))}
         </nav>}
       </header>
@@ -214,7 +224,7 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
               <span className="provider-mode" role="status">{providerLabel}</span></div>
             {generating ? <div className="actions generation-state"><span role="status">{copy.generating}</span>
               <button type="button" className="quiet" onClick={cancel}>{copy.cancelGeneration}</button></div>
-              : studio!=='scenario' && <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
+              : !['scenario','verification','bible'].includes(studio) && <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
                 onClick={() => void startGeneration()}>{copy.generate}</button>}
           </div>
           {generationIssue && <div className="notice">
@@ -255,6 +265,12 @@ export default function App({ databaseName = 'worldweaver-v1' }: { databaseName?
               ...(generating ? [scenarioCopy.generating] : []),
             ]}
             generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
+          {view==='bible' && <WorldBible key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
+            review={id=>navigate('verification',id)} navigate={navigate} disabled={disabled || generating} commit={store.commit}
+            current={()=>store.writing.current?undefined:store.current.current?.project}/>}
+          {view==='verification' && <VerificationAgent key={project.id} project={project} targetId={linked?.projectId===project.id?linked.id:undefined}
+            inspect={id=>navigate('bible',id)} disabled={disabled || generating} commit={store.commit} configuration={generation}
+            current={()=>store.writing.current?undefined:store.current.current?.project}/>}
           {view==='atlas' && <AtlasStudio key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
             openScenario={id=>navigate('scenario',id)} disabled={disabled || generating} commit={store.commit}
             current={()=>store.writing.current?undefined:store.current.current?.project} databaseName={databaseName}/>}

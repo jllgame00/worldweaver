@@ -7,6 +7,7 @@ from openai.types.responses import Response, ResponseCreateParams
 
 from .contracts import SCHEMA, load_unique_json, schema_location
 from .scenario_wire import scenario_format
+from .semantic_review import FORMAT as REVIEW_FORMAT, INSTRUCTIONS as REVIEW_INSTRUCTIONS, MAX_OUTPUT as REVIEW_MAX_OUTPUT
 from .provider import GenerationReply, GenerationRequest, ProviderError, ProviderUsage
 
 
@@ -117,7 +118,12 @@ class OpenAIProvider:
         self.max_input_bytes = max_input_bytes
 
     async def generate(self, request: GenerationRequest) -> GenerationReply:
-        instructions, response_format = (INSTRUCTIONS, STRUCTURED_FORMAT) if request.task == "candidates" else scenario_format(request.task)
+        if request.task == "semantic":
+            instructions, response_format = REVIEW_INSTRUCTIONS, REVIEW_FORMAT
+        elif request.task == "candidates":
+            instructions, response_format = INSTRUCTIONS, STRUCTURED_FORMAT
+        else:
+            instructions, response_format = scenario_format(request.task)
         creative_data = json.dumps(request.context if request.context is not None else {
             "userContent": request.content, "canonicalFacts": request.canonical_facts,
         }, ensure_ascii=False, separators=(",", ":"))
@@ -126,6 +132,8 @@ class OpenAIProvider:
 
         try:
             limit = self.scenario_max_output_tokens if request.task == "scenario" else self.max_output_tokens
+            if request.task == "semantic":
+                limit = min(limit, REVIEW_MAX_OUTPUT)
             reply = await self._request_reply(request.model, creative_data, instructions, response_format, limit)
         except APITimeoutError:
             raise TimeoutError from None
