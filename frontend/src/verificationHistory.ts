@@ -1,6 +1,10 @@
 import type { AgentRun, Project, VerificationEntry, RepairEdit, SavedRepair } from './project.generated';
 import { verificationCopy as c } from './verificationCopy';
 
+export function reportApplies(entry: VerificationEntry, fingerprint?: string) {
+  return !entry.archived && entry.fingerprint === fingerprint;
+}
+
 export async function verificationIdentity(project: Project): Promise<string> {
   const { revision, runs, findings, verificationHistory, approval, scenario, ...design } = project;
   const ordered = JSON.stringify(
@@ -34,16 +38,20 @@ export function recordVerification(
       .slice(0, Math.max(0, history.length - 12))
       .map((row) => row.runId),
   );
+  const remaining = history.filter(row => !expired.has(row.runId));
+  const referenced = new Set(remaining.flatMap(row => row.sourceRunId ? [row.runId, row.sourceRunId] : [row.runId]));
+  const removable = new Set(history.filter(row => expired.has(row.runId))
+    .flatMap(row => row.sourceRunId ? [row.runId, row.sourceRunId] : [row.runId]));
   const retainedRuns = project.runs.filter(
     (row) =>
-      !expired.has(row.id) ||
+      !removable.has(row.id) || referenced.has(row.id) ||
       project.approval?.runId === row.id ||
       project.findings.some((f) => f.runId === row.id),
   );
   return {
     ...project,
     runs: [...retainedRuns, run],
-    verificationHistory: history.filter((row) => !expired.has(row.runId)),
+    verificationHistory: remaining,
   };
 }
 
@@ -55,7 +63,7 @@ export function reserveRepair(
 ): Project {
   const run = project.runs.find((row) => row.id === runId),
     entry = project.verificationHistory?.find((e) => e.runId === runId);
-  if (!entry || !run || run.repairAttempts >= 2 || (entry.proposals?.length ?? 0) >= 2) throw Error(c.budget);
+  if (!entry || entry.archived || !run || run.repairAttempts >= 2 || (entry.proposals?.length ?? 0) >= 2) throw Error(c.budget);
   const [first, ...rest] = changes;
   if (
     !first ||

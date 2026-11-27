@@ -6,6 +6,7 @@ import { useVerificationTool } from './verificationCopy';
 import { editStages } from './worldBibleEdits';
 import { dependencyImpact, type BibleIndex, type BibleEntity } from './worldBibleIndex';
 import { useVerificationIdentity } from './worldBibleEvidence';
+import { reportApplies } from './verificationHistory';
 import { targetScope } from './verificationTools';
 
 export function WorldBibleImpact({
@@ -52,7 +53,7 @@ export function WorldBibleImpact({
     )
     .flatMap((run) => run.receipts.map((r) => ({ tool: r.tool, run: run.id, revision: run.baseRevision })));
   for (const entry of saved) {
-    if (entry.fingerprint !== fingerprint) continue;
+    if (!reportApplies(entry, fingerprint)) continue;
     if (
       entry.mode === 'targeted' &&
       (!entry.targetId || !targetScope(project, entry.targetId, index)?.ids.has(entity.id))

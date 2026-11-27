@@ -20,6 +20,11 @@ export default function Dashboard({ projects, loading, disabled, open, create, s
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [invalid, setInvalid] = useState(false);
+  const titles = new Set<string>(), repeated = new Set<string>();
+  for (const { project } of projects) {
+    if (titles.has(project.title)) repeated.add(project.title);
+    titles.add(project.title);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,10 +60,13 @@ export default function Dashboard({ projects, loading, disabled, open, create, s
           <ul className="project-list">
             {projects.map(({ project, savedAt }) => (
               <li key={project.id}>
-                <div><h3 className="creative">{project.title}</h3><time dateTime={new Date(savedAt).toISOString()}>{format.date(savedAt, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>
+                <div><h3 className="creative">{project.title}</h3><time dateTime={new Date(savedAt).toISOString()}>{format.date(savedAt, { dateStyle: 'medium', timeStyle: 'short' })}</time>
+                  {repeated.has(project.title) && <small id={'saved-' + project.id}> · ID {project.id}</small>}</div>
                 <span className="pill">{project.narrative ? (narrativeFresh(project) ? (project.narrative.approved ? copy.approved : copy.draft) : copy.stale)
                   : project.storyCandidates.length ? (candidatesFresh(project) ? copy.directions : copy.stale) : copy.content}</span>
-                <button type="button" disabled={disabled} aria-label={copy.open(project.title)} onClick={() => open(project.id)}>{copy.openProject}</button>
+                <button type="button" disabled={disabled} aria-label={copy.open(project.title)}
+                  aria-describedby={repeated.has(project.title) ? 'saved-' + project.id : undefined}
+                  onClick={() => open(project.id)}>{copy.openProject}</button>
               </li>
             ))}
           </ul>

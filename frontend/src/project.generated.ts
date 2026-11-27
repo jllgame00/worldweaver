@@ -59,6 +59,7 @@ export interface Project {
 export interface VerificationEntry {
   runId: Id;
   fingerprint: string;
+  archived?: boolean;
   timestamp: string;
   mode: "quick" | "targeted" | "full";
   sourceRunId?: Id;

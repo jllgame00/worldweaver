@@ -97,6 +97,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .empty { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 
 form fieldset { display: grid; min-width: 0; gap: .95rem; margin: 0; padding: 0; border: 0; }
+.import-controls { min-width: 0; margin: 0; padding: 0; border: 0; }
+.restore-preview { overflow-wrap: anywhere; }
+.restore-preview .creative { white-space: pre-wrap; }
 form label, .list-field legend { display: grid; gap: .35rem; min-width: 0; color: var(--text); font-size: .85rem; font-weight: 650; }
 input:not([type="checkbox"]), textarea, select {
   display: block;

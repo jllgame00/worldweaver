@@ -2,6 +2,18 @@
 
 Phase 0의 설계 검증은 [Phase 0 보고서](PHASE_0_REPORT.md)에 기록했다.
 
+## Phase 5D · restore after a competing save
+
+Clean start on `feature/product-polish` at `34aad6d7552dc033e8fb945a6dcaa7e9736998ce`. Its parent is the separate 5C GREEN commit `ae5979a362ce5e46b9a9192b07f1ba7c9eaaa422`. The RED commit added only `frontend/src/projectRestore.test.tsx`. Its assertions stayed unchanged.
+
+| Command | Observation |
+|---|---|
+| `npm.cmd --prefix frontend test -- projectRestore.test.tsx --reporter=verbose` before changes | Exit 1. Six UI cases could not find the restore review dialog. The second D2 case reached its token-only competing save, then found an undefined storage restore function. Four invalid-file cases already passed. |
+| Same command after implementation | Exit 0. All original 11 passed, including stale denial at both boundaries, explicit confirmation, rollback, previous JSON after reopening, duplicate and cancellation. |
+| Full pytest / Vitest / typecheck / build | 313 Python tests, 204 frontend tests in 43 files, generated types, strict TypeScript and Vite passed. Eight implementation-stage regressions are in `projectRestoreEdges.test.tsx`. |
+
+The tests used production persistence functions on isolated fake IndexedDB connections and jsdom. Live provider calls and cost were zero. The 5D GREEN commit is pending the owner. [Case results, limits and reproduction](PHASE_5D_REPORT.md)
+
 ## Phase 5B owner test commit
 
 `feature/product-polish` started clean at `81bef2ff5a867cfb1ce09962bec74e54da624ee1`, parent `2bd184b6fc18438c3a15366e8fe92ce0375f07d4`. `git diff HEAD^ HEAD --name-status` showed only two added test files. Both files and their assertions remained unchanged through GREEN.

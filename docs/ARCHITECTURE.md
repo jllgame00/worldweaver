@@ -1,5 +1,11 @@
 # System architecture
 
+## Local project recovery
+
+The dashboard validates the uploaded canonical JSON (16 MiB limit), then reads the target row from IndexedDB for the comparison. A restore carries that row's token into a read-write transaction over `projects` and `previousProjects`. The transaction re-reads the target, compares its token, stores the exact former Project by ID, and replaces the current row at its previous revision + 1 with a new token. The UI adopts the row only on transaction completion. A conflict requires another review. An abort rolls back both stores, including replacement of an older recovery copy. Ordinary saves retain the recovery-download indicator.
+
+The existing database name stays the same. Its version 2 upgrade creates the recovery store alongside the original project store. One recovery snapshot per project bounds disk use. Downloads read it on demand. A separate-copy import uses a create-only write with a new root ID. Both operations clear local trust and retain historical reports. Atlas working copies, rejected proposals and intake drafts keep their existing storage and revision rules. [Recovery checks and owner walkthrough](PHASE_5D_REPORT.md)
+
 Proposed MVP deployment unit: one stateless FastAPI web service. It serves the built React/TypeScript/Vite assets, the API and a health route. A project belongs to the designer's browser. A request carries a snapshot and a base design revision. Approved changes return as validated data.
 
 ~~~mermaid

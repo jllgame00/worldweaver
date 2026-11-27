@@ -5,13 +5,14 @@ import ScenarioStudio from './ScenarioStudio';
 import AtlasStudio from './AtlasStudio';
 import { WorldBible } from './WorldBible';
 import VerificationAgent from './VerificationAgent';
-import { importProject, InvalidProjectReference } from './scenarioWorkflow';
+import { ProjectImport, RecoveryDownload } from './ProjectImport';
+import { useRestoreCopy } from './restoreCopy';
 import { DiagnosticDetails, LanguageSelector, LocaleProvider, useDiagnostic, useLocale } from './locale';
 import { useShellCopy, useWorkspaceCopy } from './workspaceLocale';
 import Dashboard from './Dashboard';
 import { DirectionDetail, Directions, StoryFields } from './Direction';
 import Narrative from './Narrative';
-import { acceptBatch, candidatesFresh, chooseDirection, createProject, newId } from './project';
+import { acceptBatch, candidatesFresh, chooseDirection, createProject } from './project';
 import type { Project, StoryCandidate } from './project.generated';
 import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
@@ -19,7 +20,7 @@ import type { CandidateResult, GenerationStatus } from './validation';
 
 type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas' | 'bible' | 'verification';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
-type Notice = { label: 'cancelled' | 'staleResponse' | 'generationSaved' | 'requestFailed' | 'importReview' | 'importError' | 'large' }
+type Notice = { label: 'cancelled' | 'staleResponse' | 'generationSaved' | 'requestFailed' | 'imported' | 'restored' }
   | { detail: string; code?: string };
 
 function startingStudio(project: Project): Studio {
@@ -37,6 +38,7 @@ function Workspace({ databaseName }: { databaseName: string }) {
   const locale = useLocale();
   const copy = useWorkspaceCopy();
   const shell = useShellCopy();
+  const recovery = useRestoreCopy();
   const diagnostic = useDiagnostic();
   const store = useProjects(databaseName);
   const project = store.record?.project;
@@ -201,10 +203,10 @@ function Workspace({ databaseName }: { databaseName: string }) {
       : undefined;
   const noticeLabels = {
     cancelled: copy.cancelled, staleResponse: copy.staleResponse, generationSaved: copy.generationSaved,
-    requestFailed: copy.requestFailed, importReview: shell.importReview, importError: shell.importError, large: shell.large,
+    requestFailed: copy.requestFailed, imported: recovery.imported, restored: recovery.restored,
   };
   const noticeText = notice && ('detail' in notice ? diagnostic(notice.detail, notice.code) : noticeLabels[notice.label]);
-  const noticeError = notice && ('detail' in notice || ['importError', 'large', 'requestFailed'].includes(notice.label));
+  const noticeError = notice && ('detail' in notice || notice.label === 'requestFailed');
   const noticeDetails = notice && 'detail' in notice && <DiagnosticDetails detail={notice.detail} code={notice.code} />;
 
   return (
@@ -254,6 +256,7 @@ function Workspace({ databaseName }: { databaseName: string }) {
             <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
           </div>}
           {noticeText && <><p role={noticeError ? 'alert' : 'status'} className={`notice ${noticeError ? 'error' : ''}`}>{noticeText}</p>{noticeDetails}</>}
+          {store.record?.hasRecovery && <RecoveryDownload databaseName={databaseName} id={project.id}/>}
           {proposal && <section className="panel confirmation" aria-labelledby="replacement-title">
             <h2 id="replacement-title">{copy.replacementTitle}</h2><p>{copy.replacementPrompt}</p>
             <p>{copy.proposalSource(proposal.run.mode)}</p>
@@ -305,31 +308,16 @@ function Workspace({ databaseName }: { databaseName: string }) {
             <Narrative key={`${project.narrative.id}-${editorEpoch}`} project={project} narrative={project.narrative} disabled={disabled}
               inspect={(id) => setView({ detail: id, from: 'narrative' })} commit={store.commit} />
           </div>}
-        </> : <><Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
+        </> : <ProjectImport databaseName={databaseName} disabled={disabled || store.loading} reopen={reopen}
+          opened={(saved, restored) => {
+            store.adopt(saved);
+            setView(startingStudio(saved.project));
+            setNotice({ label: restored ? 'restored' : 'imported' });
+          }}>
+          <Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
           open={(id) => void reopen(id)} create={(title) => openNewProject(createProject(title))}
           sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />
-          <label className="panel">{shell.import}<input type="file" accept="application/json,.json" disabled={disabled||store.loading}
-            onChange={async e=>{
-              const file=e.target.files?.[0];e.target.value='';if(!file) return;
-              if (file.size > 16 * 1024 * 1024) { setNotice({ label: 'large' }); return; }
-              try {
-                const imported=importProject(await file.text());
-                if(store.projects.some(row=>row.project.id===imported.id)) {
-                  if(!window.confirm(shell.duplicate)) return;
-                  const oldId=imported.id;
-                  imported.id=newId('project');
-                  for(const finding of imported.findings) finding.entityIds=finding.entityIds.map(id=>id===oldId?imported.id:id);
-                }
-                delete imported.approval;
-                if(imported.scenario) imported.scenario.approved=false;
-                if(imported.world?.approved) imported.world.approved=false;
-                setNotice(imported.scenario ? { label: 'importReview' } : undefined);
-                if(await store.commit(imported)) setView(startingStudio(imported));
-              } catch (err) {
-                setNotice(err instanceof InvalidProjectReference
-                  ? { detail: err.message, code: 'invalid_project' } : { label: 'importError' });
-              }
-            }}/></label>{noticeError && <><p role="alert">{noticeText}</p>{noticeDetails}</>}</>}
+        </ProjectImport>}
       </main>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentRun, Project, ValidationFinding, VerificationEntry } from './project.generated';
 import type { GenerationStatus } from './validation';
-import { verificationIdentity, reserveRepair, updateRepair } from './verificationHistory';
+import { verificationIdentity, reportApplies, reserveRepair, updateRepair } from './verificationHistory';
 import { confirmWorldReview, persistReport, reportedCalls, verificationMarkdown } from './verificationReport';
 import {
   runVerification,
@@ -70,7 +70,7 @@ export default function VerificationAgent({
   const entry = history.find((e) => e.runId === picked) ?? history.at(-1);
   const run = project.runs.find((r) => r.id === entry?.runId);
   const calls = run && reportedCalls(run);
-  const fresh = !!entry && entry.fingerprint === identity;
+  const fresh = !!entry && reportApplies(entry, identity);
   const available =
     !!entry &&
     !!run &&

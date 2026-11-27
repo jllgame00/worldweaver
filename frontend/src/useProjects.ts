@@ -36,6 +36,12 @@ export function useProjects(databaseName: string) {
     setRecord(next);
   }
 
+  function adopt(saved: SavedProject) {
+    setProjects(previous => [saved, ...previous.filter(row => row.project.id !== saved.project.id)]);
+    select(saved);
+    setPending(undefined);
+  }
+
   async function commit(project: Project, checkedRunId?: string, afterSave?: () => void): Promise<boolean> {
     if (writing.current) return false;
     writing.current = true;
@@ -43,9 +49,7 @@ export function useProjects(databaseName: string) {
     try {
       const active = current.current;
       const saved = await saveProject(databaseName, project, active?.project.id === project.id ? active.token : undefined, checkedRunId);
-      setProjects((previous) => [saved, ...previous.filter(({ project: existing }) => existing.id !== project.id)]);
-      select(saved);
-      setPending(undefined);
+      adopt(saved);
     } catch (error) {
       setPending({ project, conflict: error instanceof SaveConflict, checkedRunId, afterSave });
       return false;
@@ -77,5 +81,5 @@ export function useProjects(databaseName: string) {
     }
   }
 
-  return { current, writing, record, projects, loading, saving, loadError, pending, select, commit, reopen };
+  return { current, writing, record, projects, loading, saving, loadError, pending, select, adopt, commit, reopen };
 }

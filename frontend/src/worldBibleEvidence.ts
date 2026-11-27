@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Project, ValidationFinding } from './project.generated';
-import { verificationIdentity } from './verificationHistory';
+import { reportApplies, verificationIdentity } from './verificationHistory';
 import type { BibleIndex, BibleLink } from './worldBibleIndex';
 
 export function useVerificationIdentity(project: Project) {
@@ -31,7 +31,7 @@ export function bibleFindings(project: Project, id: string, fingerprint?: string
     if (!prior || (current && !prior.current)) rows.set(f.id, { finding: f, current });
   }
   for (const entry of [...(project.verificationHistory ?? [])].reverse()) {
-    for (const f of entry.findings) include(f, fingerprint ? entry.fingerprint === fingerprint : undefined);
+    for (const f of entry.findings) include(f, fingerprint ? reportApplies(entry, fingerprint) : undefined);
   }
   for (const f of [...project.findings].reverse()) include(f);
   return [...rows.values()];

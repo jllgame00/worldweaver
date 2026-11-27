@@ -434,6 +434,7 @@
       "required":["runId","fingerprint","timestamp","mode","tools","findings","paths","statesExplored","decisions"],
       "properties":{
         "runId":{"$ref":"#/definitions/Id"},"fingerprint":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+        "archived":{"type":"boolean"},
         "timestamp":{"type":"string","maxLength":40},"mode":{"enum":["quick","targeted","full"]},
         "sourceRunId":{"$ref":"#/definitions/Id"},"revalidation":{"type":"boolean"},
         "submittedIds":{"type":"array","maxItems":64,"items":{"$ref":"#/definitions/Id"}},

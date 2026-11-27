@@ -1,6 +1,6 @@
 import type { AgentRun, Project, VerificationEntry } from './project.generated';
 import type { Locale, Translation } from './locale';
-import { recordVerification, verificationIdentity } from './verificationHistory';
+import { recordVerification, reportApplies, verificationIdentity } from './verificationHistory';
 import { runVerification } from './verificationEngine';
 import type { VerificationReport } from './verificationEngine';
 import { verificationCopy as c } from './verificationCopy';
@@ -15,7 +15,7 @@ export async function confirmWorldReview(project: Project, runId: string, signal
   const fingerprint = await verificationIdentity(project);
   if (
     entry?.mode !== 'full' ||
-    entry.fingerprint !== fingerprint ||
+    !reportApplies(entry, fingerprint) ||
     !project.runs.some((r) => r.id === runId && r.mode === 'deterministic' && r.status === 'verified')
   )
     throw Error(c.expired);
