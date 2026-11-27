@@ -31,11 +31,14 @@ export function EdgeInspector({ project, original, edit, select, isNew }: {
     </div>
     {error && <p className="error" role="alert">{error === studioCopy.cycle ? c.cycle : c.selfEdge}</p>}
     <SelectField label={c.edgeType} options={options(edgeKinds, kindLabel)} value={edge.kind ?? 'progression'} onChange={(kind) => change({ kind: kind as ScenarioEdge['kind'] })} />
+    {edge.kind === 'reference' && <p className="notice">{c.referenceHint}</p>}
+    {edge.kind !== 'reference' && <>
     <SelectField label={c.travel} options={[{ id: 'none', name: c.sceneCut }, { id: 'required', name: c.travelRequired }]}
       value={edge.travel} onChange={(travel) => change({ travel: travel as ScenarioEdge['travel'] })} />
     <MultiField label={c.visited} options={nodes} values={edge.requiresVisited} onChange={(requiresVisited) => change({ requiresVisited })} />
     <StateFields project={project} label={c.conditions} terms={edge.conditions} change={(conditions) => change({ conditions })} />
     <StateFields project={project} label={c.effects} terms={edge.consequences} change={(consequences) => change({ consequences })} effect />
+    </>}
     <button className="primary">{c.saveEdge}</button>
   </form>;
 }

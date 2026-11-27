@@ -1,14 +1,14 @@
 import { useEnglishTestLocale } from './englishTestLocale';
 ﻿import { useState } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 import example from '../../docs/examples/salt-census.json';
-import ScenarioEditor from './ScenarioEditor';
+import ScenarioEditor, { type ScenarioEditorProps } from './ScenarioEditor';
 import { isProject } from './validation';
 import type { Project } from './project.generated';
 
-function studio(rejectSave = false) {
+function studio(rejectSave = false, editor: Partial<ScenarioEditorProps> = {}) {
   const revised = vi.fn();
   const commits = vi.fn();
   function Workspace() {
@@ -22,7 +22,7 @@ function studio(rejectSave = false) {
       p.nodes[0]!.consequences = [{ kind: 'quest', key: 'q-rubbing', value: 'started' }];
       return p;
     });
-    return <ScenarioEditor project={project} revise={revised}
+    return <ScenarioEditor project={project} revise={revised} {...editor}
       findings={[{ rule: 'quest', entityIds: ['q-rubbing'], severity: 'warning', explanation: 'Review the objective.' }]}
       edit={(mutate, layoutOnly) => {
         const next = structuredClone(project);
@@ -194,3 +194,86 @@ test('selects a registered legacy flag by kind without accepting arbitrary item 
 });
 
 useEnglishTestLocale();
+
+test('pans the minimap and fits a selection without writing design or layout', async () => {
+  const { user, commits } = studio();
+  const mini = screen.getByRole('group', { name: 'Graph minimap' });
+  const graph = screen.getByRole('region', { name: 'Scenario graph' });
+  const svg = within(graph).getByRole('button', { name: 'The erased line' }).closest('svg')!;
+  const initial = svg.getAttribute('viewBox');
+  mini.focus();
+  await user.keyboard('{ArrowRight}');
+  expect(svg.getAttribute('viewBox')).not.toBe(initial);
+  await user.click(screen.getByRole('button', { name: 'Fit selection' }));
+  expect(Number(svg.getAttribute('viewBox')!.split(' ')[2])).toBeLessThan(Number(initial!.split(' ')[2]));
+  expect(commits).not.toHaveBeenCalled();
+});
+
+test('reviews impossible prologue visits by scene title and focuses the first unmet visit', async () => {
+  const { user, commits } = studio();
+  const visits = screen.getByRole('group', { name: 'Previously visited nodes' });
+  await user.click(within(visits).getByLabelText('Take a rubbing'));
+  await user.click(within(visits).getByLabelText('The restored roll'));
+  const warning = screen.getByRole('alert');
+  for (const title of ['The erased line', 'Take a rubbing', 'The restored roll', 'empty visit history']) {
+    expect(warning).toHaveTextContent(title);
+  }
+  await user.click(within(warning).getByRole('button', { name: 'Review entry conditions' }));
+  expect(within(visits).getByLabelText('Take a rubbing')).toHaveFocus();
+  expect(commits).not.toHaveBeenCalled();
+});
+
+test('shows the selected ending’s returned example with incomplete scope and reports missing evidence for another ending', async () => {
+  const { user } = studio(false, { evidence: { complete: false, paths: [['n-start', 'n-gate', 'n-witness', 'n-choose', 'n-public']] } });
+  const graph = screen.getByRole('region', { name: 'Scenario graph' });
+  await user.click(within(graph).getByRole('button', { name: 'The restored roll' }));
+  const evidence = screen.getByRole('region', { name: 'Ending path evidence' });
+  expect(evidence).toHaveTextContent('The erased line → Survey the flood line → Take a rubbing → Name the witnesses? → The restored roll');
+  expect(evidence).toHaveTextContent(/incomplete/i);
+  expect(within(graph).getByRole('button', { name: 'Publish the roll' })).toHaveClass('on-witness');
+  await user.click(within(graph).getByRole('button', { name: 'The sealed register' }));
+  expect(evidence).toHaveTextContent(/no example path/i);
+  expect(within(graph).getByRole('button', { name: 'Publish the roll' })).not.toHaveClass('on-witness');
+});
+
+test('collapses the inspector and restores focus without losing the unsaved title', async () => {
+  const { user } = studio();
+  const field = screen.getByLabelText('Title');
+  await user.type(field, ' draft');
+  await user.keyboard('{Escape}');
+  const reopen = screen.getByRole('button', { name: 'Show inspector' });
+  expect(reopen).toHaveFocus();
+  await user.click(reopen);
+  expect(screen.getByLabelText('Title')).toHaveValue('The erased line draft');
+});
+
+test('previews and cancels automatic arrangement before replacing a saved manual position', async () => {
+  const { user, commits } = studio();
+  const graph = screen.getByRole('region', { name: 'Scenario graph' });
+  const start = within(graph).getByRole('button', { name: 'The erased line' });
+  start.focus();
+  await user.keyboard('{ArrowRight}');
+  const manual = start.getAttribute('transform');
+  await user.click(within(graph).getByRole('button', { name: 'Auto-layout' }));
+  expect(commits).toHaveBeenCalledTimes(1);
+  expect(start.getAttribute('transform')).not.toBe(manual);
+  await user.click(within(graph).getByRole('button', { name: 'Cancel' }));
+  expect(start).toHaveAttribute('transform', manual);
+  expect(commits).toHaveBeenCalledTimes(1);
+});
+
+test('opens a wide graph at a readable scale and offers the entire extent on demand', async () => {
+  let resize: ((entries: {contentRect: {width: number; height: number}}[]) => void) | undefined;
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: typeof resize) { resize = callback; }
+    observe() {} disconnect() {}
+  });
+  const { user } = studio();
+  const graph = screen.getByRole('region', {name: 'Scenario graph'});
+  const svg = within(graph).getByRole('button', {name: 'The erased line'}).closest('svg')!;
+  act(() => resize?.([{contentRect: {width: 520, height: 380}}]));
+  const width = () => Number(svg.getAttribute('viewBox')!.split(' ')[2]);
+  expect(520 / width()).toBeGreaterThanOrEqual(.85);
+  await user.click(within(graph).getByRole('button', {name: 'Fit graph'}));
+  expect(width()).toBeGreaterThan(1200);
+});

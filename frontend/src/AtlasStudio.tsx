@@ -64,6 +64,7 @@ const english = {
   placeUnlocked: 'Place unlocked locations',
   reconcile: 'Reconcile with approved scenario',
   index: 'Atlas index',
+  features: 'Terrain and waterways',
   find: 'Find a record',
   journeys: 'Scenario journeys',
   validation: 'Geography validation',
@@ -149,6 +150,7 @@ export default function AtlasStudio({
     placeUnlocked: '잠기지 않은 장소 배치',
     reconcile: '승인된 시나리오와 조정',
     index: '지도 색인',
+    features: '지형과 물길',
     find: '기록 찾기',
     journeys: '시나리오 여정',
     validation: '지리 검증',
@@ -187,6 +189,7 @@ export default function AtlasStudio({
     [query, setQuery] = useState('');
   const [history, setHistory] = useState<AtlasDraft[]>([]),
     [future, setFuture] = useState<AtlasDraft[]>([]);
+  useEffect(() => { if (selectedId) select(selectedId); }, [selectedId]);
   useEffect(() => {
     let active = true;
     setWriting(true);
@@ -529,7 +532,7 @@ export default function AtlasStudio({
                 </button>
               )}
             </div>
-            <AtlasMap
+            <div className="atlas-workspace"><AtlasMap
               projectId={p.id}
               world={w}
               selected={paths[0] ?? selected}
@@ -543,6 +546,8 @@ export default function AtlasStudio({
                 ]),
               ]}
               scenarioRouteIds={paths.length ? paths : scenarioRoutes}
+              requiredLocationIds={p.nodes.filter(node => node.mandatory && node.locationId).map(node => node.locationId!)
+                .concat(plan.filter(c => c.strength === 'hard').flatMap(c => [c.from, ...(c.to ? [c.to] : []), ...(c.via ? [c.via] : [])]))}
             />
             <div className="atlas-records">
               <nav className="panel atlas-index" aria-label={copy.index}>
@@ -555,6 +560,7 @@ export default function AtlasStudio({
                   [
                     ['locations', labels.locations, w.locations],
                     ['regions', labels.regions, w.regions],
+                    ['features', copy.features, w.features],
                     ['territories', labels.territories, w.territories ?? []],
                     [
                       'routes',
@@ -598,7 +604,7 @@ export default function AtlasStudio({
                 openScenario={openScenario}
                 change={mutate}
               />
-            </div>
+            </div></div>
             <section className="panel">
               <h2>{copy.validation}</h2>
               <button

@@ -2,6 +2,8 @@ import { useEnglishTestLocale } from './englishTestLocale';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 import AtlasMap from './AtlasMap';
+import AtlasInspector from './AtlasInspector';
+import { approvedProject } from './atlasFixture.testdata';
 import type { World } from './project.generated';
 import { terrain } from './atlasTerrain';
 import { outline } from './atlasGeometry';
@@ -71,6 +73,56 @@ const props = {
 };
 beforeEach(() => localStorage.clear());
 useEnglishTestLocale();
+
+test('the sheet and standalone legend describe the active travel and political layers', () => {
+  const territory = { id: 'bay', name: 'Bay March', regionIds: ['region-elm'], factionIds: [] };
+  const download = vi.spyOn(workflow, 'downloadFile').mockImplementation(() => {});
+  try {
+    const { container } = render(<AtlasMap {...props} world={{ ...world, territories: [territory] }} />);
+    fireEvent.click(screen.getByText('Layers'));
+    fireEvent.click(screen.getByLabelText('Routes'));
+    fireEvent.click(screen.getByLabelText('Territories'));
+    const legend = container.querySelector('[data-layer="legend"]')!;
+    expect(legend).not.toHaveTextContent('Road');
+    expect(legend).toHaveTextContent('Territories');
+    fireEvent.click(screen.getByRole('button', { name: 'Export SVG' }));
+    const exported = new DOMParser().parseFromString(download.mock.calls[0]![1], 'image/svg+xml');
+    expect(exported.querySelector('[data-layer="legend"]')?.textContent).toBe(legend.textContent);
+    expect(exported.querySelector('[data-entity="bay"]')?.getAttribute('d')).toBe(outline(world.regions[0]!.cells));
+  } finally {
+    download.mockRestore();
+  }
+});
+
+test('overview privileges required places while detail zoom reveals local names', () => {
+  const site: World['locations'][number] = {
+    id: 'cairn', name: 'Cairn', kind: 'landmark', preference: 'any-land', position: [2, 2],
+  };
+  const vault = { ...site, id: 'vault', name: 'Vault', position: [3, 2] as [number, number] };
+  const model = { ...world, locations: [...world.locations, site, vault] };
+  const before = JSON.stringify(model);
+  const { container, rerender } = render(<AtlasMap {...props} world={model} selected={undefined} scenarioLocationIds={['vault']} />);
+  const labels = container.querySelector('[data-layer="labels"]')!;
+  expect(labels).toHaveTextContent('Vault');
+  expect(labels).not.toHaveTextContent('Cairn');
+  rerender(<AtlasMap {...props} world={model} selected="cairn" scenarioLocationIds={['vault']} />);
+  expect(labels).toHaveTextContent('Cairn');
+  fireEvent.click(screen.getByRole('button', { name: 'Zoom to selection' }));
+  rerender(<AtlasMap {...props} world={model} selected={undefined} scenarioLocationIds={['vault']} />);
+  expect(labels).toHaveTextContent('Cairn');
+  expect(JSON.stringify(model)).toBe(before);
+});
+
+test('the inspector lets a designer follow the authored host of a nested site', () => {
+  const select = vi.fn();
+  const constraints: World['constraints'] = [
+    { from: 'loc-ash', to: 'loc-elm', relation: 'beneath', strength: 'hard', origin: 'owner', description: 'A vault under the port.' },
+  ];
+  render(<AtlasInspector p={approvedProject()} world={{ ...world, constraints }} id="loc-ash"
+    select={select} openScenario={vi.fn()} change={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Ash Hall beneath Elm Port' }));
+  expect(select).toHaveBeenCalledWith('loc-elm');
+});
 
 test('the atlas exposes the actual terrain, journeys, and selectable geography', () => {
   const { container } = render(<AtlasMap {...props} />);
@@ -278,4 +330,19 @@ test('standard physical geography is batched into vector paths at the public ren
   expect(sheet.querySelector('[data-layer="relief"] path')).toHaveAttribute('d');
   expect(elements).toBeLessThan(cells / 4);
   expect(bytes).toBeLessThan(1024 * 1024);
+});
+
+test('relief distinguishes opposing slopes from the saved elevations without moving a coastline or road', () => {
+  const model: World = { ...world, tiles: ['~~~~~~','~mmmm~','~pppp~','~~~~~~'],
+    elevation: [[0,0,0,0,0,0],[0,1,5,9,1,0],[0,1,5,9,1,0],[0,0,0,0,0,0]] };
+  const {container} = render(<AtlasMap {...props} world={model} />);
+  const shade = container.querySelector('[data-relief="shaded"]');
+  const lit = container.querySelector('[data-relief="sunlit"]');
+  expect(shade?.getAttribute('d')).toBeTruthy();
+  expect(lit?.getAttribute('d')).toBeTruthy();
+  expect(shade?.getAttribute('d')).not.toEqual(lit?.getAttribute('d'));
+  const road = container.querySelector('[data-entity="route-elm"] path')?.getAttribute('d');
+  fireEvent.click(screen.getByLabelText('Relief'));
+  expect(container.querySelector('[data-relief]')).toBeNull();
+  expect(container.querySelector('[data-entity="route-elm"] path')).toHaveAttribute('d', road);
 });

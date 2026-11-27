@@ -54,6 +54,16 @@
 .atlas-fields select[multiple] {
   min-height: 5rem;
 }
+.atlas-workspace { display: grid; gap: 1rem; align-items: start; min-width: 0; }
+.atlas-workspace .atlas-index button { overflow-wrap: anywhere; }
+.atlas-hosts { border-block: 1px solid var(--line); padding: .6rem 0; }
+.atlas-hosts h3 { margin: 0 0 .5rem; }
+@media (min-width: 1200px) {
+  .atlas-workspace { grid-template-columns: minmax(0,1fr) minmax(15rem,26%); }
+  .atlas-workspace .atlas-records { grid-template-columns: minmax(0,1fr); max-height: 82vh; overflow: auto; }
+  .atlas-workspace .atlas-index { max-height: 17rem; }
+  .atlas-map { position: sticky; top: 1rem; }
+}
 @media (max-width: 760px) {
   .atlas-records {
     grid-template-columns: 1fr;

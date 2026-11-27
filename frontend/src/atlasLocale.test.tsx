@@ -6,6 +6,20 @@ import { acceptAtlas, defaults, generateAtlas } from './atlasWorkflow';
 import { LanguageSelector, LocaleProvider, localePreferenceKey } from './locale';
 import * as workflow from './scenarioWorkflow';
 
+test('a new scenario link selects its place in an already mounted atlas', async () => {
+  const source = approvedProject();
+  const world = await generateAtlas(source, 'Estuary', 1234, defaults, []);
+  const project = acceptAtlas(source, world, source.revision, true);
+  const props = { project, openScenario: vi.fn(), disabled: false, commit: vi.fn(), current: () => project, databaseName: 'atlas-context' };
+  const first = world.locations[0]!, second = world.locations[1]!;
+  const renderAtlas = (selectedId: string) => <LocaleProvider><AtlasStudio {...props} selectedId={selectedId} /></LocaleProvider>;
+  const app = render(renderAtlas(first.id));
+  expect(await screen.findByRole('heading', {name: first.name})).toBeVisible();
+  app.rerender(renderAtlas(second.id));
+  expect(screen.getByRole('heading', {name: second.name})).toBeVisible();
+  expect(props.commit).not.toHaveBeenCalled();
+});
+
 test('switches Atlas copy and presentation exports with the editor and viewport still mounted', async () => {
   localStorage.removeItem(localePreferenceKey);
   const source = approvedProject();

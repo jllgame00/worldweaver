@@ -6,6 +6,7 @@ import { buildWorldBible, dependencyImpact } from './worldBibleIndex';
 import { useVerificationCopy, useVerificationDetail, useVerificationStatus, useVerificationTool } from './verificationCopy';
 import { DiagnosticDetails, useFormatter, useLocale } from './locale';
 import { useBibleKinds } from './worldBibleCopy';
+import { useScenarioFieldLabel } from './scenarioCopy';
 
 type Action = 'simulate' | 'accept' | 'reject';
 export type RepairAction = (action: Action, edits: RepairEdit[], saved?: SavedRepair) => Promise<void>;
@@ -29,6 +30,14 @@ export function VerificationRepairReview({
   const detail = useVerificationDetail();
   const status = useVerificationStatus();
   const tool = useVerificationTool();
+  const scenarioField = useScenarioFieldLabel();
+  const fieldLabel = (path: string) => path.split('.').map(part => {
+    if (/^\d+$/.test(part)) return '#' + number(Number(part) + 1);
+    const extra: Record<string, string> = { distanceKm: '거리 (km)', corridor: '경로 좌표', premise: '전제', motivation: '동기',
+      opposition: '대립 세력', background: '배경', conflict: '갈등', constraints: '지리 조건', via: '경유지', key: '대상', value: '값' };
+    const words = part.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    return scenarioField(part, locale === 'ko' && extra[part] ? extra[part] : words);
+  }).join(' · ');
   const automatic = useMemo(() => routeCorrection(project, finding), [project, finding]);
   const options = useMemo(() => repairFields(project, finding), [project, finding]);
   const [selected, setSelected] = useState(
@@ -43,6 +52,11 @@ export function VerificationRepairReview({
   const index = useMemo(() => buildWorldBible(project), [project]);
   const option = options[selected];
   const label = (id: string) => index.entities.get(id)?.label ?? id;
+  function displayValue(field: string, value: string) {
+    const record = index.entities.get(value);
+    const reference = /(?:Id$|Ids\.\d+$|^requiresVisited\.\d+$|(?:^|\.)(from|to|via|key)$)/.test(field);
+    return reference && record ? record.label + ' (' + value + ')' : value;
+  }
   const saved =
     entry.proposals?.filter(
       (p) => p.edits[0].findingId === finding.id && ['ready', 'pending', 'blocked'].includes(p.status),
@@ -110,9 +124,13 @@ export function VerificationRepairReview({
               {c.savedProposal} · {s.classification === 'technical' ? c.technical : c.creative}
             </h4>
             {s.edits.map((e) => (
-              <p key={e.proposalId}>
-                {label(e.recordId)} · {e.field} · {e.before} → {e.after}
-              </p>
+              <section key={e.proposalId}>
+                <h5>{label(e.recordId)} · {fieldLabel(e.field)}</h5>
+                <dl className="evidence-comparison">
+                  <div><dt>{c.before}</dt><dd>{displayValue(e.field, e.before)}</dd></div>
+                  <div><dt>{c.after}</dt><dd>{displayValue(e.field, e.after)}</dd></div>
+                </dl>
+              </section>
             ))}
             <p>
               {c.dependency} · {impacted(s.edits.map((e) => e.recordId))}
@@ -122,7 +140,7 @@ export function VerificationRepairReview({
             </p>
             <h4>{c.result}</h4>
             {!!s.afterTools.length && (
-              <table>
+              <table className="verification-tool-table">
                 <thead>
                   <tr>
                     <th>{c.tool}</th>
@@ -194,13 +212,13 @@ export function VerificationRepairReview({
                 >
                   {options.map((o, i) => (
                     <option key={o.recordId + o.field} value={i}>
-                      {label(o.recordId)} · {o.field}
+                      {label(o.recordId)} · {fieldLabel(o.field)}
                     </option>
                   ))}
                 </select>
               </label>
               <p>
-                {c.before} · <code>{option.before}</code>
+                {c.before} · {displayValue(option.field, option.before)}
               </p>
               <label>
                 {c.replace}
@@ -225,7 +243,7 @@ export function VerificationRepairReview({
           <ul>
             {batch.map((e) => (
               <li key={e.proposalId}>
-                {label(e.recordId)} · {e.field} · {e.before} → {e.after}
+                {label(e.recordId)} · {fieldLabel(e.field)} · {displayValue(e.field, e.before)} → {displayValue(e.field, e.after)}
                 <button
                   className="quiet"
                   disabled={disabled}

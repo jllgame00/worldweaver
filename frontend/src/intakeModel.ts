@@ -112,6 +112,22 @@ const outcomes = new Set(['pending', 'completed', 'timeout', 'authentication', '
   'unconfirmed', 'accepted', 'rejected', 'stale']);
 const isCount = (value: unknown): value is 0 | 1 => value === 0 || value === 1;
 
+export const intakeStorageKey = (databaseName: string, projectId: string) =>
+  JSON.stringify(['worldweaver-content-intake-v1', databaseName, projectId]);
+
+export function intakeHistory(raw: unknown): IntakeReceipt[] {
+  if (!Array.isArray(raw)) throw Error('Invalid intake history');
+  const seen = new Set<string>();
+  return raw.filter((event): event is IntakeReceipt => {
+    if (!record(event) || typeof event.id !== 'string' || seen.has(event.id) || !methods.has(String(event.method))
+      || !outcomes.has(String(event.outcome)) || (event.dispatches !== undefined && !isCount(event.dispatches))
+      || (event.responses !== undefined && !isCount(event.responses))
+      || (isCount(event.dispatches) && isCount(event.responses) && event.responses > event.dispatches)) return false;
+    seen.add(event.id);
+    return true;
+  }).map(event => event.outcome === 'pending' ? { ...event, outcome: 'unconfirmed' } : event);
+}
+
 export function decodeIntake(raw: string | null): IntakeState {
   const empty = { source: '', history: [] };
   if (!raw) return empty;
@@ -122,11 +138,7 @@ export function decodeIntake(raw: string | null): IntakeState {
     const draft = state.draft;
     return {
       source,
-      history: state.history.filter((event): event is IntakeReceipt =>
-        record(event) && typeof event.id === 'string' && methods.has(String(event.method))
-        && outcomes.has(String(event.outcome)) && (event.dispatches === undefined || isCount(event.dispatches))
-        && (event.responses === undefined || isCount(event.responses)))
-        .map(event => event.outcome === 'pending' ? { ...event, outcome: 'unconfirmed' } : event),
+      history: intakeHistory(state.history),
       ...(record(draft) && typeof draft.id === 'string' && Number.isSafeInteger(draft.baseRevision)
         && methods.has(String(draft.method)) && Array.isArray(draft.fragments)
         && draft.fragments.every(fragment => isFragment(fragment, source, true))

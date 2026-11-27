@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCategories, useTreatments, useWorkspaceCopy } from './workspaceLocale';
 import { useIntakeCopy } from './intakeLocale';
 import { DiagnosticDetails, useDiagnostic, useFormatter } from './locale';
+import { useWorkbenchCopy } from './workbenchCopy';
 import {
   citationOffset, decodeIntake, ExtractionError, extractionMaxBytes, maxFragmentLength, organizeSource, requestExtraction,
 } from './intakeModel';
@@ -26,6 +27,7 @@ function readStorage(key: string) {
 
 export default function ContentIntake({ project, disabled, storageKey, configuration, commit, refreshConfiguration }: IntakeProps) {
   const copy = useWorkspaceCopy();
+  const ui = useWorkbenchCopy();
   const text = useIntakeCopy();
   const diagnostic = useDiagnostic();
   const { number } = useFormatter();
@@ -149,7 +151,8 @@ export default function ContentIntake({ project, disabled, storageKey, configura
     }
   }
 
-  return <section className="panel intake-panel" aria-label={text.paste}>
+  return <section className={'panel intake-panel' + (draft ? ' comparing' : '')} aria-label={text.paste}>
+    <div className="intake-manuscript"><h2>{ui.original}</h2>
     <label>{text.original}
       <textarea className="creative" rows={10} value={source} onChange={event => {
         store({ ...state, source: event.target.value, draft: undefined });
@@ -158,12 +161,14 @@ export default function ContentIntake({ project, disabled, storageKey, configura
         setFallbackOffered(false);
       }} readOnly={busy || disabled} />
     </label>
+    {!storageIssue && <small className="muted">{ui.local}</small>}
     {storageIssue && <p role="status">{text.storageIssue}</p>}
     {error && (typeof error === 'string' ? <p role="alert" className="error">{text[error]}</p>
       : <><p role="alert" className="error">{diagnostic(error.message, error.code)}</p>
         <DiagnosticDetails detail={error.message} code={error.code} /></>)}
     <div className="actions">
-      <button type="button" onClick={organize} disabled={!validSource || busy || disabled}>{text.organize}</button>
+      <span className="local-organize"><button type="button" className="primary" onClick={organize} disabled={!validSource || busy || disabled}>{text.organize}</button>
+        <small>{ui.noCost}</small></span>
       <button type="button" onClick={() => setConfirmation(true)} disabled={!aiAllowed || busy || disabled}>{text.suggest}</button>
     </div>
     {!validSource && <p>{text.empty}</p>}
@@ -179,7 +184,7 @@ export default function ContentIntake({ project, disabled, storageKey, configura
         <button type="button" onClick={() => setConfirmation(false)}>{copy.cancel}</button>
       </div>
     </section>}
-    {draft && <section className="intake-review" aria-label={text.review}>
+    </div>{draft && <section className="intake-review" aria-label={text.review}>
       <h2>{text.review}</h2>
       <p>{text.methods[draft.method]}</p>
       <p>{text.impact}</p>

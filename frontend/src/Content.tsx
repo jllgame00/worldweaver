@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useCategories, useTreatments, useWorkspaceCopy } from './workspaceLocale';
 import { useIntakeCopy } from './intakeLocale';
+import { intakeStorageKey } from './intakeModel';
 import { useFormatter, useLocalized } from './locale';
 import { editContent, fragmentInUse, newId } from './project';
 import type { CanonicalFact, Project, UserContent } from './project.generated';
@@ -73,15 +74,15 @@ export default function Content(props: ContentProps) {
         onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           event.preventDefault();
-          const next = event.key === 'Home' ? false : event.key === 'End' ? true : !intake;
+          const next = event.key === 'Home' ? true : event.key === 'End' ? false : !intake;
           setIntake(next);
           const tabs = event.currentTarget.querySelectorAll('button');
-          tabs[Number(next)]?.focus();
+          tabs[next ? 0 : 1]?.focus();
         }}>
-        <button type="button" role="tab" id={id + '-edit'} aria-controls={id + '-edit-panel'}
-          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>{intakeCopy.edit}</button>
         <button type="button" role="tab" id={id + '-paste'} aria-controls={id + '-paste-panel'}
           aria-selected={intake} tabIndex={intake ? 0 : -1} onClick={() => setIntake(true)}>{intakeCopy.paste}</button>
+        <button type="button" role="tab" id={id + '-edit'} aria-controls={id + '-edit-panel'}
+          aria-selected={!intake} tabIndex={intake ? -1 : 0} onClick={() => setIntake(false)}>{intakeCopy.edit}</button>
       </div>
       <div role="tabpanel" id={id + '-edit-panel'} aria-labelledby={id + '-edit'} hidden={intake}>
         <div className="content-grid">
@@ -96,7 +97,7 @@ export default function Content(props: ContentProps) {
           return saved;
         })}
           configuration={props.configuration} refreshConfiguration={props.refreshConfiguration}
-          storageKey={JSON.stringify(['worldweaver-content-intake-v1', props.databaseName ?? 'worldweaver-v1', project.id])} />
+          storageKey={intakeStorageKey(props.databaseName ?? 'worldweaver-v1', project.id)} />
       </div>
       {!intake && pending && index && entity && <WorldBibleImpact project={pending.base} entity={entity} index={index} changes={
         impactFields.filter(key => previous[key] !== proposed[key])

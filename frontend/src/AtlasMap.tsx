@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Compass, defaults, Geography, layerNames, Legend } from './AtlasSheet';
+import { Compass, defaults, Geography, layerNames, Legend, useAtlasLegend } from './AtlasSheet';
 import type { Layer } from './AtlasSheet';
 import type { AtlasIssue } from './atlasTypes';
+import { displayableGrid } from './atlasPlaces';
 import { middle, viewBox } from './atlasGeometry';
 import type { View } from './atlasGeometry';
 import type { Point, World } from './project.generated';
@@ -17,10 +18,15 @@ interface Props {
   onSelect: (id: string) => void;
   issues: AtlasIssue[];
   scenarioLocationIds: string[];
+  requiredLocationIds?: string[];
   scenarioRouteIds: string[];
 }
 const mapWidth = 932;
 const layersList = Object.keys(layerNames) as Layer[];
+const groups = {
+  terrain: ['biomes','relief'], hydrology: ['water'], movement: ['routes','infrastructure'],
+  politics: ['regions','territories'], sites: ['places','labels'], review: ['scenario','constraints','findings'],
+} satisfies Record<string, Layer[]>;
 const english = {
   noTerrain: 'No terrain has been generated for this atlas.',
   invalidTerrain: 'The map needs a rectangular terrain grid of up to 128 × 128 cells. Review the terrain finding.',
@@ -33,6 +39,7 @@ const english = {
   zoomTo: 'Zoom to selection',
   layers: 'Layers',
   mapLayers: 'Map layers',
+  groups: { terrain: 'Terrain', hydrology: 'Water system', movement: 'Travel', politics: 'Boundaries', sites: 'Places and names', review: 'Design review' },
   layerNames,
   export: 'Export SVG',
   world: 'World atlas',
@@ -52,6 +59,7 @@ const korean = {
   zoomTo: '선택 항목 확대',
   layers: '레이어',
   mapLayers: '지도 레이어',
+  groups: { terrain: '지형', hydrology: '수계', movement: '이동', politics: '정치 경계', sites: '장소와 이름', review: '설계 검토' },
   layerNames: {
     biomes: '생물군계', relief: '지형 기복', water: '물길', regions: '지역', territories: '영토',
     places: '정착지와 장소', routes: '경로', infrastructure: '기반 시설', scenario: '시나리오 연결 지점',
@@ -141,8 +149,7 @@ export default function AtlasMap(props: Props) {
   const copy = useLocalized(english, korean);
   const { world, projectId } = props;
   if (!world.tiles.length) return <p>{copy.noTerrain}</p>;
-  const width = world.tiles[0]?.length ?? 0;
-  if (!width || width > 128 || world.tiles.length > 128 || world.tiles.some(row => row.length !== width))
+  if (!displayableGrid(world.tiles))
     return <p role="alert">{copy.invalidTerrain}</p>;
   const storageKey =
     'worldweaver:atlas-view:' +
@@ -168,9 +175,10 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
   const chartHeight = (mapWidth * full.height) / full.width;
   const legendY = chartHeight + 104;
   const typeScale = printing ? 1 : Math.max(1, Math.min(3, 960 / sheetPixels));
-  const columns = Math.max(1, Math.floor(860 / (94 * typeScale)));
-  const routeRows = Math.ceil(new Set(world.routes.map(route => route.mode)).size / columns);
-  const sheetHeight = legendY + (typeScale > 1.5 ? 56 + 26 * routeRows : 45 + 26 * Math.max(0, routeRows - 1)) * typeScale;
+  const columns = Math.max(1, Math.floor((typeScale > 1.5 ? 910 : 735) / (113 * typeScale)));
+  const entries = useAtlasLegend(world, prefs.layers, !!(props.scenarioLocationIds.length || props.scenarioRouteIds.length), !!props.issues.length);
+  const rows = Math.ceil(entries.length / columns);
+  const sheetHeight = legendY + (typeScale > 1.5 ? 45 + 23 * rows : Math.max(40, 23 * rows)) * typeScale;
   useEffect(() => {
     if (!sheet.current || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(entries => {
@@ -260,11 +268,14 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
         <button onClick={zoomTo} disabled={!selectedPoint}>
           {copy.zoomTo}
         </button>
-        <details className="atlas-layer-menu">
+        <details className="atlas-layer-menu" onKeyDown={e => {
+          if (e.key === 'Escape') { e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus(); }
+        }}>
           <summary>{copy.layers}</summary>
-          <fieldset>
-            <legend>{copy.mapLayers}</legend>
-            {layersList.map((name) => (
+          <div className="atlas-layer-groups" role="group" aria-label={copy.mapLayers}>
+            {Object.entries(groups).map(([key, names]) => <fieldset key={key}>
+              <legend>{copy.groups[key as keyof typeof groups]}</legend>
+            {names.map((name) => (
               <label key={name}>
                 <input
                   type="checkbox"
@@ -279,7 +290,7 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
                 {copy.layerNames[name]}
               </label>
             ))}
-          </fieldset>
+          </fieldset>)}</div>
         </details>
         <button className="atlas-export" onClick={exportSvg}>
           {copy.export}
@@ -306,7 +317,7 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
         </defs>
         <rect width="960" height={sheetHeight} fill={'url(#' + prefix + 'parchment)'} />
         <rect x="5" y="5" width="950" height={sheetHeight - 10} fill="none" stroke="#968c71" strokeWidth=".8" />
-        <text x="24" y="43" fill="#49493c" fontFamily="Georgia, 'Malgun Gothic', serif" fontSize="29">
+        <text x="24" y="43" fill="#49493c" fontFamily="Georgia, Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" fontSize="29">
           {(world.name ?? copy.world).slice(0, 42)}
         </text>
         <text x="866" y="40" textAnchor="end" fill="#64634e" fontSize="13" fontFamily="system-ui,sans-serif">
@@ -408,10 +419,10 @@ function AtlasViewport({ world, storageKey, ...props }: Props & { storageKey: st
           mapWidth={mapWidth}
           viewWidth={view.width}
           scale={world.settings?.kmPerCell}
-          world={world}
+          entries={entries}
           typeScale={typeScale}
           columns={columns}
-          routeRows={routeRows}
+          rows={rows}
         />
       </svg>
     </section>

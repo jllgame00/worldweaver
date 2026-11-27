@@ -2,7 +2,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useWorkspaceCopy } from './workspaceLocale';
 import { useFormatter } from './locale';
-import { candidatesFresh, narrativeFresh } from './project';
+import { ProjectEntry } from './ProjectEntry';
+import { newId } from './project';
+import type { Project } from './project.generated';
+import { importedDesign, validateBackup } from './backupProject';
+import { importProject } from './scenarioWorkflow';
+import { StudioIcon } from './StudioIcon';
+import { useWorkbenchCopy } from './workbenchCopy';
 import type { SavedProject } from './storage';
 
 interface DashboardProps {
@@ -11,11 +17,14 @@ interface DashboardProps {
   disabled: boolean;
   open: (id: string) => void;
   create: (title: string) => Promise<boolean>;
+  openExample: (project:Project) => Promise<void>;
   sample?: { title: string; create: () => void };
 }
 
-export default function Dashboard({ projects, loading, disabled, open, create, sample }: DashboardProps) {
+export default function Dashboard({ projects, loading, disabled, open, create, sample, openExample }: DashboardProps) {
   const copy = useWorkspaceCopy();
+  const ui = useWorkbenchCopy();
+  const [reading, setReading] = useState(false), [exampleError, setExampleError] = useState(false);
   const format = useFormatter();
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
@@ -36,13 +45,31 @@ export default function Dashboard({ projects, loading, disabled, open, create, s
     await create(title.trim());
   }
 
+  async function example() {
+    if (reading) return;
+    setReading(true); setExampleError(false);
+    try {
+      const response = await fetch(import.meta.env.BASE_URL + 'examples/salt-census.json');
+      if (!response.ok) throw Error();
+      const project = importProject(await response.text());
+      await validateBackup(project);
+      await openExample(importedDesign(project,newId('project')));
+    } catch { setExampleError(true); }
+    finally { setReading(false); }
+  }
+  const exhibit = <section className={projects.length ? "example-folio compact-example" : "example-folio"}>
+    <div className="folio-text"><span className="section-kicker"><StudioIcon name="atlas"/>{ui.exampleName}</span>
+      <h2 lang="en">{ui.exampleTitle}</h2>{!projects.length && <p>{ui.exampleText}</p>}
+      <button type="button" onClick={()=>void example()} disabled={disabled || reading}>{reading ? ui.loading : ui.exampleAction}<StudioIcon name="arrow"/></button>
+      {exampleError && <small role="alert">{ui.exampleFailure}</small>}
+    </div>{!projects.length && <img src={import.meta.env.BASE_URL + 'examples/salt-census.svg'} alt={ui.preview}/>}
+  </section>;
   return (
     <>
       <div className="page-heading heading-actions">
-        <div><p className="eyebrow">{copy.workspace}</p><h1>{copy.projects}</h1></div>
+        <div><h1>{copy.projects}</h1><p>{ui.intro}</p></div>
         {!creating && !loading && <div className="actions">
-          {sample && <button type="button" disabled={disabled} onClick={sample.create}>{sample.title}</button>}
-          <button type="button" className="primary" disabled={disabled} onClick={() => setCreating(true)}>{copy.newProject}</button>
+          <button type="button" className="primary" disabled={disabled} onClick={() => setCreating(true)}><StudioIcon name="add"/>{copy.newProject}</button>
         </div>}
       </div>
       {creating && <form className="panel create-form" onSubmit={submit}>
@@ -54,24 +81,21 @@ export default function Dashboard({ projects, loading, disabled, open, create, s
             <button type="button" className="quiet" onClick={() => { setCreating(false); setTitle(''); setInvalid(false); }}>{copy.cancel}</button></div>
         </fieldset>
       </form>}
+      <div className="library-desk"><div className="library-stack">
+      {!loading && !projects.length && exhibit}
       <section className="panel projects-panel" aria-labelledby="project-list-heading">
         <div className="section-heading"><h2 id="project-list-heading">{copy.localProjects}</h2><span className="count">{format.number(projects.length)}</span></div>
         {loading ? <p role="status">{copy.loadingProjects}</p> : projects.length === 0 ? <p className="empty">{copy.emptyProjects}</p> : (
           <ul className="project-list">
-            {projects.map(({ project, savedAt }) => (
-              <li key={project.id}>
-                <div><h3 className="creative">{project.title}</h3><time dateTime={new Date(savedAt).toISOString()}>{format.date(savedAt, { dateStyle: 'medium', timeStyle: 'short' })}</time>
-                  {repeated.has(project.title) && <small id={'saved-' + project.id}> · ID {project.id}</small>}</div>
-                <span className="pill">{project.narrative ? (narrativeFresh(project) ? (project.narrative.approved ? copy.approved : copy.draft) : copy.stale)
-                  : project.storyCandidates.length ? (candidatesFresh(project) ? copy.directions : copy.stale) : copy.content}</span>
-                <button type="button" disabled={disabled} aria-label={copy.open(project.title)}
-                  aria-describedby={repeated.has(project.title) ? 'saved-' + project.id : undefined}
-                  onClick={() => open(project.id)}>{copy.openProject}</button>
-              </li>
-            ))}
+            {projects.map(record => <ProjectEntry key={record.project.id} record={record}
+              repeated={repeated.has(record.project.title)} disabled={disabled} open={open}/> )}
           </ul>
         )}
-      </section>
+      </section>{!loading && !!projects.length && exhibit}</div>
+      <aside className="workflow-index"><h2>{ui.workflow}</h2><ol>{(['content','narrative','scenario','atlas','verification'] as const).map((icon,i)=>
+        <li key={icon}><StudioIcon name={icon}/><div><strong>{ui.stages[i]}</strong><p>{ui.stageNotes[i]}</p></div></li>)}</ol>
+        {sample && !loading && <button className="quiet dev-sample" disabled={disabled} onClick={sample.create}>{sample.title}</button>}
+      </aside></div>
     </>
   );
 }

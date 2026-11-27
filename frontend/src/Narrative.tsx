@@ -72,12 +72,17 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
         </span>
       </div>
       {!fresh && <p role="status" className="notice">{copy.staleNarrative}</p>}
+      <div role="group" className="manuscript-index" aria-label={copy.narrative}>
+        {(['premise', 'conflict', 'progression', 'possibleEndings'] as const).map(field =>
+          <a key={field} href={'#manuscript-'+field}>{storyLabels[field]}</a>)}
+        <a href="#manuscript-review">{copy.review}</a>
+      </div>
       <div className="content-grid">
         <form className="panel narrative-form" onSubmit={submit}>
           <fieldset disabled={disabled}>
             <div className="narrative-fields">
               {textFields.map((field) => (
-                <label key={field} className={field === 'genre' || field === 'tone' ? 'short-field' : undefined}>
+                <label key={field} id={'manuscript-'+field} className={field === 'genre' || field === 'tone' ? 'short-field' : undefined}>
                   {storyLabels[field]}
                   {field === 'title' || field === 'genre' || field === 'tone'
                     ? <input required value={story[field]} aria-invalid={invalid && !story[field].trim()}
@@ -88,7 +93,7 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
               ))}
             </div>
             {listFields.map((field) => (
-              <fieldset className="list-field" key={field}>
+              <fieldset className="list-field" id={'manuscript-'+field} key={field}>
                 <legend>{storyLabels[field]}</legend>
                 {story[field].map((entry, index) => (
                   <div className="list-edit-row" key={index}>
@@ -111,7 +116,7 @@ export default function Narrative({ project, narrative, disabled, inspect, commi
           </fieldset>
         </form>
         <aside className="narrative-sidebar">
-          <section className="panel review-panel">
+          <section className="panel review-panel" id="manuscript-review">
             <h2>{copy.review}</h2>
             {conflict && fresh && <p className="notice error">{copy.mandatoryConflict}</p>}
             {dirty ? <p className="muted">{copy.unsavedNarrative}</p> : <p className="muted">{copy.needsReview}</p>}

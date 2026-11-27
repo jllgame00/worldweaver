@@ -15,6 +15,11 @@ const backendProxy: ProxyOptions = {
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rolldownOptions: { output: { codeSplitting: {
+      groups: [{ name: 'react-runtime', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/ }],
+    } } },
+  },
   server: {
     host: '127.0.0.1',
     strictPort: true,
@@ -24,5 +29,5 @@ export default defineConfig({
     },
   },
   // Each DOM worker loads the canonical schema and all studios. Bound contention on developer machines.
-  test: { environment: 'jsdom', pool: 'threads', maxWorkers: 4, setupFiles: ['./src/testSetup.ts'] },
+  test: { environment: 'jsdom', pool: 'threads', maxWorkers: 2, setupFiles: ['./src/testSetup.ts'] },
 });

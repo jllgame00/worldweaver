@@ -7,6 +7,8 @@ import { RestoreComparison, type RestorePreview } from './RestoreComparison';
 import { useRestoreCopy } from './restoreCopy';
 import { useShellCopy } from './workspaceLocale';
 import { DiagnosticDetails, useDiagnostic } from './locale';
+import { useWorkbenchCopy } from './workbenchCopy';
+import { StudioIcon } from './StudioIcon';
 
 export function RecoveryDownload({ databaseName, id }: { databaseName: string; id: string }) {
   const c = useRestoreCopy();
@@ -28,6 +30,7 @@ export function ProjectImport({ databaseName, children, disabled, opened, reopen
   opened: (saved: SavedProject, restored: boolean) => void; reopen: (id: string) => Promise<void>;
 }) {
   const shell = useShellCopy(), c = useRestoreCopy(), diagnostic = useDiagnostic();
+  const ui = useWorkbenchCopy();
   const [preview, setPreview] = useState<RestorePreview>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<'conflict' | 'missing' | 'collision' | 'failed' | 'readFailed' | 'large' | 'importError'>();
@@ -96,8 +99,9 @@ export function ProjectImport({ databaseName, children, disabled, opened, reopen
   return <>
     <fieldset className="import-controls" disabled={disabled || busy || !!preview}>
       {children}
-      <label className="panel">{shell.import}<input ref={fileInput} type="file" accept="application/json,.json"
-        onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void prepare(file); }}/></label>
+      <section className="backup-shelf"><StudioIcon name="import"/><div><h2>{ui.backup}</h2><p>{ui.backupHint}</p></div>
+      <label className="backup-picker">{shell.import}<input ref={fileInput} type="file" accept="application/json,.json"
+        onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void prepare(file); }}/></label></section>
     </fieldset>
     {preview ? <section role="dialog" aria-labelledby="restore-heading" className="panel restore-preview"
       onKeyDown={e => { if (e.key === 'Escape' && !busy) cancel(); }}>

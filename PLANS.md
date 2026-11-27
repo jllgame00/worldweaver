@@ -43,4 +43,6 @@ The World Bible, local verification orchestrator, scoped editorial review, atomi
 
 ## Phase 5A gate
 
+5B, 5C and 5D now have separate test and implementation commits on this branch. 5E implements the desktop workbench, graph, atlas and evidence views using Project v1 and IndexedDB v2. The next owner gate is native visual and interaction acceptance followed by 5F review and PR evidence. [5E report](docs/PHASE_5E_REPORT.md) · [Acceptance checklist](docs/PHASE_5E_ACCEPTANCE.md)
+
 The owner authorized planning and test CI on `feature/product-polish`. Existing storage, editors, graph, atlas and verification stay the baseline for the [workspace design](docs/PRODUCT_POLISH_DESIGN.md). The [implementation plan](docs/PHASE_5_PLAN.md) identifies the three new rules, proposed test/implementation commits and the stop after each RED and GREEN. The owner makes all commits. Record the actual independent final review, corrections, CI and PR merge at 5F. Phase 6 adds gated Docker deployment; Phase 7 is a separate release audit.

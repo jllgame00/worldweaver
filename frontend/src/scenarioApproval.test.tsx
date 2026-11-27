@@ -1,5 +1,5 @@
 import { useEnglishTestLocale } from './englishTestLocale';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from './App';
 import { approvedProject } from './atlasFixture.testdata';
@@ -228,3 +228,22 @@ it('undoing a layout change after a failed check cannot restore a prior approval
 });
 
 useEnglishTestLocale();
+
+it('highlights only the ending witness returned by the current local check and clears it on a design edit', async () => {
+  const path = ['n-start','n-gate','n-witness','n-choose','n-public'];
+  const p = approvedProject();
+  const ending = p.endings.find(e => e.nodeId === 'n-public')!;
+  const { check } = await setup(() => Response.json({ valid: true, complete: true, findings: [], paths: [{endingId: ending.id, nodeIds: path}] }));
+  const graph = within(await screen.findByRole('region', {name: 'Scenario graph'}));
+  fireEvent.click(graph.getByRole('button', {name: 'The restored roll'}));
+  const evidence = await screen.findByRole('region', {name: 'Ending path evidence'});
+  expect(evidence).toHaveTextContent(/no example path/i);
+  await validate();
+  expect(evidence).toHaveTextContent(/example path from scenario validation/i);
+  expect(graph.getByRole('button', {name: 'Publish the roll'})).toHaveClass('on-witness');
+  fireEvent.change(screen.getByLabelText('Title'), {target: {value: 'A revised ending'}});
+  fireEvent.click(button('Save node'));
+  await waitFor(() => expect(evidence).toHaveTextContent(/no example path/i));
+  expect(graph.getByRole('button', {name: 'Publish the roll'})).not.toHaveClass('on-witness');
+  expect(check).toHaveBeenCalledOnce();
+});

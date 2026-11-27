@@ -2,6 +2,15 @@ import { useLocale, useLocalized, type Translation } from './locale';
 import type { Location, Project, Scenario, ScenarioNode, StateTerm } from './project.generated';
 
 export const studioCopy = {
+  minimap: 'Graph minimap', minimapKeys: 'Arrow keys pan the graph. Home fits the graph.', fitSelection: 'Fit selection',
+  applyLayout: 'Apply layout', layoutPreview: 'Previewing automatic layout', showInspector: 'Show inspector', hideInspector: 'Hide inspector',
+  evidence: 'Ending path evidence', examplePath: 'Example path from scenario validation', incomplete: 'The progression search was incomplete.',
+  noPath: 'No example path is available for this ending.', pathScope: 'Checks visits and game state. Physical travel and story quality require separate review.',
+  participants: 'Appearances and references', referenceHint: 'A reference connects related scenes for the author. Players do not traverse it.',
+  visitHint: 'Players must visit every selected scene before entering.', addReference: 'Link a related scene', reviewVisits: 'Review entry conditions',
+  prologueVisits: (title: string, names: string) => title + ' starts with an empty visit history. Entry requires ' + names + '.',
+  connectionsLegend: 'Connection legend', travelLine: 'Required travel', filters: 'Chapters and quests',
+  checkSaved: 'Check saved progression', saveBeforeCheck: 'Save your edits to check the updated entry conditions.',
   fieldPath: 'Field path', referenceId: 'Referenced ID', expectedType: 'Expected type', actualType: 'Actual type',
   witnessPath: 'Play path',
   navigation: 'Scenario navigation', filterChapter: 'Filter chapters', filterNodes: 'Filter node types', filterQuests: 'Filter quests',
@@ -42,6 +51,15 @@ export const studioCopy = {
 
 
 const studioCopyKo = {
+  minimap: '그래프 미니맵', minimapKeys: '방향키로 이동하고 Home 키로 그래프 전체를 봅니다.', fitSelection: '선택 항목 맞춤',
+  applyLayout: '배치 적용', layoutPreview: '자동 배치 미리보기', showInspector: '상세 편집 열기', hideInspector: '상세 편집 접기',
+  evidence: '결말 경로 근거', examplePath: '시나리오 검사에서 확인한 예시 경로', incomplete: '진행 경로 탐색이 완료되지 않았습니다.',
+  noPath: '이 결말에서 확인할 수 있는 예시 경로가 없습니다.', pathScope: '방문 이력과 게임 상태를 검사합니다. 실제 이동 가능성과 이야기의 설득력은 별도로 검토합니다.',
+  participants: '등장과 참고 연결', referenceHint: '참고 연결은 작가가 관련 장면을 함께 보는 데 사용합니다. 플레이어는 이 선을 따라 이동하지 않습니다.',
+  visitHint: '플레이어가 선택한 장면을 모두 방문한 뒤에 진입할 수 있습니다.', addReference: '관련 장면 연결', reviewVisits: '진입 조건 검토',
+  prologueVisits: (title, names) => '「' + title + '」에서 시작할 때 방문 기록은 비어 있습니다. 진입하려면 ' + names + ' 방문이 필요합니다.',
+  connectionsLegend: '연결선 범례', travelLine: '필수 이동', filters: '장과 퀘스트',
+  checkSaved: '저장된 진행 경로 검사', saveBeforeCheck: '바꾼 진입 조건을 검사하려면 먼저 편집 내용을 저장하세요.',
   fieldPath: '필드 경로', referenceId: '참조 ID', expectedType: '필요한 유형', actualType: '실제 유형',
   witnessPath: '플레이 경로',
   navigation: '시나리오 탐색', filterChapter: '장 필터', filterNodes: '노드 유형 필터', filterQuests: '퀘스트 필터',

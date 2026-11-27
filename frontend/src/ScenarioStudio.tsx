@@ -130,7 +130,7 @@ export default function ScenarioStudio({
   const [busy, setBusy] = useState<false | 'generate' | 'revise' | 'validate'>(false);
   const [message, setMessage] = useState<Feedback>();
   const [reviewed, setReviewed] = useState(false);
-  const [witnesses, setWitnesses] = useState<{ runId: string; paths: string[][] }>();
+  const [witnesses, setWitnesses] = useState<{ runId: string; complete: boolean; paths: string[][] }>();
   const [validationError, setValidationError] = useState<Feedback>();
   const [undo, setUndo] = useState<Entry[]>([]),
     [redo, setRedo] = useState<Entry[]>([]);
@@ -388,7 +388,7 @@ export default function ScenarioStudio({
               throw Error(scenarioCopy.invalidCheckResponse);
             paths.push(route.nodeIds);
           }
-        if (await commit(saved, runId)) setWitnesses({ runId, paths });
+        if (await commit(saved, runId)) setWitnesses({ runId, complete: data.complete, paths });
         else setValidationError({ detail: scenarioCopy.checkSaveFailed });
       } else {
         const id = action === 'revise' ? target : undefined;
@@ -727,6 +727,9 @@ export default function ScenarioStudio({
             />
             <ScenarioEditor
               selectedId={selectedId} openAtlas={openAtlas}
+              evidence={checked && witnesses?.runId === checked.id ? witnesses : undefined}
+              incomplete={checkDetail === scenarioCopy.incompleteCheck}
+              checkSaved={() => void request('validate')}
               project={p}
               edit={edit}
               revise={hasRecovery ? undefined : (id) => {

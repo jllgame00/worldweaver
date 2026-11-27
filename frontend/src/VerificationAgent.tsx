@@ -24,6 +24,7 @@ import {
 } from './verificationCopy';
 import { DiagnosticDetails, useFormatter, useLocale } from './locale';
 import { useBibleKinds } from './worldBibleCopy';
+import './evidenceWorkspace.css';
 
 type Props = {
   project: Project;
@@ -55,6 +56,7 @@ export default function VerificationAgent({
   const [target, setTarget] = useState(targetId ?? '');
   const [picked, setPicked] = useState('');
   const [editing, setEditing] = useState('');
+  const [filter, setFilter] = useState('all');
   const [ownerReview, setOwnerReview] = useState('');
   const [busy, setBusy] = useState(false);
   const [semanticBusy, setSemanticBusy] = useState(false);
@@ -79,6 +81,13 @@ export default function VerificationAgent({
     !entry.revalidation &&
     !incomplete({ run, tools: entry.tools as VerificationToolReceipt[] });
   const finding = entry?.findings.find((f) => f.id === editing);
+  useEffect(() => {
+    if (targetId) {
+      setMode('targeted');
+      setTarget(targetId);
+      setEditing('');
+    }
+  }, [targetId]);
   useEffect(
     () => () => {
       task.current?.abort();
@@ -320,19 +329,28 @@ export default function VerificationAgent({
         </button>
       ));
   function findingsList(report: VerificationEntry) {
+    const category = (f: ValidationFinding) => f.origin === 'editorial' && f.severity === 'info' ? 'editorial' : f.severity;
+    if (filter !== 'all' && !report.findings.some(f => category(f) === filter)) return <p>{c.filterEmpty}</p>;
     return (['error', 'warning', 'editorial', 'info'] as const).map((key) => {
-      const rows = report.findings.filter(
-        (f) => (f.origin === 'editorial' && f.severity === 'info' ? 'editorial' : f.severity) === key,
-      );
+      if (filter !== 'all' && filter !== key) return null;
+      const rows = report.findings.filter(f => category(f) === key);
       const domains = [...new Set(rows.map((f) => f.rule.split('.')[0] ?? f.rule))];
       function card(f: ValidationFinding) {
+        const explanation = f.origin === 'editorial' ? f.explanation : detail(f.explanation, f.rule);
+        const affected = [...new Set(f.entityIds)];
         return (
-          <article key={f.id} className="record-list">
-            <strong>{f.origin === 'editorial' ? f.explanation : detail(f.explanation, f.rule)}</strong>
+          <article key={f.id} className="finding-card" aria-label={explanation}>
+            <h5><strong>{explanation}</strong></h5>
+            <div className="finding-state">{status(f.severity)} · {status(f.status)} · {f.origin === 'editorial' ? c.severity.editorial : c.mode[report.mode]}</div>
+            {f.causeNodeId && <p>{c.cause} · {label(f.causeNodeId)}</p>}
+            {affected.length > 0 && <div className="actions">
+              <span>{locale === 'ko' ? '영향받는 기록' : 'Affected records'} · {number(affected.length)}</span>
+              {inspectButtons(affected)}
+              {affected.filter(id => !index.entities.has(id)).map(id => <code key={id}>{id}</code>)}
+            </div>}
             {f.suggestedRepair && (
               <p>{f.origin === 'editorial' ? f.suggestedRepair : detail(f.suggestedRepair, undefined, f.suggestedRepair)}</p>
             )}
-            <div className="actions">{inspectButtons(f.entityIds)}</div>
             {!!f.blockedTransitions?.length && (
               <ul aria-label={c.related}>
                 {f.blockedTransitions.map((b, i) => (
@@ -346,7 +364,15 @@ export default function VerificationAgent({
               <summary>
                 {c.details} · {status(f.status)}
               </summary>
-              <pre className="verification-evidence">{JSON.stringify(f, null, 2)}</pre>
+              <dl className="operations-details">
+                <dt>{locale === 'ko' ? '검사 규칙' : 'Check rule'}</dt><dd><code>{f.rule}</code></dd>
+                {f.fieldPath && <><dt>{c.fieldPath}</dt><dd><code>{f.fieldPath}</code></dd></>}
+                {f.witnessPath?.length ? <><dt>{c.witness}</dt><dd>{f.witnessPath.map(label).join(' → ')}</dd></> : null}
+                {f.referenceId && <><dt>{c.record}</dt><dd>{label(f.referenceId)} · <code>{f.referenceId}</code></dd></>}
+              </dl>
+              {f.evidence?.map((source, i) => <div key={i}><b>{label(source.id)}</b><blockquote>{source.excerpt}</blockquote></div>)}
+              <details><summary>{locale === 'ko' ? '전체 기술 기록' : 'Full technical record'}</summary>
+                <pre className="verification-evidence">{JSON.stringify(f, null, 2)}</pre></details>
             </details>
             <button type="button" disabled={!available || busy || disabled} onClick={() => setEditing(f.id)}>
               {c.revise}
@@ -428,6 +454,11 @@ export default function VerificationAgent({
             ))}
           </select>
         </label>
+        <p className="muted">{mode === 'quick'
+          ? (locale === 'ko' ? '저장된 설계의 기본 구조와 참조를 확인합니다.' : 'Inspect the saved design’s structure and references.')
+          : mode === 'targeted'
+            ? (locale === 'ko' ? '선택한 기록과 연결된 의존성을 검사합니다.' : 'Check the selected record and its connected dependencies.')
+            : (locale === 'ko' ? '현재 프로젝트 전체의 적용 가능한 도구를 실행합니다.' : 'Run the applicable tools across the current project.')}</p>
         {mode === 'targeted' && (
           <label>
             {c.target}
@@ -490,6 +521,7 @@ export default function VerificationAgent({
               onChange={(e) => {
                 setPicked(e.target.value);
                 setEditing('');
+                setFilter('all');
               }}
             >
               {[...history].reverse().map((h) => {
@@ -504,8 +536,8 @@ export default function VerificationAgent({
               })}
             </select>
             <p role="status">
-              {identity ? (fresh ? c.current : c.stale) : c.checking} · r{number(run.baseRevision)} · {status(run.status)} ·{' '}
-              {number(run.durationMs ?? 0)} ms
+              {identity ? (fresh ? c.current : c.stale) : c.checking} · r{number(run.baseRevision)} · {status(run.status)}
+              {run.durationMs !== undefined && <> · {number(run.durationMs)} ms</>}
             </p>
             <p>
               {c.attempts} · {number(run.repairAttempts)}/2 · {c.runUsage} · {typeof calls === 'number' ? number(calls) : c.unknown}
@@ -570,6 +602,10 @@ export default function VerificationAgent({
                   </li>
                 ))}
             </ul>
+            <p className="finding-state">{entry.provider
+              ? (run.status === 'proposed' ? (locale === 'ko' ? '의미 검토 완료' : 'Editorial review completed')
+                : (locale === 'ko' ? '의미 검토 미완료' : 'Editorial review incomplete'))
+              : (locale === 'ko' ? '의미 검토 안 함' : 'Editorial review not run')}</p>
             <p>{entry.provider ? c.semanticLimit : c.unreviewed}</p>
             {entry.submittedIds && (
               <details>
@@ -614,6 +650,12 @@ export default function VerificationAgent({
               </details>
             )}
             <h2>{c.findings}</h2>
+            {entry.findings.length > 0 && <label>{c.filterFindings}
+              <select value={filter} onChange={event => setFilter(event.target.value)}>
+                <option value="all">{c.allFindings}</option>
+                {Object.entries(c.severity).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </label>}
             {!available && <p>{entry.revalidation ? c.reviewAgain : c.gate}</p>}
             {entry.omittedFindings && (
               <p>

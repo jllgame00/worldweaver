@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { fetchGenerationStatus, generateDirections, GenerationError } from './api';
 import Content from './Content';
-import ScenarioStudio from './ScenarioStudio';
-import AtlasStudio from './AtlasStudio';
-import { WorldBible } from './WorldBible';
-import VerificationAgent from './VerificationAgent';
+import { StudioIcon } from './StudioIcon';
+import { useWorkbenchCopy } from './workbenchCopy';
 import { ProjectImport, RecoveryDownload } from './ProjectImport';
 import { useRestoreCopy } from './restoreCopy';
 import { DiagnosticDetails, LanguageSelector, LocaleProvider, useDiagnostic, useLocale } from './locale';
@@ -12,11 +10,21 @@ import { useShellCopy, useWorkspaceCopy } from './workspaceLocale';
 import Dashboard from './Dashboard';
 import { DirectionDetail, Directions, StoryFields } from './Direction';
 import Narrative from './Narrative';
-import { acceptBatch, candidatesFresh, chooseDirection, createProject } from './project';
+import { acceptBatch, candidatesFresh, chooseDirection, createProject, narrativeFresh } from './project';
 import type { Project, StoryCandidate } from './project.generated';
 import { createSampleProject, sampleTitle } from './sampleProject';
 import { useProjects } from './useProjects';
 import type { CandidateResult, GenerationStatus } from './validation';
+import { downloadFile } from './scenarioWorkflow';
+
+const Operations = lazy(() => import('./Operations'));
+const studios = ['content','directions','narrative','scenario','atlas','bible','verification'] as const;
+
+function StudioPanel({active, children}: {active:boolean; children:ReactNode}) {
+  const [visited, setVisited] = useState(active);
+  useEffect(() => { if (active) setVisited(true); }, [active]);
+  return active || visited ? <div hidden={!active}>{children}</div> : null;
+}
 
 type Studio = 'content' | 'directions' | 'narrative' | 'scenario' | 'atlas' | 'bible' | 'verification';
 type View = Studio | { detail: string; from: 'directions' | 'narrative' };
@@ -39,15 +47,32 @@ function Workspace({ databaseName }: { databaseName: string }) {
   const copy = useWorkspaceCopy();
   const shell = useShellCopy();
   const recovery = useRestoreCopy();
+  const ui = useWorkbenchCopy();
+  const [library, setLibrary] = useState(false);
+  const [operations, setOperations] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [editors, setEditors] = useState<typeof import('./ProjectStudios')>();
+  const [loadFailed, setLoadFailed] = useState(false);
+  async function loadEditors() {
+    if (editors) return true;
+    try {
+      setEditors(await import('./ProjectStudios'));
+      setLoadFailed(false);
+      return true;
+    } catch {
+      setLoadFailed(true);
+      return false;
+    }
+  }
   const diagnostic = useDiagnostic();
   const store = useProjects(databaseName);
   const project = store.record?.project;
   const [view, setView] = useState<View>('content');
   const [editorEpoch, setEditorEpoch] = useState(0);
-  const [linked,setLinked]=useState<{projectId:string;id:string}>();
+  const [linked,setLinked]=useState<{projectId:string;id:string;to:Studio}>();
   function navigate(to:Studio,id:string){
     if(!project)return;
-    setLinked({projectId:project.id,id});
+    setLinked({projectId:project.id,id,to});
     const candidate=project.storyCandidates.some(c=>c.id===id);
     setView(to==='narrative' && candidate?{from:'directions',detail:id}:to);
   }
@@ -61,6 +86,10 @@ function Workspace({ databaseName }: { databaseName: string }) {
   const main = useRef<HTMLElement>(null);
   const disabled = store.saving || !!store.pending;
   const fresh = !!project && candidatesFresh(project);
+  const loadingLibrary = store.loading || (store.projects.length > 0 && !editors && !loadFailed);
+  useEffect(() => {
+    if (store.projects.length && !editors && !loadFailed) void loadEditors();
+  }, [store.projects.length, editors, loadFailed]);
 
   useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
   useEffect(() => {
@@ -81,7 +110,7 @@ function Workspace({ databaseName }: { databaseName: string }) {
       heading.tabIndex = -1;
       heading.focus();
     }
-  }, [project?.id, view, linked]);
+  }, [project?.id, view, linked, operations, library]);
 
   function cancel() {
     request.current?.abort();
@@ -96,16 +125,30 @@ function Workspace({ databaseName }: { databaseName: string }) {
   }
 
   function closeProject() {
-    if (generating) cancel();
-    setNotice(undefined);
-    setProposal(undefined);
-    setSwitching(undefined);
-    store.select(undefined);
+    setLibrary(true);
+    setOperations(false);
+    setMenu(false);
   }
 
-  function openNewProject(next: Project) {
-    setView('content');
-    return store.commit(next);
+  async function openNewProject(next: Project) {
+    if (!await loadEditors() || !await store.commit(next)) return false;
+    setProposal(undefined);
+    setSwitching(undefined);
+    setNotice(undefined);
+    openView('content');
+    return true;
+  }
+
+  function openView(next: Studio) {
+    setLibrary(false);
+    setOperations(false);
+    setMenu(false);
+    setLinked(undefined);
+    setView(next);
+  }
+  async function openFromList(id: string) {
+    if (project?.id === id) { setLibrary(false); setOperations(false); return; }
+    await reopen(id);
   }
 
   async function accept(result: CandidateResult) {
@@ -171,13 +214,14 @@ function Workspace({ databaseName }: { databaseName: string }) {
   }
 
   async function reopen(id: string) {
+    if (!editors && !await loadEditors()) return;
     const opened = await store.reopen(id);
     if (opened) {
       setEditorEpoch((previous) => previous + 1);
       setProposal(undefined);
       setSwitching(undefined);
       setNotice(undefined);
-      setView(startingStudio(opened));
+      openView(startingStudio(opened));
     }
   }
 
@@ -193,6 +237,10 @@ function Workspace({ databaseName }: { databaseName: string }) {
   }
 
   const studio = typeof view === 'string' ? view : view.from;
+  const inLibrary = !project || library;
+  const visibleStudio = !inLibrary && !operations;
+  const label = (s: Studio) => s === 'content' || s === 'directions' || s === 'narrative' ? copy[s] : shell[s];
+  const loading = <p role="status" className="panel loading-studio">{ui.loading}</p>;
   const detail = typeof view === 'object' ? project?.storyCandidates.find(({ id }) => id === view.detail) : undefined;
   const providerLabel = generation?.provider === 'chatkhu' ? copy.chatkhuProvider(generation.model)
     : generation?.mode === 'live' ? copy.liveProvider(generation.model)
@@ -210,28 +258,49 @@ function Workspace({ databaseName }: { databaseName: string }) {
   const noticeDetails = notice && 'detail' in notice && <DiagnosticDetails detail={notice.detail} code={notice.code} />;
 
   return (
-    <div className="app">
+    <div className="app workbench">
+      <a className="skip-workspace" href="#work-area">{ui.skip}</a>
       <header className="app-header">
         <div className="header-inner">
-          <div className="brand"><span className="brand-mark" aria-hidden="true" />{copy.brand}</div>
-          {project && <><button type="button" className="quiet projects-link" disabled={disabled} onClick={closeProject}>{copy.projects}</button>
+          <div className="brand"><StudioIcon name="compass"/>{copy.brand}</div>
+          <button className="menu-toggle quiet" aria-expanded={menu} aria-controls="workspace-rail" onClick={()=>setMenu(!menu)}>{ui.nav}</button>
+          {visibleStudio && project && <>
             <span className="header-project creative">{project.title}</span>
             <span role="status" className="save-status" data-save-state={store.saving ? 'saving' : store.pending ? 'pending' : 'saved'}>
               <i aria-hidden="true" />{store.saving ? copy.saving : store.pending ? copy.unsaved : copy.saved}</span>
           </>}
+          <span className="current-workspace">{operations ? ui.operations : inLibrary ? copy.projects : label(studio)}</span>
+          {project && visibleStudio && <details className="header-actions">
+            <summary>{ui.projectActions}</summary>
+            <div><p>{copy.narrative} · {project.narrative ? !narrativeFresh(project) ? copy.stale : project.narrative.approved ? copy.approved : copy.draft : copy.noNarrative}</p>
+              <button onClick={()=>downloadFile(project.id+'.json', JSON.stringify(project,null,2), 'application/json')}>{ui.download}</button></div>
+          </details>}
           <LanguageSelector />
         </div>
-        {project && <nav className="studio-nav" aria-label={copy.studioNav}>
-          {(['content', 'directions', 'narrative', 'scenario', 'atlas','bible','verification'] as const).map((name) => (
-            <button key={name} type="button" aria-current={studio === name ? 'page' : undefined}
-              disabled={name === 'directions' ? !project.storyCandidates.length : name === 'narrative' && !project.narrative}
-              onClick={() => {setLinked(undefined);setView(name);}}>
-              {name === 'content' || name === 'directions' || name === 'narrative' ? copy[name] : shell[name]}
-            </button>
-          ))}
-        </nav>}
       </header>
-      <main className="workspace" ref={main}>
+      <aside id="workspace-rail" className={'workspace-rail' + (menu ? ' expanded' : '')}>
+        <span className="rail-caption">{ui.library}</span>
+        <button type="button" aria-current={inLibrary && !operations ? 'page' : undefined} onClick={closeProject}><StudioIcon name="projects"/>{copy.projects}</button>
+        {project ? <nav className="studio-nav" aria-label={copy.studioNav}>
+          <span className="rail-caption">{ui.studios}</span>
+          {studios.map(name => {
+            const reason = !project ? ui.selectProject : name === 'directions' && !project.storyCandidates.length ? copy.noDirections
+              : name === 'narrative' && !project.narrative ? ui.choose : undefined;
+            return <button key={name} type="button" disabled={!!reason} title={reason} aria-describedby={reason ? 'studio-prerequisite' : undefined}
+              aria-current={visibleStudio && studio === name ? 'page' : undefined} onClick={()=>openView(name)}><StudioIcon name={name}/>{label(name)}</button>;
+          })}
+        </nav> : <div className="studio-nav studio-index">
+          <span className="rail-caption">{ui.studios}</span>
+          {studios.map(name=><span key={name}><StudioIcon name={name}/>{label(name)}</span>)}
+        </div>}
+        {(!project || !project.narrative) && <p id="studio-prerequisite" className="rail-help">{!project ? ui.selectProject : project.storyCandidates.length ? ui.choose : copy.noDirections}</p>}
+        <button className="operations-link" aria-current={operations ? 'page' : undefined}
+          onClick={()=>{setOperations(true);setMenu(false);}}><StudioIcon name="operations"/>{ui.operations}</button>
+      </aside>
+      <main id="work-area" className="workspace" ref={main} tabIndex={-1}>
+        {operations && <Suspense fallback={loading}><Operations databaseName={databaseName} project={project} configuration={generation}/></Suspense>}
+        <div hidden={operations}>
+        {loadFailed && <p role="alert" className="notice error">{ui.loadError} <button onClick={()=>void loadEditors()}>{ui.retry}</button></p>}
         {store.loadError && <p role="alert" className="notice error">{copy[store.loadError]}</p>}
         {store.pending && <div className="notice">
           <p role="alert" className="error">{store.pending.conflict ? copy.saveConflict : copy.saveFailure}</p>
@@ -241,17 +310,22 @@ function Workspace({ databaseName }: { databaseName: string }) {
                 if (store.pending) void store.commit(store.pending.project, store.pending.checkedRunId, store.pending.afterSave);
               }}>{copy.retrySave}</button>}</div>
         </div>}
-        {project ? <>
+        {project && <div hidden={inLibrary}>
           <div className="project-tools">
             <div className="project-meta"><span className="revision">{copy.revision(project.revision)}</span>
               <span className="provider-mode" role="status">{providerLabel}</span></div>
             {generating ? <div className="actions generation-state"><span role="status">{copy.generating}</span>
               <button type="button" className="quiet" onClick={cancel}>{copy.cancelGeneration}</button></div>
-              : !['scenario','verification','bible'].includes(studio) && <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
+              : ['content','directions','narrative'].includes(studio) && <button type="button" className="primary" disabled={disabled || !generation?.available || !!proposal || !!switching || !project.userContent.length}
                 onClick={() => void startGeneration()}>{copy.generate}</button>}
           </div>
+          {['content','directions','narrative'].includes(studio) && !project.userContent.length && <p className="prerequisite">{ui.addSource}</p>}
+          {(proposal || switching) && <p className="prerequisite">{ui.pending}</p>}
+          {studio==='scenario' && (!project.narrative?.approved || !narrativeFresh(project)) && <button className="prerequisite"
+            onClick={()=>openView(project.narrative ? 'narrative' : project.storyCandidates.length ? 'directions' : 'content')}>{ui.approveStory} →</button>}
+          {studio==='atlas' && !project.scenario?.approved && <button className="prerequisite" onClick={()=>openView('scenario')}>{ui.approveScenario} →</button>}
           {generationIssue && <div className="notice">
-            <p role={store.pending ? 'status' : 'alert'} className="error">{generationIssue}</p>
+            <p role={store.saving || store.pending ? 'status' : 'alert'} className="error">{generationIssue}</p>
             {!generation?.available && generation?.message && <DiagnosticDetails detail={generation.message} />}
             <div className="actions"><button type="button" className="quiet" onClick={refreshGenerationStatus}>{copy.retryStatus}</button></div>
           </div>}
@@ -282,23 +356,23 @@ function Workspace({ databaseName }: { databaseName: string }) {
             : studio === 'directions' ? <Directions project={project} fresh={fresh} disabled={disabled || !!proposal || !!switching} choose={choose}
               inspect={(id) => setView({ detail: id, from: 'directions' })} />
               : studio === 'narrative' && !project.narrative && <p className="empty panel">{copy.noNarrative}</p>}
-          {view==='scenario' && <ScenarioStudio key={project.id+'-'+editorEpoch} selectedId={linked?.projectId===project.id?linked.id:undefined} openAtlas={id=>navigate('atlas',id)} project={project}
+          {editors && <><StudioPanel key={project.id+'-scenario-'+editorEpoch} active={view==='scenario'}><editors.ScenarioStudio selectedId={linked?.projectId===project.id && linked.to==='scenario'?linked.id:undefined} openAtlas={id=>navigate('atlas',id)} project={project}
             checkedRunId={store.record?.scenarioCheckRunId} disabled={disabled || generating}
             disabledReasons={[
               ...(store.pending ? [store.pending.conflict ? copy.saveConflict : copy.saveFailure] : []),
               ...(store.saving ? [copy.saving] : []),
               ...(generating ? [shell.generating] : []),
             ]}
-            generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/>}
-          {view==='bible' && <WorldBible key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
+            generation={generation} refreshGeneration={refreshGenerationStatus} commit={store.commit} current={()=>store.writing.current?undefined:store.current.current?.project}/></StudioPanel>
+          <StudioPanel key={project.id+'-bible-'+editorEpoch} active={view==='bible'}><editors.WorldBible project={project} selectedId={linked?.projectId===project.id && linked.to==='bible'?linked.id:undefined}
             review={id=>navigate('verification',id)} navigate={navigate} disabled={disabled || generating} commit={store.commit}
-            current={()=>store.writing.current?undefined:store.current.current?.project}/>}
-          {view==='verification' && <VerificationAgent key={project.id} project={project} targetId={linked?.projectId===project.id?linked.id:undefined}
+            current={()=>store.writing.current?undefined:store.current.current?.project}/></StudioPanel>
+          <StudioPanel key={project.id+'-verification-'+editorEpoch} active={view==='verification'}><editors.VerificationAgent project={project} targetId={linked?.projectId===project.id && linked.to==='verification'?linked.id:undefined}
             inspect={id=>navigate('bible',id)} disabled={disabled || generating} commit={store.commit} configuration={generation}
-            current={()=>store.writing.current?undefined:store.current.current?.project}/>}
-          {view==='atlas' && <AtlasStudio key={project.id} project={project} selectedId={linked?.projectId===project.id?linked.id:undefined}
+            current={()=>store.writing.current?undefined:store.current.current?.project}/></StudioPanel>
+          <StudioPanel key={project.id+'-atlas-'+editorEpoch} active={view==='atlas'}><editors.AtlasStudio project={project} selectedId={linked?.projectId===project.id && linked.to==='atlas'?linked.id:undefined}
             openScenario={id=>navigate('scenario',id)} disabled={disabled || generating} commit={store.commit}
-            current={()=>store.writing.current?undefined:store.current.current?.project} databaseName={databaseName}/>}
+            current={()=>store.writing.current?undefined:store.current.current?.project} databaseName={databaseName}/></StudioPanel></>}
           <div hidden={view !== 'content'}>
             <Content key={`${project.id}-${editorEpoch}`} project={project} disabled={disabled} commit={store.commit}
               commitIntake={(next, afterSave) => store.commit(next, undefined, afterSave)}
@@ -308,17 +382,25 @@ function Workspace({ databaseName }: { databaseName: string }) {
             <Narrative key={`${project.narrative.id}-${editorEpoch}`} project={project} narrative={project.narrative} disabled={disabled}
               inspect={(id) => setView({ detail: id, from: 'narrative' })} commit={store.commit} />
           </div>}
-        </> : <ProjectImport databaseName={databaseName} disabled={disabled || store.loading} reopen={reopen}
-          opened={(saved, restored) => {
+        </div>}
+        {project && inLibrary && <div className="return-editor">
+          <button onClick={()=>{setLibrary(false);setOperations(false);}}>{ui.continue} · {project.title}</button>
+          <small>{ui.switchProject}</small>
+        </div>}
+        {inLibrary && <ProjectImport databaseName={databaseName} disabled={disabled || loadingLibrary || generating} reopen={reopen}
+          opened={async (saved, restored) => {
+            await loadEditors();
             store.adopt(saved);
-            setView(startingStudio(saved.project));
+            setEditorEpoch(n=>n+1);setProposal(undefined);setSwitching(undefined);
+            openView(startingStudio(saved.project));
             setNotice({ label: restored ? 'restored' : 'imported' });
           }}>
-          <Dashboard projects={store.projects} loading={store.loading} disabled={disabled || store.loading}
-          open={(id) => void reopen(id)} create={(title) => openNewProject(createProject(title))}
+          <Dashboard projects={store.projects} loading={loadingLibrary} disabled={disabled || loadingLibrary}
+          open={(id) => void openFromList(id)} create={(title) => openNewProject(createProject(title))}
+          openExample={async next => {if(await openNewProject(next)) openView(startingStudio(next));}}
           sample={import.meta.env.DEV ? { title: sampleTitle, create: () => void openNewProject(createSampleProject()) } : undefined} />
         </ProjectImport>}
-      </main>
+        </div></main>
     </div>
   );
 }

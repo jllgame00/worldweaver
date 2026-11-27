@@ -22,7 +22,7 @@ const generationModes = { deterministic: '규칙 기반', mock: '개발용 모�
 const copy = {
   brand: 'WORLDWEAVER', workspace: '이야기 작업 공간', projects: '프로젝트',
   newProject: '새 프로젝트', projectTitle: '프로젝트 제목', createProject: '프로젝트 만들기', cancel: '취소',
-  localProjects: '로컬 프로젝트', openProject: '열기', open: (title: string) => `${title} 열기`,
+  localProjects: '내 프로젝트', openProject: '열기', open: (title: string) => `${title} 열기`,
   emptyProjects: '장소, 인물 또는 하나의 아이디어에서 시작하세요.',
   loadingProjects: '브라우저에 저장된 프로젝트를 여는 중…', unreadableProjects: '일부 로컬 프로젝트를 읽을 수 없습니다.',
   content: '소재', directions: '스토리 후보', narrative: '스토리 설계', revision: (count: number) => `리비전 ${count.toLocaleString('ko')}`,

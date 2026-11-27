@@ -18,6 +18,7 @@ const english = {
   lock: 'Lock position during regeneration',
   saveLocation: 'Save location',
   references: 'Scenario references',
+  nested: 'Nested places', nesting: (child: string, relation: string, host: string) => child + ' ' + relation + ' ' + host,
   confirmLocation: (name: string) => 'Remove ' + name + ' and its incident atlas routes? Scenario references are protected.',
   removeLocation: 'Remove location',
   landCells: (count: string) => count + ' land cells',
@@ -70,6 +71,7 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
     lock: '다시 생성할 때도 위치 고정',
     saveLocation: '장소 저장',
     references: '시나리오 참조',
+    nested: '장소 포함 관계', nesting: (child, relation, host) => child + ' · ' + host + ' ' + relation,
     confirmLocation: (name) => name + ' 및 연결된 지도 경로를 삭제할까요? 시나리오 참조는 보호됩니다.',
     removeLocation: '장소 삭제',
     landCells: (count) => '육지 ' + count + '칸',
@@ -108,6 +110,9 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
   const feature = w.features.find((f) => f.id === id);
   const origins = site && links(p, site.id);
   const placeName = (key: string) => w.locations.find((l) => l.id === key)?.name ?? key;
+  const nesting = site && w.constraints?.flatMap(c =>
+    c.to && (c.from === site.id || c.to === site.id) && (c.relation === 'beneath' || c.relation === 'inside')
+      ? [{ child: c.from, host: c.to, relation: c.relation }] : []);
   const number = (f: FormData, k: string) => Number(f.get(k));
   const value = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
   const kinds = Object.keys(labels.location) as Location['kind'][];
@@ -152,6 +157,12 @@ export default function AtlasInspector({ p, world: w, id, select, openScenario, 
                 ' · ' +
                 (labels.biomes[tile as keyof typeof labels.biomes] ?? copy.outside)}
           </p>
+          {!!nesting?.length && <section className="atlas-hosts" aria-label={copy.nested}>
+            <h3>{copy.nested}</h3>
+            {nesting.map((c,i) => <button key={i} onClick={() => select(c.child === site.id ? c.host : c.child)}>
+              {copy.nesting(placeName(c.child), labels.relation[c.relation], placeName(c.host))}
+            </button>)}
+          </section>}
           <form
             key={JSON.stringify(site)}
             className="atlas-fields"

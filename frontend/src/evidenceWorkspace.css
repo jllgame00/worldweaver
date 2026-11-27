@@ -1,0 +1,31 @@
+.operations-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(15rem, .85fr);
+  align-items: start;
+  gap: 1rem;
+}
+.operations-layout > *, .evidence-comparison > * { min-width: 0; overflow-wrap: anywhere; }
+.operations-layout h2 { margin-top: 0; }
+.operations-metrics, .verification-tool-table { width: 100%; border-collapse: collapse; }
+.operations-metrics th, .operations-metrics td, .verification-tool-table th, .verification-tool-table td {
+  padding: .55rem .35rem; border-bottom: 1px solid var(--line); text-align: start; vertical-align: top;
+}
+.operations-metrics th[scope=row] { font-weight: 500; }
+.operations-metrics td { text-align: end; font-variant-numeric: tabular-nums; }
+.operations-details { margin: 1rem 0; }
+.operations-details dt, .evidence-comparison dt { color: var(--muted); }
+.operations-details dd, .evidence-comparison dd { margin: .2rem 0 .85rem; }
+.evidence-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-block: .6rem; }
+.evidence-comparison > div { border-inline-start: 2px solid var(--line); padding-inline-start: .7rem; }
+.evidence-comparison > div:last-child { border-color: var(--accent); }
+.evidence-comparison dd { white-space: pre-wrap; }
+.finding-card { margin: .7rem 0; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: .5rem; overflow-wrap: anywhere; }
+.finding-card h5 { font-size: 1rem; margin: .3rem 0; }
+.finding-card details { margin-block: .75rem; }
+.finding-card blockquote { margin: .4rem 0; padding-inline-start: .7rem; border-inline-start: 2px solid var(--line); white-space: pre-wrap; }
+.finding-state { color: var(--muted); font-size: .875rem; }
+@media (max-width: 900px) { .operations-layout { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .evidence-comparison { grid-template-columns: 1fr; } }
+.operation-log { margin-top:1.2rem; border-top:1px solid var(--line); padding-top:1rem; }
+.operation-log h4 { margin:.8rem 0 .3rem; font-size:.85rem; }
+.operation-log ol { padding-inline-start:1.4rem; font-size:.85rem; }

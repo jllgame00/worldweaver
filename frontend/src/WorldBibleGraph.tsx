@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useBibleCopy, useBibleKinds, useBibleRelation } from './worldBibleCopy';
 import { useFormatter } from './locale';
+import { fittedLabel } from './svgText';
 import type { BibleEntity, BibleIndex } from './worldBibleIndex';
 import type { GraphLink } from './worldBibleEvidence';
 
@@ -199,7 +200,7 @@ export function WorldBibleGraph({
                     </title>
                     <rect x="-91" y="-21" width="182" height="42" rx="8" />
                     <text textAnchor="middle" y="-1">
-                      {node.label.length > 21 ? node.label.slice(0, 20) + '…' : node.label}
+                      {fittedLabel(node.label, (182 - 16) / 13)}
                     </text>
                     <text className="bible-svg-kind" textAnchor="middle" y="14">
                       {bibleKinds[node.kind]}

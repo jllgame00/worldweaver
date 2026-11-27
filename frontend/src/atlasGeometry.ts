@@ -1,5 +1,7 @@
 import type { Point, World } from './project.generated';
 
+import { fittedLabel, textWidth } from './svgText';
+
 export interface View {
   x: number;
   y: number;
@@ -106,6 +108,7 @@ export function geometry(world: World) {
   const land: Point[] = [];
   const kinds = new Map<string, Point[]>();
   const high: Point[][] = [[], [], []];
+  const sunlit: Point[] = [], shaded: Point[] = [];
   const trees: string[] = [],
     trunks: string[] = [],
     peaks: string[] = [],
@@ -121,6 +124,13 @@ export function geometry(world: World) {
       if (!kinds.has(kind)) kinds.set(kind, []);
       kinds.get(kind)!.push(cell);
       const meters = world.elevation?.[y]?.[x] ?? 0;
+      if (kind !== 'l' && peak && world.elevation) {
+        const east = world.elevation[y]?.[x + 1] ?? meters, west = world.elevation[y]?.[x - 1] ?? meters;
+        const south = world.elevation[y + 1]?.[x] ?? meters, north = world.elevation[y - 1]?.[x] ?? meters;
+        const slope = east - west + .75 * (south - north);
+        if (slope > peak * .035) sunlit.push(cell);
+        if (slope < -peak * .035) shaded.push(cell);
+      }
       if (peak && meters > 0)
         high.forEach((cells, i) => {
           if (meters > peak * (0.27 + 0.22 * i)) cells.push(cell);
@@ -227,6 +237,7 @@ export function geometry(world: World) {
     coast: outline(land),
     biomes: Array.from(kinds, ([kind, cells]) => [kind, outline(cells)] as const),
     contours: high.map(outline),
+    sunlit: outline(sunlit), shaded: outline(shaded),
     trees: trees.join(''),
     trunks: trunks.join(''),
     peaks: peaks.join(''),
@@ -240,7 +251,7 @@ export function geometry(world: World) {
 export interface MapLabel {
   id: string;
   text: string;
-  kind: 'place' | 'region' | 'territory' | 'feature';
+  kind: 'place' | 'region' | 'territory' | 'feature' | 'route';
   point: Point;
 }
 export function placeLabels(labels: MapLabel[], view: View, size: number, selected?: string) {
@@ -250,7 +261,9 @@ export function placeLabels(labels: MapLabel[], view: View, size: number, select
     const [px, py] = item.point;
     const cx = px + 0.5,
       cy = py + 0.5;
-    const width = Array.from(item.text).reduce((n, c) => n + (/[^\x00-\x7f]/.test(c) ? 1 : 0.58), 0) * size;
+    const limit = Math.min(23, view.width / size * .58);
+    const text = fittedLabel(item.text,limit);
+    const width = textWidth(text,size);
     const height = size * 1.3;
     const offsets =
       item.kind === 'place'
@@ -280,7 +293,7 @@ export function placeLabels(labels: MapLabel[], view: View, size: number, select
         width: width + 0.24 * size,
         height: height + 0.2 * size,
       });
-      result.push({ ...item, x, y });
+      result.push({ ...item, text, x, y });
       break;
     }
   }
