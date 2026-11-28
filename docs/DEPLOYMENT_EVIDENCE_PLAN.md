@@ -1,6 +1,6 @@
-# Phase 6C-R1·6D · HW6 배포 차단 및 복구 증거
+# Phase 6C·6D · HW6 배포 차단 및 복구 증거
 
-**`PHASE_6C_READY_FOR_OWNER_REVIEW` (R1)** — 보호된 공개 `main`의 임시 pytest, 기준 A, 아래 실행 절차를 오너가 검토한다. 실제 B·C는 각각 소유자 승인 후 실행한다. [공개 기준 A의 기록](PHASE_6B_REPORT.md)
+**`PHASE_6D_READY_FOR_OWNER_REVIEW`** — 실제 B의 실패와 배포 작업 생략을 확인했다. 1–2절은 당시 증거 수집 절차이며 후속 오너 작업은 3절에서 시작한다. [공개 기준 A](PHASE_6B_REPORT.md) · [6C 호스팅 결과와 Render 확인 항목](PHASE_6C_REPORT.md)
 
 ## 실행 환경
 
@@ -25,9 +25,9 @@
 
 3. Render 배포 ID `dep-dc4pjg8u01pc73eu9b10`와 다이제스트 `sha256:446097c166f507d0820a0df93817937b4ed02d6d59edf1de49fc5f480067f041`가 활성인지 기록한다. 전용 브라우저 프로필에서 **프로젝트 → Salt Census → 작업용 사본 만들기** 후 **검증 에이전트 → 빠른 검사 실행**으로 기록 하나를 저장한다. 목록에서 사본을 다시 열어 기록을 확인하고 **프로젝트 관리 → 프로젝트 백업 다운로드**를 선택한다. 제목, 프로젝트 ID·리비전, 장소 수, 승인 상태, 최신 검사 기록을 보관한다. JSON은 로컬에 두고 C까지 같은 프로필과 HTTPS 주소를 사용한다. [공개 예제 검수](PHASE_5E_ACCEPTANCE.md)
 
-## 2. Phase 6C · 실제 실패 B
+## 2. Phase 6C · 실제 실패 B의 실행 절차 기록
 
-1. A에서 `feature/deployment-gate-verification` 브랜치를 만들고 [임시 테스트 파일](../scripts/test_controlled_deployment_gate.py)만 `test(devops): add owner-approved deployment gate failure exercise`로 커밋한다. 문서는 검토 자료로 남겨 둔다. 통상 PR을 열고 Changed files가 이 파일 하나인지, 두 필수 검사와 일반 테스트가 성공했는지 확인한다. 승인할 정확한 PR HEAD는 다음 명령으로 조회한다. 병합 직전 GitHub `main`이 여전히 A인지 다시 확인하고 Docker Hub 태그 목록과 Render Events/Deploys를 보관한다.
+1. A에서 `feature/deployment-gate-verification` 브랜치를 만들어 [B의 임시 테스트 파일](https://github.com/jllgame00/worldweaver/blob/e6948120db9f017579a3e027f8fdd02215ed0239/scripts/test_controlled_deployment_gate.py)을 검토한다. 통상 PR을 열고 두 필수 검사와 일반 테스트가 성공했는지 확인한다. 승인할 정확한 PR HEAD는 다음 명령으로 조회한다. 병합 직전 GitHub `main`이 여전히 A인지 다시 확인하고 Docker Hub 태그 목록과 Render Events/Deploys를 보관한다.
 
    ~~~powershell
    $pr = Read-Host 'B PR number'
@@ -75,19 +75,39 @@
 
 ## 3. Phase 6D · 독립 복구 C 및 IndexedDB
 
-1. B의 증거를 수집하고 오너가 복구를 승인하면 최신 `main` B에서 복구 브랜치를 만든다. 임시 pytest 파일만 제거하고 `test(devops): remove controlled deployment gate failure exercise`로 커밋한다. 새 PR의 필수 검사와 이미지 스모크가 성공한 뒤 승인 문구 없이 정규 병합한다. 이 별도 C 커밋의 `main` push에서 동일한 스위치·환경으로 여섯 작업이 모두 성공해야 한다.
-2. 실행의 C 전체 SHA와 URL, `Publish verified image` 로그의 새 digest, `Deploy digest and verify release` 로그의 새 Render 배포 ID 및 동일 digest를 기록한다. Render의 최신 성공 배포와 대조한다. C가 A와 다른 SHA·digest·배포 ID인지 확인한 뒤 같은 공개 주소를 검증한다.
+1. 오너는 Render Events/Deploys에서 B 실행 구간에 별도 배포가 없었고 A의 배포 ID와 이미지 digest가 여전히 활성인지 확인한다. 공개 스모크와 `/health`에서도 A를 다시 확인한다. A에서 저장한 Salt Census 작업용 사본, JSON 백업 및 프로젝트 ID·리비전의 기준을 확보한다. 기존 기록이 없으면 A가 서빙되는 동안 확보하고 실제 기록 시각을 남긴다.
+2. 복구를 승인한 오너는 `feature/deployment-gate-recovery`의 로컬 HEAD와 GitHub `main`이 B `e6948120db9f017579a3e027f8fdd02215ed0239`인지 확인한다. `git status --short`와 `git diff --name-status HEAD`로 임시 테스트 삭제 및 증거 문서만 있는지 확인한다. **테스트 삭제만** `test(devops): remove controlled deployment gate failure exercise`로 커밋한다. 증거 문서를 함께 올릴 경우 별도 문서 커밋으로 같은 PR에 담는다.
 
    ~~~powershell
+   git add -u -- scripts/test_controlled_deployment_gate.py
+   git diff --cached --name-status
+   # 위 출력이 임시 테스트 파일의 삭제 한 건일 때만 커밋한다.
+   git commit -m "test(devops): remove controlled deployment gate failure exercise"
+
+   # 같은 PR에 증거 문서를 포함할 경우
+   git add -- docs/PHASE_6C_REPORT.md docs/DEPLOYMENT_EVIDENCE_PLAN.md docs/TDD_EVIDENCE.md
+   git diff --cached --name-status
+   git commit -m "docs(devops): record deployment-gate evidence and recovery checks"
+   ~~~
+
+3. 오너가 복구 브랜치를 푸시하고 `feature/deployment-gate-recovery`에서 `main`으로 PR을 연다. PR에는 B의 실행 URL과 6C 보고서를 첨부하고 임시 테스트 삭제, 런타임·워크플로 변경 없음, 기대 배포 확인을 설명한다. **필수 검사와 컨테이너 스모크가 모두 성공한 뒤** 승인 문구 없이 정규 병합한다. PR 검사에서 프런트엔드 불안정이 재현되면 로그를 남기고 통상 검사에서 통과할 때까지 병합을 기다린다. 보호 규칙과 게시·배포 설정은 유지한다.
+4. C는 이 PR의 병합으로 발생한 새 `main` push의 전체 SHA다. 같은 `production` 환경과 활성 게시·배포 스위치에서 여섯 작업이 모두 성공해야 한다. `Publish verified image`의 새 digest, `Deploy digest and verify release`의 새 Render 배포 ID와 동일 digest를 기록하고 Docker Hub 태그와 Render 최신 성공 배포에 대조한다. C의 SHA·digest·배포 ID가 각각 A와 다른지 확인한 뒤 같은 공개 주소에서 스모크를 실행한다.
+
+   ~~~powershell
+   $repo = 'jllgame00/worldweaver'
+   $origin = 'https://worldweaver-8mbz.onrender.com'
    $recoveryPr = Read-Host 'C PR number'
    $c = gh pr view $recoveryPr --repo $repo --json mergeCommit --jq '.mergeCommit.oid'
+   if ($LASTEXITCODE -ne 0 -or $c -cnotmatch '^[0-9a-f]{40}$') { throw 'Check the recovery merge SHA.' }
+   gh run list --repo $repo --workflow test.yml --branch main --event push --commit $c --json headSha,url,conclusion
+   (Invoke-RestMethod -Uri "https://hub.docker.com/v2/repositories/surlworl/worldweaver/tags/sha-$c").digest
    ./.venv/Scripts/python.exe scripts/render_release.py smoke --origin $origin --commit $c
    [DateTime]::UtcNow.ToString('o')
    Invoke-RestMethod -Uri "$origin/health" -Headers @{'Cache-Control'='no-cache'} | ConvertTo-Json -Compress
    ~~~
 
-3. A와 동일한 브라우저 프로필 및 HTTPS 주소에서 새로고침하고, JSON을 가져오기 전에 기존 사본의 제목·ID·리비전·장소 수·승인 상태·최신 검사 기록을 비교한다. Chromium에서 **Application → IndexedDB → worldweaver-v1 → projects**의 같은 프로젝트 ID를 읽기 전용으로 확인한다. 필요하면 백업을 새로 받아 로컬에서 ID·리비전을 대조한다.
-4. C에서 배포나 스모크가 실패하면 결과를 실패로 기록하고 현재 SHA와 Render 이력을 확인한다. 실제 복원이 필요하면 증거와 대상을 확인한 뒤 별도 오너 승인을 받는다. [롤백 절차](DEPLOYMENT_GUIDE.md#4-이관재배포복구)
+5. A와 동일한 브라우저 프로필 및 HTTPS 주소에서 새로고침하고, JSON을 가져오기 전에 기존 사본의 제목·ID·리비전·장소 수·승인 상태·최신 검사 기록을 비교한다. Chromium에서 **Application → IndexedDB → worldweaver-v1 → projects**의 같은 프로젝트 ID를 읽기 전용으로 확인한다. 필요하면 백업을 새로 받아 로컬에서 ID·리비전을 대조한다. 실제 관찰과 UTC 시각을 기록한다.
+6. C에서 배포나 스모크가 실패하면 결과를 실패로 기록하고 현재 SHA와 Render 이력을 확인한다. 실제 복원이 필요하면 증거와 대상을 확인한 뒤 별도 오너 승인을 받는다. [롤백 절차](DEPLOYMENT_GUIDE.md#4-이관재배포복구)
 
 ## 보호 조건을 충족할 수 없을 때
 
