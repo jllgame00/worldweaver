@@ -1,5 +1,5 @@
 import { useEnglishTestLocale } from './englishTestLocale';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import App from './App';
@@ -27,6 +27,65 @@ it('runs a credential-free Quick Check from workspace navigation and reopens its
   await user.click(screen.getByRole('button', { name: 'Verification Agent' }));
   expect(await screen.findByText('Export findings JSON')).toBeEnabled();
   expect(fetcher.mock.calls.every((args) => (args as unknown[])[0] === '/api/generation')).toBe(true);
+});
+
+it('preserves both saved checks when scenario validation finishes after a Quick Check', async () => {
+  const project = approvedProject();
+  const db = crypto.randomUUID();
+  await saveProject(db, project);
+
+  let finishScenario!: (response: Response) => void;
+  const scenarioResponse = new Promise<Response>((resolve) => { finishScenario = resolve; });
+  const validation = {
+    valid: true,
+    complete: true,
+    findings: [],
+    statesExplored: 6,
+    feasibleEdgeIds: project.edges.map((edge) => edge.id),
+    paths: project.endings.map((ending) => ({
+      endingId: ending.id,
+      nodeIds: ['n-start', 'n-gate', 'n-witness', 'n-choose', ending.nodeId],
+    })),
+  };
+  const fetcher = vi.fn(async (url: string) => {
+    if (url === '/api/generation')
+      return Response.json({ available: false, mode: 'mock', provider: 'mock', model: 'offline' });
+    if (url === '/api/scenario/validate') return scenarioResponse;
+    if (url === '/api/scenario/validate?verification=true') return Response.json(validation);
+    throw Error('Unexpected request ' + url);
+  });
+  vi.stubGlobal('fetch', fetcher);
+
+  const stored = async () => (await listProjects(db)).projects[0]!;
+  render(<App databaseName={db} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open ' + project.title }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Scenario Studio' }));
+  const validate = await screen.findByRole('button', { name: 'Validate scenario' });
+  await waitFor(() => expect(validate).toBeEnabled());
+  fireEvent.click(validate);
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(
+    '/api/scenario/validate', expect.objectContaining({ method: 'POST' }),
+  ));
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Verification Agent' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Run Quick Check' }));
+  const report = await waitFor(async () => {
+    const saved = await stored();
+    expect(saved.project.verificationHistory).toHaveLength(1);
+    return saved.project.verificationHistory![0]!;
+  });
+  await screen.findByRole('button', { name: 'Export report Markdown' });
+  expect((await stored()).project.revision).toBe(project.revision);
+
+  finishScenario(Response.json(validation));
+  const final = await waitFor(async () => {
+    const saved = await stored();
+    expect(saved.scenarioCheckRunId).toBeDefined();
+    return saved;
+  });
+  expect(final.project.revision).toBe(project.revision);
+  expect(final.project.runs.map((run) => run.id)).toContain(report.runId);
+  expect(final.project.verificationHistory ?? []).toContainEqual(report);
 });
 
 it('keeps a rejected distance correction and its source, then accepts a fresh simulation as one save', async () => {
