@@ -417,3 +417,18 @@ C는 별도 오너 승인과 PR 검사를 거친다. 실제 C의 이미지 게�
 - 합성 UI·IndexedDB 경계에서 같은 리비전의 Quick Check 보존, 무효 검사에 따른 승인 취소, 재열기, 오래된 리비전, 저장 실패 초안 재시도, 독립 연결의 토큰 충돌을 검증했다. 보충 사례는 오너 RED 뒤에 추가했다. 서로 다른 작업을 시작한 순서와 응답을 전달하는 순서는 Promise와 저장 결과로 제어했다.
 - 기존 공개 C의 SHA를 읽기 전용 스모크로 확인했다. 소유자의 GREEN 커밋과 SHA, 해당 변경의 호스팅 CI 및 배포는 대기 중이다. 전체 회귀 횟수, 명령·시간, 검토자 의견, 후속 보안 작업 및 커밋 대상은 [7B 검증 보고서](PHASE_7B_REPORT.md)에 기록했다.
 - 최종 기본 Vitest는 48파일 242건을 2회 연속 통과했다(79.58초, 79.84초). pytest 329건 통과, 기존 폐기 예정 경고 1건. 생성 타입·TypeScript·Vite 빌드, 스키마 6개, actionlint 및 Git 공백 검사가 통과했다. 중복 실패 응답 대조에서는 두 번째 응답 이후에도 첫 저장의 실행 ID·토큰이 유지됐다.
+
+## Phase 7C · 공개 웹 의존성 RED
+
+7B의 오너 RED `2c12785ffe18794cfe23ef1b66ffc83724c67218`과 직접 자식 GREEN `b70f1ad353bc93b094285b6e224b9459518ab8f1`의 파일 범위를 확인했다. 7C에서 같은 유실 회귀를 다시 실행해 통과했다.
+
+- 시작 HEAD는 `91b0eeb2e803f77a0103cc369c91f385ebddbee2`. 기존 잠금의 전체 pytest는 329건 통과했다. 공개 성격의 테스트는 로컬 TestClient와 합성 자산을 사용했다.
+- `./.venv/Scripts/python.exe -m pytest -q backend/tests/test_public_release.py`에서 보안 테스트를 수집했다. `test_public_runtime_pins_patched_web_dependencies`는 배포 잠금과 설치 핀이 일치한 뒤 Starlette `0.46.2 >= 1.3.1` 단언에서 실패했다. 5건 통과·1건 실패, 종료 1. 정상 HEAD/3바이트 구간 응답은 통과했다.
+- 같은 작업 트리의 전체 pytest는 330건 통과·1건 실패, 종료 1이었다. 기본 Vitest는 48파일 242건을 2회 연속 통과했다. 보안 그룹의 오너 RED SHA와 저장소 GREEN은 대기 중이다. [보안·의존성·릴리스 검토](PHASE_7C_REPORT.md)
+
+## Phase 7C-R1 · B-01 배포 잠금 GREEN
+
+- 오너 RED `2b2fecffd5bab11b7672c1a3c501f3f4b091262e`의 유일한 파일은 `backend/tests/test_public_release.py`, 부모는 `91b0eeb2e803f77a0103cc369c91f385ebddbee2`다. 수정 전에 `./.venv/Scripts/python.exe -m pytest -q backend/tests/test_public_release.py::test_public_runtime_pins_patched_web_dependencies`가 23행의 Starlette `0.46.2 >= 1.3.1` 단언에서 실패했다(종료 1).
+- 실제 배포 잠금을 교체해 프로젝트 가상 환경에 설치했다. 같은 커밋의 동일 테스트는 1건 통과(종료 0). 공개 모드와 모의 공급자 집중 검사 74건, 전체 pytest 331건이 통과했다. TestClient 관련 폐기 예정 경고 2건을 기록했다.
+- 기본 Vitest는 48파일 242건을 두 번 연속 통과했다(81.60초, 81.70초). 원래 검증 이력 유실 테스트도 별도로 통과했다. 생성 타입·엄격한 TypeScript·프로덕션 Vite 빌드, 정본 및 전송 스키마 6개, pip check, actionlint와 Git 공백 검사가 통과했다.
+- 독립 보안·DevOps 검토자는 실제 요구사항 diff에서 차단 사항을 발견하지 않았다. 오너 GREEN 커밋의 SHA는 커밋 후 이 원장에 기록한다. 최종 PR의 Linux 컨테이너 스모크는 병합 전 확인 대상이다. [검증 내역과 커밋 범위](PHASE_7C_REPORT.md)
