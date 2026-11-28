@@ -24,7 +24,12 @@ const failed = {
     },
   ],
 };
-async function setup(reply: () => Response | Promise<Response> = () => Response.json(passing), approved = false, delayedRecovery = false) {
+async function setup(
+  reply: () => Response | Promise<Response> = () => Response.json(passing),
+  approved = false,
+  delayedRecovery = false,
+  quickCheck?: (project: ReturnType<typeof approvedProject>) => Response,
+) {
   if (!vi.isMockFunction(recovery.loadRejection))
     vi.spyOn(recovery, 'loadRejection').mockResolvedValue(undefined);
   const p = approvedProject(),
@@ -38,6 +43,7 @@ async function setup(reply: () => Response | Promise<Response> = () => Response.
       if (url === '/api/generation')
         return Response.json({ provider: 'mock', model: 'mock', mode: 'mock', available: true });
       if (url === '/api/scenario/validate') return check();
+      if (url === '/api/scenario/validate?verification=true' && quickCheck) return quickCheck(p);
       throw Error('Unexpected request ' + url);
     }),
   );
@@ -206,10 +212,10 @@ it('retries a failed receipt save without calling the validator again', async ()
   expect(saved.project.runs.filter(run => run.stage === 'scenario').map(run => run.id)).toEqual([saved.scenarioCheckRunId]);
 });
 
-async function startDelayedCheck(approved = false) {
+async function startDelayedCheck(approved = false, quickCheck?: Parameters<typeof setup>[3]) {
   let finish!: (response: Response) => void;
   const response = new Promise<Response>(resolve => { finish = resolve; });
-  const fixture = await setup(() => response, approved);
+  const fixture = await setup(() => response, approved, false, quickCheck);
   fireEvent.click(button('Validate scenario'));
   expect(fixture.check).toHaveBeenCalledOnce();
   return { ...fixture, finish: (reply = Response.json(passing)) => finish(reply) };
@@ -235,17 +241,21 @@ it('keeps a single persisted execution when the validator returns the same faile
 });
 
 it('preserves the saved Quick Check when a delayed invalid check withdraws approval', async () => {
-  const { finish, record, p, app, open } = await startDelayedCheck(true);
-  const fetcher = vi.mocked(fetch);
-  fetcher.mockResolvedValueOnce(Response.json({
-    ...passing, statesExplored: 6, feasibleEdgeIds: p.edges.map(e => e.id),
-    paths: p.endings.map(e => ({ endingId: e.id, nodeIds: ['n-start', 'n-gate', 'n-witness', 'n-choose', e.nodeId] })),
+  const { finish, record, p, app, open } = await startDelayedCheck(true, project => Response.json({
+    ...passing, statesExplored: 6, feasibleEdgeIds: project.edges.map(e => e.id),
+    paths: project.endings.map(e => ({ endingId: e.id, nodeIds: ['n-start', 'n-gate', 'n-witness', 'n-choose', e.nodeId] })),
   }));
   fireEvent.click(button('Verification Agent'));
-  fireEvent.click(await screen.findByRole('button', { name: 'Run Quick Check' }));
+  const quickCheck = await screen.findByRole('button', { name: 'Run Quick Check' });
+  await waitFor(() => expect(quickCheck).toBeEnabled());
+  fireEvent.click(quickCheck);
+  const before = await waitFor(async () => {
+    const saved = await record();
+    expect(saved.project.verificationHistory).toHaveLength(1);
+    expect(saved.project.verificationHistory?.[0]?.statesExplored).toBe(6);
+    return saved;
+  });
   await screen.findByRole('button', { name: 'Export report Markdown' });
-  const before = await record();
-  expect(before.project.verificationHistory).toHaveLength(1);
   expect(before.project.scenario?.approved).toBe(true);
   finish(Response.json(failed));
   await waitFor(async () => expect((await record()).project.scenario?.approved).toBe(false));

@@ -126,3 +126,38 @@ opentelemetry-api==1.45.2
 1. base `main`, head `feature/final-agent-review`로 PR을 만든다. PR에 오너 GREEN SHA와 최신 head 기준 검사 링크를 기록한다. **두 필수 검사와 적용되는 리뷰가 모두 통과한 후** 일반 merge commit으로 병합한다. 병합 전 소유자가 같은 브라우저 프로필·HTTPS origin에 있는 기존 예제의 ID·리비전·검증 기록과 JSON 백업을 별도 보관한다.
 2. main push에서 6개 작업의 성공, 이미지 아티팩트 ID의 빌드·게시 일치, `sha-<병합 SHA>`의 digest, 그 digest에 대한 Render 배포 ID와 완료 상태를 기록한다. `./.venv/Scripts/python.exe scripts/render_release.py smoke --origin https://worldweaver-8mbz.onrender.com --commit <병합 SHA>`로 확인한다. CSS·모듈 프리로드·예제 SVG도 일반 GET으로 확인한다. 실패 시 배포 로그와 마지막 정상 배포를 확인한다. [배포 가이드](DEPLOYMENT_GUIDE.md)
 3. 배포 뒤 같은 프로필·주소에서 새로고침하고 JSON을 가져오기 전에 기존 프로젝트를 열어 사전 기록과 대조한다. 이 비교와 오너 확인을 받아야 실제 IndexedDB 보존을 보고할 수 있다. [비교 항목](DEPLOYMENT_EVIDENCE_PLAN.md)
+
+## R2 · 최종 PR의 시나리오 검증 테스트 안정화
+
+**PHASE_7C_R2_READY_FOR_OWNER_REVIEW** · 수정 후 기본 전체 회귀를 4회 통과했다.
+
+PR #6의 `3c7b8807f2770ec8a888ead5d9a63868668b6cad`에서 **Tests and contracts**가 실패했다. 공개 작업 주석을 확인하고 GitHub 커넥터로 작업 원본 로그를 읽었다. Windows 러너에서 백엔드 331건이 통과했고, Vitest 4.1.12는 48파일에서 241건 통과·1건 실패를 기록했다. 실패 테스트는 2,134ms에 종료됐으며 `scenarioApproval.test.tsx:246`에서 `Unable to find role="button" and name "Export report Markdown"`이 발생했다. 타입 검사와 프런트엔드 빌드·컨테이너 스모크·이미지 게시·배포는 생략됐다. `WORLDWEAVER required`는 실패했다. [원본 실패 작업](https://github.com/jllgame00/worldweaver/actions/runs/46118687321/job/140898137325) · [PR #6](https://github.com/jllgame00/worldweaver/pull/6)
+
+이 리비전에는 기존 보안 GREEN `e5ffaa209033f42fa705ccccd244c29575eb5ba7`가 포함돼 있다.
+
+수정 전 같은 테스트는 기본 구성의 단독 실행에서 통과했고, `scenarioApproval`, `verificationWorkspace`, `publicExample`, `ScenarioStudio`를 두 워커로 함께 실행했을 때도 30건이 통과했다. 같은 네 파일과 설정으로 PowerShell 진단 프로세스에만 한 논리 CPU를 배정하자 문제의 테스트가 2회 모두 같은 위치에서 실패했다. 첫 실행은 29건 통과·1건 실패, 두 번째는 26건 통과·4건 실패였다. 두 번째에서는 기존 공개 예제와 검증 워크스페이스 테스트 2건도 실패했다.
+
+```powershell
+# 별도 진단 PowerShell에서 실행하고 해당 셸을 종료한다.
+$launcher = Get-Process -Id $PID
+$launcher.ProcessorAffinity = 1
+npm.cmd --prefix frontend test -- src/scenarioApproval.test.tsx src/verificationWorkspace.test.tsx src/publicExample.test.tsx src/ScenarioStudio.test.tsx --reporter=verbose
+```
+
+무시 경로의 복제본에 계측을 추가한 실행에서 시나리오 검증의 응답을 보류한 채 Verification Agent로 이동했다. 전환 시 기존 Scenario Studio는 마운트된 채 숨겨진다. Quick Check 클릭은 활성 상태에서 실행됐고, 기존 일회용 fetch 응답은 의도한 `/api/scenario/validate?verification=true`가 소비했다. 클릭 시점부터 약 539ms 뒤에 그 요청이 도착했고, 710ms에 Quick Check 이력 1건의 저장을 시작했다. 1,030ms에 IndexedDB 쓰기가 끝났으며, 1,048ms에 기록한 실패 처리 시점에도 검증 작업이 진행 중이었다. 1,124ms 시점에는 같은 이력과 내보내기 버튼을 확인했다. 계측 대조에서도 기존 검색은 같은 오류를 냈다. 버튼이 나타나는 데 필요한 저장·렌더링을 클릭 직후 단일 DOM 검색의 기본 대기 구간에 넣은 것이 원인이다. 잘못된 모의 응답 소비와 제품 데이터 유실은 이 재현에서 관찰되지 않았다.
+
+테스트는 이제 검증 응답을 URL별로 연결한다. 활성 상태에서 Quick Check를 실행하고, 응답의 탐색 상태 수가 포함된 보고서가 IndexedDB에 저장된 뒤 내보내기 버튼을 확인한다. 그 시점에 보류한 시나리오 응답을 반환한다. 승인 철회, 재열기 후 이전 보고서·실행 배열 보존, 새 finding의 실행 ID, 같은 프로젝트 리비전 단언은 유지했다.
+
+수정 후 동일한 한 CPU 진단에서 대상 테스트는 통과했다(975ms). 진단 전체는 29건 통과·1건 실패였고, 실패는 공개 예제 테스트의 기존 5초 초과(5,392ms)였다. 기본 전체 회귀와 별도로 기록한다.
+
+진단 복제본이 기본 테스트 탐색에 포함된 예비 전체 실행 두 번에서 각각 49파일 260건이 통과했다. 복제본을 테스트 파일 패턴에서 제외하고 정식 전체 회귀를 시작했다. 예비 실행은 정식 반복 횟수에 포함하지 않는다.
+
+| 정식 검사 | 결과 |
+|---|---|
+| 대상 테스트 이름으로 집중 실행 | 4회 모두 1건 통과, 같은 파일 내 17건은 이름 필터에서 제외. 전체 실행 시간은 3.30초·3.34초·3.47초·3.68초였다. |
+| `npm.cmd --prefix frontend test -- src/scenarioApproval.test.tsx` | 18건 통과, 13.82초, 종료 0. |
+| `npm.cmd --prefix frontend test` | 기본 설정으로 4회 모두 48파일 242건 통과. 테스트 탐색을 정리한 뒤 종료 0으로 확인한 시간은 84.27초·84.43초·82.55초·80.02초였다. |
+| `./.venv/Scripts/python.exe -m pytest -q` (`WORLDWEAVER_PROVIDER=mock`) | 331건 통과, 7.87초. 기존 TestClient 폐기 예정 경고 2건. |
+| `npm.cmd --prefix frontend run typecheck`, `npm.cmd --prefix frontend run build`, `git diff --check` | 생성 타입, 엄격한 TypeScript, Vite 프로덕션 빌드, Git 공백 검사가 종료 0. Vite는 174개 모듈을 변환했다. |
+
+R2의 변경 범위는 `frontend/src/scenarioApproval.test.tsx`와 이 보고서다. 커밋 메시지는 `test(verification): wait for the persisted Quick Check report`를 권장한다. 최종 PR 리비전에서는 호스팅 필수 검사와 컨테이너 스모크가 필요하다.
