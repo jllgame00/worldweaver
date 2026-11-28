@@ -385,3 +385,18 @@ The 44-case deterministic campaign and its replay used real loopback HTTP with z
 | 복구 테스트 계측 | 무시된 경로에서 복사본에 시간 기록만 추가했다. 단독 실행에서는 지도 준비 0.100초, 작업 공간 진입·빠른 검사까지 2.705초, 제안 거절 저장까지 3.510초, 시뮬레이션 준비까지 4.805초였다. 예제 테스트와 두 워커로 실행했을 때 각각 0.272초, 2.090초, 2.980초, 4.252초였다. 두 실행에서 모두 최종 채택·재검증 완료 전에 같은 5초 제한이 적용됐다. 초기 지도 준비보다 여러 UI·저장 단계의 누적 시간이 지배적이었고, 병렬 부하 없이도 재현됐다. 특정 저장 실패나 제품 결함은 관측되지 않았다. |
 
 프런트엔드 테스트, 단언, 타임아웃, 런타임, 워크플로는 R1에서 수정하지 않았다. 실제 호스팅 B·C와 Render 이력, IndexedDB 보존은 [오너 절차](DEPLOYMENT_EVIDENCE_PLAN.md)에 남겨 두었다.
+
+## Phase 6C 종료·6D 복구 후보 검증
+
+깨끗한 `feature/deployment-gate-recovery`에서 시작했다. 로컬 HEAD, `main`, `origin/main`과 공개 GitHub `main`이 B `e6948120db9f017579a3e027f8fdd02215ed0239`로 일치했다. [6C 보고서](PHASE_6C_REPORT.md)에 실제 호스팅 단언 실패, 필수 검사 실패, 게시·배포 생략, B 태그 부재, B 종료 뒤 A의 스모크, Render 대시보드 확인 한계를 기록했다. 복구 후보의 실행 코드·설정에는 변경이 없으며 테스트 파일 `scripts/test_controlled_deployment_gate.py` 하나를 제거했다.
+
+| 검증 | 실제 결과 |
+|---|---|
+| 정상 백엔드 | `./.venv/Scripts/python.exe -m pytest -q`는 모의 공급자 환경에서 329건 통과, 종료 코드 0이었다. 기존 Starlette/AnyIO 사용 중단 경고가 한 건 있었다. |
+| 프런트엔드 기본 실행 | `npm.cmd --prefix frontend test`는 234건 통과, 2건 실패, 종료 코드 1이었다. `src/scenarioApproval.test.tsx`의 `shows both missing starting visits alongside the unchecked editorial review at approval`는 로컬 저장소를 여는 중 `Open Salt Census (synthetic example)` 버튼을 찾지 못했다. `src/verificationWorkspace.test.tsx`의 `keeps a rejected distance correction and its source, then accepts a fresh simulation as one save`는 5초를 넘겼다. 기존 프런트엔드 테스트·단언·제한 시간은 그대로 두었다. |
+| 프런트엔드 전체 재실행 | `npm.cmd --prefix frontend test -- --maxWorkers=1`은 앞서 실패한 두 사례를 포함해 48파일 236건 통과, 종료 코드 0이었다. |
+| 타입·프로덕션 빌드 | `npm.cmd --prefix frontend run typecheck`와 `npm.cmd --prefix frontend run build`는 각각 종료 코드 0이었다. 생성 타입 동기화, 엄격한 TypeScript, Vite 번들 빌드가 통과했다. |
+| 스키마·워크플로 | `.github/workflows/test.yml`의 정본 Draft 4와 공급자 전송 스키마 5개를 검증했다. actionlint 1.7.12의 `-no-color .github/workflows/test.yml`도 성공했다. 두 종료 코드 모두 0이었다. |
+| Git 공백·변경 검사 | `git diff --check`가 통과했다. 무시된 경로의 임시 Git 인덱스에서 새 6C 보고서까지 포함한 검사도 종료 코드 0이었다. 실제 인덱스는 변경하지 않았다. 런타임, 워크플로 및 Docker 파일은 기준 A와 일치했다. |
+
+C는 별도 오너 승인과 PR 검사를 거친다. 실제 C의 이미지 게시, 배포와 공개 SHA 및 IndexedDB 확인 절차는 [배포 증거 계획](DEPLOYMENT_EVIDENCE_PLAN.md#3-phase-6d--독립-복구-c-및-indexeddb)에 있다.
