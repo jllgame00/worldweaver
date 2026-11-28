@@ -1,15 +1,27 @@
+from importlib.metadata import version
 from pathlib import Path
 import shutil
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 from backend.app import main
 from backend.app.settings import Settings
 
 
 SHA = "ab" * 20
+
+
+def test_public_runtime_pins_patched_web_dependencies():
+    pins = (Path(__file__).resolve().parents[1] / "requirements-runtime.txt").read_text().splitlines()
+    for name in ("fastapi", "starlette"):
+        assert f"{name}=={version(name)}" in pins
+    # FileResponse, StaticFiles and request URL/form advisories through June 2026.
+    assert Version(version("starlette")) >= Version("1.3.1")
+    assert version("fastapi") not in SpecifierSet(">=0.123.2,<0.163.2")  # GHSA-f56c-v883-vx8r
 
 
 @pytest.fixture
@@ -83,3 +95,14 @@ def test_static_routing_serves_public_example_and_keeps_missing_files_out_of_spa
     assert client.get("/studio/narrative").headers["cache-control"] == "no-cache"
     for path in ("/missing.svg", "/assets/missing", "/examples/missing.json", "/api/missing", "/.env"):
         assert client.get(path).status_code == 404
+
+
+def test_public_static_asset_preserves_head_and_single_range(image):
+    client = TestClient(main.create_app())
+    asset = "/assets/app-abc12345.js"
+    head = client.head(asset)
+    assert head.status_code == 200 and head.content == b""
+    assert int(head.headers["content-length"]) == len(b"export {};")
+    part = client.get(asset, headers={"Range": "bytes=0-2"})
+    assert part.status_code == 206 and part.content == b"exp"
+    assert part.headers["content-range"] == "bytes 0-2/10"

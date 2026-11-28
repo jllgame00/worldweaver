@@ -107,7 +107,11 @@ test('previews generation, rejects and accepts explicitly, undoes edits and reop
   await waitFor(async () => expect((await stored()).scenario?.title).toBe('Edited design'));
   expect(screen.getByRole('button', { name: 'Approve scenario' })).toBeDisabled();
   await click('Validate scenario');
-  await user.click(screen.getByLabelText('I reviewed the branches, locked facts and narrative consequences.'));
+  await screen.findByText(/Validation passed\./);
+  const review = screen.getByLabelText('I reviewed the branches, locked facts and narrative consequences.');
+  await waitFor(() => expect(review).toBeEnabled());
+  await user.click(review);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Approve scenario' })).toBeEnabled());
   await click('Approve scenario');
   await waitFor(async () => expect((await stored()).scenario?.approved).toBe(true));
   app.unmount();

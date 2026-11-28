@@ -17,7 +17,7 @@ import ScenarioBrief from './ScenarioBrief';
 import { scenarioCopy, scenarioMarkdownCopyKo, useScenarioCopy, useScenarioSettingsLabel } from './studioWorkflowCopy';
 import { DiagnosticDetails, useDiagnostic, useFormatter, useLocale, useLocalized, type Translation } from './locale';
 import { useScenarioFieldLabel, useScenarioKind } from './scenarioCopy';
-import { validationRun } from './scenarioApproval';
+import { sameScenarioInputs, validationRun } from './scenarioApproval';
 import {
   applyProposal,
   designOf,
@@ -286,7 +286,10 @@ export default function ScenarioStudio({
       });
       const data = await res.json();
       if (ctl.signal.aborted) return;
-      if (current()?.revision !== p.revision || current()?.id !== p.id) throw Error(action === 'validate' ? scenarioCopy.staleCheck : scenarioCopy.changed);
+      const latest = current();
+      if (!latest || latest.id !== p.id || latest.revision !== p.revision ||
+          (action === 'validate' && latest !== p && !sameScenarioInputs(p, latest)))
+        throw Error(action === 'validate' ? scenarioCopy.staleCheck : scenarioCopy.changed);
       if (!res.ok) {
         if (res.status === 409 && data?.error?.code === 'generation_configuration_changed') refreshGeneration();
         const run = data?.error?.run;
@@ -297,7 +300,7 @@ export default function ScenarioStudio({
           run.mode === (action === 'validate' ? 'deterministic' : generation?.mode) &&
           ['failed', 'unresolved'].includes(run.status)
         ) {
-          const failed = { ...p, runs: [...p.runs, run] };
+          const failed = { ...latest, runs: [...latest.runs, run] };
           if (isProject(failed)) {
             const receipts = failed.runs.at(-1)!.receipts;
             const output = receipts.find(r => r.tool === 'provider_usage')?.detail.match(/\boutputTokens=(\d+)$/)?.[1];
@@ -332,12 +335,12 @@ export default function ScenarioStudio({
         const findings = findingsOf(data.findings);
         const ok = data.valid === true && data.complete === true && !findings.some((f) => f.severity === 'error');
         const runId = newId('check');
-        const knownIds = new Set(entities(p).map((entity) => entity.id));
+        const knownIds = new Set(entities(latest).map((entity) => entity.id));
         const saved: Project = {
-          ...p,
-          ...(p.scenario?.approved && !ok && {scenario: {...p.scenario, approved: false}}),
+          ...latest,
+          ...(latest.scenario?.approved && !ok && {scenario: {...latest.scenario, approved: false}}),
           runs: [
-            ...p.runs,
+            ...latest.runs,
             {
               id: runId,
               stage: 'scenario',
@@ -352,7 +355,7 @@ export default function ScenarioStudio({
             },
           ],
           findings: [
-            ...p.findings.map((f) =>
+            ...latest.findings.map((f) =>
               f.rule.startsWith('scenario.') ? { ...f, status: 'superseded' as const } : f,
             ),
             ...findings.map(({ rule, severity, entityIds, explanation, suggestedRepair,

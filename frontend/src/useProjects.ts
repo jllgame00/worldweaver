@@ -18,7 +18,13 @@ export function useProjects(databaseName: string) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<'unreadableProjects' | 'storageUnavailable'>();
-  const [pending, setPending] = useState<PendingSave>();
+  const [pending, showPending] = useState<PendingSave>();
+  const pendingSave = useRef<PendingSave | undefined>(undefined);
+
+  function setPending(next: PendingSave | undefined) {
+    pendingSave.current = next;
+    showPending(next);
+  }
 
   useEffect(() => {
     let active = true;
@@ -43,7 +49,9 @@ export function useProjects(databaseName: string) {
   }
 
   async function commit(project: Project, checkedRunId?: string, afterSave?: () => void): Promise<boolean> {
-    if (writing.current) return false;
+    // An in-flight callback must not replace the draft the owner can retry or download.
+    const draft = pendingSave.current;
+    if (writing.current || (draft && (draft.conflict || draft.project !== project))) return false;
     writing.current = true;
     setSaving(true);
     try {

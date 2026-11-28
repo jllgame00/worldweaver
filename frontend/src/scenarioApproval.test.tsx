@@ -24,7 +24,12 @@ const failed = {
     },
   ],
 };
-async function setup(reply = () => Response.json(passing), approved = false, delayedRecovery = false) {
+async function setup(
+  reply: () => Response | Promise<Response> = () => Response.json(passing),
+  approved = false,
+  delayedRecovery = false,
+  quickCheck?: (project: ReturnType<typeof approvedProject>) => Response,
+) {
   if (!vi.isMockFunction(recovery.loadRejection))
     vi.spyOn(recovery, 'loadRejection').mockResolvedValue(undefined);
   const p = approvedProject(),
@@ -38,6 +43,7 @@ async function setup(reply = () => Response.json(passing), approved = false, del
       if (url === '/api/generation')
         return Response.json({ provider: 'mock', model: 'mock', mode: 'mock', available: true });
       if (url === '/api/scenario/validate') return check();
+      if (url === '/api/scenario/validate?verification=true' && quickCheck) return quickCheck(p);
       throw Error('Unexpected request ' + url);
     }),
   );
@@ -194,7 +200,7 @@ it('rejects a semantic mutation incorrectly marked layout-only', () => {
 });
 
 it('retries a failed receipt save without calling the validator again', async () => {
-  const { check } = await setup();
+  const { check, record } = await setup();
   vi.spyOn(storage, 'saveProject').mockRejectedValueOnce(Error('storage unavailable'));
   fireEvent.click(button('Validate scenario'));
   fireEvent.click(await screen.findByRole('button', { name: 'Retry save' }));
@@ -202,6 +208,107 @@ it('retries a failed receipt save without calling the validator again', async ()
   review();
   expect(button('Approve scenario')).toBeEnabled();
   expect(check).toHaveBeenCalledTimes(1);
+  const saved = await record();
+  expect(saved.project.runs.filter(run => run.stage === 'scenario').map(run => run.id)).toEqual([saved.scenarioCheckRunId]);
+});
+
+async function startDelayedCheck(approved = false, quickCheck?: Parameters<typeof setup>[3]) {
+  let finish!: (response: Response) => void;
+  const response = new Promise<Response>(resolve => { finish = resolve; });
+  const fixture = await setup(() => response, approved, false, quickCheck);
+  fireEvent.click(button('Validate scenario'));
+  expect(fixture.check).toHaveBeenCalledOnce();
+  return { ...fixture, finish: (reply = Response.json(passing)) => finish(reply) };
+}
+
+it('keeps a single persisted execution when the validator returns the same failed run twice', async () => {
+  const run = {
+    id: 'replayed-check', stage: 'scenario', mode: 'deterministic', baseRevision: approvedProject().revision,
+    status: 'failed', repairAttempts: 0, calls: 0, receipts: [],
+  };
+  let replies = 0;
+  const { record } = await setup(() => Response.json({
+    error: { run, message: 'Check response ' + ++replies },
+  }, { status: 422 }));
+  const validateButton = button('Validate scenario');
+  fireEvent.click(validateButton);
+  await screen.findByText('Check response 1', { selector: 'li' });
+  const first = await record();
+  expect(first.project.runs.filter(r => r.id === run.id)).toEqual([run]);
+  fireEvent.click(validateButton);
+  await screen.findByText('Check response 2', { selector: 'li' });
+  expect(await record()).toEqual(first);
+});
+
+it('preserves the saved Quick Check when a delayed invalid check withdraws approval', async () => {
+  const { finish, record, p, app, open } = await startDelayedCheck(true, project => Response.json({
+    ...passing, statesExplored: 6, feasibleEdgeIds: project.edges.map(e => e.id),
+    paths: project.endings.map(e => ({ endingId: e.id, nodeIds: ['n-start', 'n-gate', 'n-witness', 'n-choose', e.nodeId] })),
+  }));
+  fireEvent.click(button('Verification Agent'));
+  const quickCheck = await screen.findByRole('button', { name: 'Run Quick Check' });
+  await waitFor(() => expect(quickCheck).toBeEnabled());
+  fireEvent.click(quickCheck);
+  const before = await waitFor(async () => {
+    const saved = await record();
+    expect(saved.project.verificationHistory).toHaveLength(1);
+    expect(saved.project.verificationHistory?.[0]?.statesExplored).toBe(6);
+    return saved;
+  });
+  await screen.findByRole('button', { name: 'Export report Markdown' });
+  expect(before.project.scenario?.approved).toBe(true);
+  finish(Response.json(failed));
+  await waitFor(async () => expect((await record()).project.scenario?.approved).toBe(false));
+  app.unmount();
+  await open();
+  const saved = await record();
+  expect(saved.project.verificationHistory).toEqual(before.project.verificationHistory);
+  expect(saved.project.runs).toEqual([...before.project.runs, expect.objectContaining({
+    id: saved.scenarioCheckRunId, status: 'unresolved', baseRevision: p.revision,
+  })]);
+  expect(saved.project.findings.at(-1)?.runId).toBe(saved.scenarioCheckRunId);
+  expect(saved.project.revision).toBe(p.revision);
+});
+
+it.each([false, true])('keeps a newer content edit when scenario validation returns (save rejected: %s)', async (rejected) => {
+  const { finish, record, p } = await startDelayedCheck();
+  fireEvent.click(button('Content'));
+  const text = 'A newly recorded witness.';
+  fireEvent.change(await screen.findByLabelText('Fragment'), { target: { value: text } });
+  fireEvent.click(button('Add fragment'));
+  if (rejected) vi.spyOn(storage, 'saveProject').mockRejectedValueOnce(Error('storage unavailable'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Apply change' }));
+  if (rejected) await screen.findByRole('button', { name: 'Retry save' });
+  else await waitFor(async () => expect((await record()).project.revision).toBe(p.revision + 1));
+
+  fireEvent.click(button('Scenario Studio'));
+  finish();
+  await screen.findByText(rejected ? /Validation could not be saved/ : /saved project changed during this action/);
+  if (rejected) {
+    expect((await record()).project).toEqual(p);
+    fireEvent.click(button('Retry save'));
+  }
+  await waitFor(async () => {
+    const saved = await record();
+    expect(saved.project.userContent.at(-1)?.text).toBe(text);
+    expect(saved.project.revision).toBe(p.revision + 1);
+    expect(saved.project.runs).toEqual(p.runs);
+    expect(saved.scenarioCheckRunId).toBeUndefined();
+  });
+});
+
+it('keeps a competing tab save when the delayed receipt loses the token check', async () => {
+  const { finish, record, db } = await startDelayedCheck();
+  const prior = await record();
+  const winner = await saveProject(db, { ...prior.project, title: 'Another tab saved this title' }, prior.token);
+  finish();
+  const reopen = await screen.findByRole('button', { name: 'Reopen saved project' });
+  expect(button('Download draft JSON')).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Retry save' })).toBeNull();
+  expect(await record()).toEqual(winner);
+  fireEvent.click(reopen);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Reopen saved project' })).toBeNull());
+  expect(await record()).toEqual(winner);
 });
 
 it('drops local trust if a saved source fact changes even with unchanged counters', async () => {
