@@ -400,3 +400,20 @@ The 44-case deterministic campaign and its replay used real loopback HTTP with z
 | Git 공백·변경 검사 | `git diff --check`가 통과했다. 무시된 경로의 임시 Git 인덱스에서 새 6C 보고서까지 포함한 검사도 종료 코드 0이었다. 실제 인덱스는 변경하지 않았다. 런타임, 워크플로 및 Docker 파일은 기준 A와 일치했다. |
 
 C는 별도 오너 승인과 PR 검사를 거친다. 실제 C의 이미지 게시, 배포와 공개 SHA 및 IndexedDB 확인 절차는 [배포 증거 계획](DEPLOYMENT_EVIDENCE_PLAN.md#3-phase-6d--독립-복구-c-및-indexeddb)에 있다.
+
+## Phase 7A · A-01 검증 기록 보존 RED
+
+깨끗한 `feature/final-agent-review`에서 기준 `50e2a7c02b9c6b7472440850af2617afffcbbf53`을 확인했다. 공개 스모크는 C를 반환했다. [7A 보고서](PHASE_7A_REPORT.md) · [독립 발견과 우선순위](PHASE_7_FINDINGS.md)
+
+- 변경 전 모의 `./.venv/Scripts/python.exe -m pytest -q`는 329건, `npm.cmd --prefix frontend test -- --reporter=dot`는 48파일 236건이 통과했다. 두 종료 코드는 0이다.
+- `npm.cmd --prefix frontend test -- src/verificationWorkspace.test.tsx -t 'preserves both saved checks'`를 두 번 실행했다. 각각 한 건의 테스트가 `frontend/src/verificationWorkspace.test.tsx:87`에서 Quick Check 실행 ID가 저장된 실행 목록에 없다는 단언으로 실패했다. 두 종료 코드는 1이다. 모의 응답 순서로 먼저 Quick Check 저장, 후속 시나리오 검사 ID 저장, 같은 리비전을 확인했다.
+- 새 RED만 제외한 세 UI 테스트 파일에서 기존 11건이 통과했다. 타입 검사, Vite 빌드, CI 정본 및 전송 스키마, actionlint 및 Git 공백 검사가 성공했다. 타임아웃과 워커 설정은 그대로 뒀다.
+
+이 기록은 테스트 준비 단계다. **오너 RED SHA 및 GREEN은 대기 중**이다. 기존 운영 프로젝트나 실제 제공자 요청을 사용하지 않았다.
+
+## Phase 7B · A-01 검증 기록 보존 GREEN
+
+- 오너 RED는 `2c12785ffe18794cfe23ef1b66ffc83724c67218`이다. `git show`로 테스트 파일 하나와 부모 C를 확인했다. 구현 전 `npm.cmd --prefix frontend test -- src/verificationWorkspace.test.tsx -t 'preserves both saved checks'`는 수집된 1건이 87행의 `toContain(report.runId)`에서 실패했다(종료 1). 같은 명령과 같은 테스트는 구현 후 3회 모두 통과했다(각 종료 0, 2건 필터 제외).
+- 합성 UI·IndexedDB 경계에서 같은 리비전의 Quick Check 보존, 무효 검사에 따른 승인 취소, 재열기, 오래된 리비전, 저장 실패 초안 재시도, 독립 연결의 토큰 충돌을 검증했다. 보충 사례는 오너 RED 뒤에 추가했다. 서로 다른 작업을 시작한 순서와 응답을 전달하는 순서는 Promise와 저장 결과로 제어했다.
+- 기존 공개 C의 SHA를 읽기 전용 스모크로 확인했다. 소유자의 GREEN 커밋과 SHA, 해당 변경의 호스팅 CI 및 배포는 대기 중이다. 전체 회귀 횟수, 명령·시간, 검토자 의견, 후속 보안 작업 및 커밋 대상은 [7B 검증 보고서](PHASE_7B_REPORT.md)에 기록했다.
+- 최종 기본 Vitest는 48파일 242건을 2회 연속 통과했다(79.58초, 79.84초). pytest 329건 통과, 기존 폐기 예정 경고 1건. 생성 타입·TypeScript·Vite 빌드, 스키마 6개, actionlint 및 Git 공백 검사가 통과했다. 중복 실패 응답 대조에서는 두 번째 응답 이후에도 첫 저장의 실행 ID·토큰이 유지됐다.
