@@ -349,3 +349,39 @@ Commands below use the repository root for Python and `frontend` for npm. RED me
 The first full parallel frontend run had 156 passing and eight failing tests, including five-second timeouts and UI checks before controls were ready. The larger jsdom suite was contending with other regression processes. The repository now caps DOM workers at four. No timeouts were extended and no product assertions were removed. Final `npm.cmd --prefix frontend test -- --reporter=dot` passed **167 tests in 36 files**. Final pytest passed **296 tests** with one existing Starlette deprecation warning. Strict TypeScript, generated type synchronization, production build, canonical Draft 4, narrative/scenario/revision/semantic transport schema checks and `git diff --check` passed.
 
 The 44-case deterministic campaign and its replay used real loopback HTTP with zero model requests. A separate compiled Vite + jsdom + simulated IndexedDB run imported a disposable synthetic design, displayed the graph, found an invalid route distance, simulated and reopened the pending comparison, accepted once, issued a post-write full check and generated three download actions. Six real validation POSTs returned 200, with no generation POST. Python ProjectSnapshot accepted the resulting full JSON with two reports and the recorded decision. The independent atlas loopback exercise passed with 18 states, three ending witnesses and one development-mock scenario generation. No individual RED is claimed for the campaign driver, every fixture row, documentation or the compiled smoke. Native Edge launch returned spawn EPERM and the in-app browser host was unavailable. [Case observations](VERIFICATION_CAMPAIGN.md) · [Review gate](PHASE_4_REPORT.md)
+
+## Phase 6C · 배포 게이트 준비 검증
+
+시작 작업 트리는 깨끗했고 HEAD는 `feature/release-verification`의 `4cd90ef0e65a8cdd22c2567683613362e158a579`였다. 대상 기준 A인 `33abe573d3378a7471344d30eb31d0e3d2e13a19`와 파일 트리가 같았다. 로컬 `main`, `origin/main`과 GitHub API의 `main`이 모두 A였다. Git 메타데이터가 읽기 전용이어서 요청 브랜치 생성은 `index.lock` 권한 오류로 종료됐다. 변경은 같은 파일 트리의 기존 체크아웃에 두었다. [공개 기준 A와 실제 HTTP 결과](PHASE_6B_REPORT.md)
+
+| 종류 | 명령 및 실제 관측 |
+|---|---|
+| 로컬 기준 | 변경 전 `./.venv/Scripts/python.exe -m pytest -q`는 329건 통과했다. |
+| 계획된 로컬 실패 | 정확한 증거 저장소, `main` push, 오너 계정, 일치하는 SHA와 승인 문구를 합성하여 `./.venv/Scripts/python.exe -m pytest -q scripts/test_controlled_deployment_gate.py::test_controlled_deployment_gate`를 실행했다. 지정 테스트 한 건이 `AssertionError: HW6 controlled deployment-gate demonstration: owner-approved pytest failure` 및 `assert not True`로 실패했다. 종료 코드 1이다. |
+| 로컬 비활성 조건 | 위 명령을 다시 실행한 15개 조건에서 각 1건 통과, 종료 코드 0이었다. 기본 로컬, 승인 없음, 문장 안의 승인 문구, 공개 운영 및 무관 저장소, 기능 브랜치, 태그, PR 종료, 수동 실행, 병합 큐, 다른 실행자, SHA 불일치, HEAD 없음, 이벤트 경로 없음, 워크플로 SHA 없음을 확인했다. |
+| 전체 백엔드 | 정상 조건의 `./.venv/Scripts/python.exe -m pytest -q`는 330건 통과, 종료 코드 0이었다. 기존 Starlette/AnyIO 사용 중단 경고 한 건이 있었다. |
+| 프런트엔드 기본 병렬 실행 | `npm.cmd --prefix frontend test`는 두 차례 235건 통과, 종료 코드 1이었다. 두 실행에서 기존 `src/verificationWorkspace.test.tsx`의 `keeps a rejected distance correction and its source, then accepts a fresh simulation as one save`가 5초 제한을 넘었다. 해당 파일을 단독 실행한 결과는 2건 통과, 종료 코드 0이었다. |
+| 전체 프런트엔드 단일 워커 | `npm.cmd --prefix frontend test -- --maxWorkers=1`은 48파일 236건 통과, 종료 코드 0이었다. 테스트 코드와 제한 시간은 그대로 두었다. |
+| 프런트엔드 빌드 | `npm.cmd --prefix frontend run build`는 생성 타입, 엄격한 TypeScript, Vite 빌드를 모두 통과했다. 종료 코드 0이다. |
+| 필수 게이트 로컬 재생 | 워크플로의 `Require successful tests and build` Python 단계에 `TEST_RESULT`와 `BUILD_RESULT`를 각각 `success/success`, `failure/skipped`로 전달했다. 단계 출력과 종료 코드가 각각 `Tests: success. Build: success.`와 0, `Tests: failure. Build: skipped.`와 1이었다. |
+| 워크플로와 패키지 범위 | actionlint 1.7.12의 `-no-color .github/workflows/test.yml`은 종료 코드 0이었다. 동일 YAML의 Python 단계로 정본 Draft 4와 전송 스키마 5개를 확인했다. 워크플로, Dockerfile, 빌드 컨텍스트 허용 목록 및 애플리케이션 소스가 기준 A와 일치한다. 이번에 추가한 pytest 파일은 Docker 빌드 컨텍스트에서 제외된다. |
+| Git 공백 검사 | `git diff --check`에 새 테스트 파일을 포함하기 위해 무시된 임시 인덱스에서 intent-to-add를 사용했다. 종료 코드 0이었다. |
+
+실패 재현은 로컬 합성 이벤트이며 배포 게이트의 실제 호스팅 실행과 구별한다. 이 테스트는 릴리스 차단 증거용으로 추가한 임시 테스트다. 기능 구현 커밋이나 소유자 RED/GREEN 커밋은 없다. 호스팅 B의 실패·게시 및 배포 차단, 직전 증거 서비스 SHA 보존, 후속 C 및 동일 브라우저의 IndexedDB 확인은 [소유자 절차](DEPLOYMENT_EVIDENCE_PLAN.md)를 따른다.
+
+## Phase 6C-R1 · 보호된 공개 main 검증
+
+2026-11-28 02:56 UTC에 GitHub 공개 API의 `main`은 `33abe573d3378a7471344d30eb31d0e3d2e13a19`를 가리켰고 보호가 활성화됐다. 필수 검사는 `WORLDWEAVER required`와 `Build and smoke-test release image`, 적용 범위는 `everyone`이었다. 그 브랜치에 적용되는 ruleset 조회는 빈 목록이었다. 상세 보호 API는 비인증 요청에 401, GitHub 연결 도구에 403을 반환했다. PR 강제와 병합 정책 세부값은 오너가 확인한다. 아래 GitHub API 및 공개 스모크는 조회만 수행했다. [브랜치 상태](https://api.github.com/repos/jllgame00/worldweaver/branches/main)
+
+| 검사 | 실제 관측 |
+|---|---|
+| 공개 기준 A | `./.venv/Scripts/python.exe scripts/render_release.py smoke --origin https://worldweaver-8mbz.onrender.com --commit 33abe573d3378a7471344d30eb31d0e3d2e13a19`가 최초와 재확인에서 `Healthy image 33abe573d3378a7471344d30eb31d0e3d2e13a19`를 반환했다. 종료 코드 0이었다. 03:02:54 UTC의 `/health`도 HTTP 200, `status=ok`, 같은 SHA였다. |
+| 공개 B 합성 재현 | 수정 전 임시 테스트는 공개 저장소의 승인 병합을 통과했다. 수정 뒤 합성 push 이벤트와 Git 커밋 본문을 주입한 `scripts/test_controlled_deployment_gate.py::test_controlled_deployment_gate`는 `assert not True`와 지정된 `AssertionError`로 종료 코드 1을 냈다. 로컬·PR·수동 실행·무관 저장소·다른 실행자·서로 다른 PR SHA·부모 수 불일치·A 이후 push·강제 푸시를 포함한 비활성 21개는 각각 종료 코드 0이었다. 워크스페이스에서 실행한 합성 검사다. |
+| Git 얕은 체크아웃 | `GIT_SHALLOW_FILE`에 실제 기준 A를 설정했다. `git rev-parse --is-shallow-repository`는 `true`, `git show -s --format=%P`는 빈 값을 반환했고, `git cat-file commit <A>`의 원본 헤더에서 두 부모 SHA를 읽었다. |
+| 워크플로와 Git 공백 검사 | actionlint 1.7.12와 새 테스트를 포함한 `git diff --check`의 종료 코드는 0이었다. 워크플로, Docker 패키징, 프런트엔드 및 백엔드 코드를 기준 A와 대조했다. |
+| 전체 백엔드 | 정상 `./.venv/Scripts/python.exe -m pytest -q`는 330건 통과, 종료 코드 0이었다. 기존 Starlette/AnyIO 사용 중단 경고 한 건이 있었다. |
+| 프런트엔드 기본 병렬 실행 | `npm.cmd --prefix frontend test -- --reporter=default`는 234건 통과, 2건 타임아웃, 종료 코드 1이었다. `src/verificationWorkspace.test.tsx`의 거절→시뮬레이션→채택 사례와 `src/publicExample.test.tsx`의 Salt Census 작업용 사본 두 개 사례가 각각 5초 제한에 걸렸다. 기준 A의 호스팅 실행에서는 같은 두 사례가 각각 2.318초, 2.053초에 통과했다. [기준 CI 로그](https://github.com/jllgame00/worldweaver/actions/runs/46019534340/job/140575264967) |
+| 전체 프런트엔드 단일 워커 | `npm.cmd --prefix frontend test -- --maxWorkers=1`은 48파일 236건 통과, 종료 코드 0이었다. |
+| 복구 테스트 계측 | 무시된 경로에서 복사본에 시간 기록만 추가했다. 단독 실행에서는 지도 준비 0.100초, 작업 공간 진입·빠른 검사까지 2.705초, 제안 거절 저장까지 3.510초, 시뮬레이션 준비까지 4.805초였다. 예제 테스트와 두 워커로 실행했을 때 각각 0.272초, 2.090초, 2.980초, 4.252초였다. 두 실행에서 모두 최종 채택·재검증 완료 전에 같은 5초 제한이 적용됐다. 초기 지도 준비보다 여러 UI·저장 단계의 누적 시간이 지배적이었고, 병렬 부하 없이도 재현됐다. 특정 저장 실패나 제품 결함은 관측되지 않았다. |
+
+프런트엔드 테스트, 단언, 타임아웃, 런타임, 워크플로는 R1에서 수정하지 않았다. 실제 호스팅 B·C와 Render 이력, IndexedDB 보존은 [오너 절차](DEPLOYMENT_EVIDENCE_PLAN.md)에 남겨 두었다.

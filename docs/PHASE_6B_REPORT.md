@@ -1,8 +1,25 @@
 # Phase 6B · 최초 공개 릴리스 검증
 
-**초기 이미지 게시와 수동 배포 검증 통과. 첫 자동 Render 배포는 후속 main 릴리스에서 확인한다.**
+**초기 수동 배포와 첫 자동 Render 배포를 확인했다. 첫 자동 배포를 Phase 6C의 공개 기준 A로 기록한다.**
 
-## 기준과 게시 근거
+## 첫 자동 배포 · 공개 기준 A
+
+| 항목 | 확인 결과 |
+|---|---|
+| 리비전과 트리거 | PR #3을 병합한 `main` push의 전체 SHA는 `33abe573d3378a7471344d30eb31d0e3d2e13a19`이다. GitHub `main` 조회 결과도 동일했다. [PR #3](https://github.com/jllgame00/worldweaver/pull/3) · [main](https://github.com/jllgame00/worldweaver/tree/main) |
+| 호스팅 CI | 2026-11-27 14:50 UTC에 시작한 실행 `46019534340`에서 테스트·계약, 프런트엔드 빌드, `WORLDWEAVER required`, 이미지 빌드·스모크, 이미지 게시, Render 배포가 모두 성공했다. pytest 329건, Vitest 48파일 236건이다. [Actions 실행](https://github.com/jllgame00/worldweaver/actions/runs/46019534340) · [테스트 로그](https://github.com/jllgame00/worldweaver/actions/runs/46019534340/job/140575264967) |
+| 게시와 배포 | 태그 `sha-33abe573d3378a7471344d30eb31d0e3d2e13a19`의 게시 다이제스트는 `sha256:446097c166f507d0820a0df93817937b4ed02d6d59edf1de49fc5f480067f041`이다. 배포 컨트롤러가 14:55:29 UTC에 Render 배포 `dep-dc4pjg8u01pc73eu9b10`의 동일 다이제스트와 전체 SHA를 검증했다. [게시 로그](https://github.com/jllgame00/worldweaver/actions/runs/46019534340/job/140577087052) · [배포 로그](https://github.com/jllgame00/worldweaver/actions/runs/46019534340/job/140577373724) |
+| 직전 건강한 배포 | 같은 컨트롤러 로그에 수동 배포 SHA `a2e277e0ba463e044ce75c7e6af17c8a1e7af1ae`, 배포 ID `dep-dc4kmf95efls739nfl6g`, 다이제스트 `sha256:a39ee2c85c8271ee8aec5aaa12ffcd44ebdbcdf8e34ece08de490fe6f2356753`가 기록됐다. [배포 로그](https://github.com/jllgame00/worldweaver/actions/runs/46019534340/job/140577373724) |
+
+2026-11-28 02:37 UTC에 운영 주소에서 아래 스모크가 종료 코드 0과 `Healthy image 33abe573d3378a7471344d30eb31d0e3d2e13a19`를 반환했다.
+
+~~~powershell
+./.venv/Scripts/python.exe scripts/render_release.py smoke --origin https://worldweaver-8mbz.onrender.com --commit 33abe573d3378a7471344d30eb31d0e3d2e13a19
+~~~
+
+같은 시각에 `/health`는 HTTP 200, `status=ok`, `version=1.0.0`, 일치하는 전체 SHA, `backendReady=true`, `frontendReady=true`, `executionMode=public-demo`, `providerMode=disabled`, `liveEnabled=false`, `persistence=browser-indexeddb`를 반환했다. Render 내부 기록은 호스팅 배포 컨트롤러 로그에서 확인했다. 테스트 실패 후 운영 상태와 브라우저 데이터 보존은 후속 실험에서 확인한다. [공개 health](https://worldweaver-8mbz.onrender.com/health) · [6C 차단과 6D 복구 절차](DEPLOYMENT_EVIDENCE_PLAN.md)
+
+## 초기 수동 배포와 게시 근거
 
 | 항목 | 확인 결과 |
 |---|---|
@@ -12,7 +29,7 @@
 | 이미지 | 태그 `sha-a2e277e0ba463e044ce75c7e6af17c8a1e7af1ae`의 게시 로그에서 digest `sha256:a39ee2c85c8271ee8aec5aaa12ffcd44ebdbcdf8e34ece08de490fe6f2356753`을 확인했다. 러너의 로컬 이미지 크기는 149,267,753바이트였다. [게시 로그](https://github.com/jllgame00/worldweaver/actions/runs/45969940615/job/140409542274) · [이미지 스모크 로그](https://github.com/jllgame00/worldweaver/actions/runs/45969940615/job/140409230323) |
 | Render | 서비스 ID `srv-dc4kk0c9v7es73fbfv5g`에 초기 이미지를 수동 배포했다는 소유자 기록이 있다. 공개 HTTP의 전체 SHA는 확인했다. Render 내부 배포 ID와 런타임 이미지 digest는 공개 응답에서 확인할 수 없다. [공개 서비스](https://worldweaver-8mbz.onrender.com) |
 
-## 실제 공개 서비스 확인
+## 초기 이미지의 공개 서비스 확인
 
 2026-11-27 09:26 UTC에 기존 읽기 전용 스모크 명령과 추가 HTTPS GET으로 확인했다.
 
@@ -28,17 +45,3 @@
 ## 로컬 회귀
 
 pytest 329건과 Vitest 48파일 236건이 통과했다. Vite 빌드에 포함된 생성 타입 동기화와 엄격한 TypeScript, 정본·전송 스키마 5종, actionlint, `git diff --check`도 통과했다. pytest에서 기존 Starlette 사용 중단 경고 한 건이 나왔다.
-
-## 첫 자동 배포를 확인하는 소유자 절차
-
-1. 이 브랜치의 문서 변경을 검토하고 `docs(release): record initial production deployment and verification plan`으로 커밋한다. 브랜치를 게시하고 `main` 대상 PR을 열어 필수 검사와 이미지 스모크를 확인한다.
-2. 병합 전에 소유자가 설정한 `PUBLICATION_ENABLED=true`, `DEPLOYMENT_ENABLED=true`와 GitHub `production` 환경의 운영 대상, 필요한 승인 조건을 확인한다. 자격증명 값은 캡처와 보고서에서 제외한다. [설정 위치와 이름](DEPLOYMENT_GUIDE.md)
-3. 승인 후 병합하고 PR 실행 대신 **병합으로 시작된 main push 실행**을 연다. 새 전체 SHA로 필수 검사, 이미지 스모크, `Publish verified image`, `Deploy digest and verify release` 모두 성공했는지 확인한다. 게시 digest, 컨트롤러가 확인한 이전 건강한 SHA, 새 Render 배포 ID 및 최종 검증 SHA를 기록한다.
-4. 아래 `$releaseSha`에 Actions 실행의 전체 SHA를 넣어 재확인한다. 운영 주소와 기존 예제 URL을 연다. 이때의 정확한 실행 URL과 Render 이벤트가 첫 자동 배포 근거다.
-
-~~~powershell
-$releaseSha = '<main push Actions 실행의 전체 SHA>'
-.\.venv\Scripts\python.exe scripts/render_release.py smoke --origin https://worldweaver-8mbz.onrender.com --commit $releaseSha
-~~~
-
-게시·배포 활성화와 Render 자격 구성은 소유자 보고다. 자격의 유효성, 자동 배포, 브라우저 세션의 저장 보존과 실패 차단은 각각 실제 후속 실행에서 판정한다. 의도적 테스트 실패와 새 정상 커밋 복구는 전용 증거 서비스에서 실행하는 것이 기본 경로다. [6C 차단과 6D 복구 절차](DEPLOYMENT_EVIDENCE_PLAN.md)
